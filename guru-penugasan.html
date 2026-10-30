@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guru & Penugasan — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="xlsx-autofit.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="kepsek-readonly.js?v=8"></script>
+<script src="kepsek-nav.js?v=5"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=2" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<style>
+  /* ---------- Guru & Penugasan ---------- */
+  .gp-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;}
+  .gp-filter input[type="search"],.gp-filter select{
+    font:inherit;font-size:13.5px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;
+    background:var(--surface,#fff);color:var(--ink);min-width:0;}
+  .gp-filter input[type="search"]{flex:1 1 240px;max-width:360px;}
+  .gp-filter input:focus,.gp-filter select:focus{outline:2px solid var(--primary,#4f46e5);outline-offset:-1px;}
+  .gp-count{font-size:12.5px;color:var(--ink-soft);margin-left:auto;}
+
+  .gp-nama{display:flex;align-items:center;gap:10px;font-weight:700;}
+  .gp-chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .gp-sub{font-size:12px;color:var(--ink-soft);}
+  .gp-det summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--primary-dim,#3730a3);list-style-position:inside;}
+  .gp-det ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55;color:var(--ink-soft);}
+  .gp-det ul b{color:var(--ink);font-weight:700;}
+  .gp-tak{color:var(--ink-soft);}
+  .gp-list{margin:0;padding:0;list-style:none;font-size:12.5px;line-height:1.55;}
+
+  .gp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:24px;}
+  .gp-card{background:var(--surface,#fff);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;box-shadow:var(--shadow-sm);min-width:0;}
+  .gp-card--kosong{border-color:var(--danger-border,#fecaca);}
+  .gp-card__t{font-family:var(--font-display);font-weight:700;font-size:14.5px;color:var(--ink);}
+  .gp-card__d{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .gp-pj{display:flex;flex-direction:column;gap:5px;padding:10px 0;border-top:1px solid var(--border);}
+  .gp-pj:first-of-type{margin-top:12px;}
+  .gp-pj__n{font-weight:700;font-size:13px;color:var(--ink);}
+  .gp-hint{font-size:12px;color:var(--ink-soft);margin:0 0 14px;}
+  .gp-galat{color:var(--danger,#dc2626);}
+
+  /* matriks penugasan intrakurikuler */
+  .pt-table{border-collapse:separate;border-spacing:0;min-width:100%;}
+  .pt-table th,.pt-table td{padding:9px 12px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:13px;white-space:nowrap;}
+  .pt-table thead th{background:var(--surface-tint,#f8fafc);text-align:center;font-weight:800;}
+  .pt-table .pt-tingkat{background:var(--primary-tint,#eef2ff);color:var(--primary-dim,#3730a3);letter-spacing:.02em;}
+  .pt-table .pt-kelas{font-size:12px;}
+  .pt-table td.pt-c{text-align:center;}
+  .pt-table td.pt-ya{color:var(--success,#16a34a);font-weight:800;background:rgba(22,163,74,.08);}
+  .pt-table .pt-s1{position:sticky;left:0;z-index:2;min-width:220px;max-width:220px;overflow:hidden;text-overflow:ellipsis;text-align:left;background:var(--surface,#fff);}
+  .pt-table .pt-s2{position:sticky;left:220px;z-index:2;min-width:200px;text-align:left;background:var(--surface,#fff);box-shadow:2px 0 0 var(--border);}
+  .pt-table thead .pt-s1,.pt-table thead .pt-s2{z-index:3;background:var(--surface-tint,#f8fafc);}
+  .pt-table tfoot td,.pt-table tfoot th{background:var(--surface-tint,#f8fafc);font-weight:800;}
+  .pt-table td.pt-guru-pertama{font-weight:700;}
+
+  @media screen and (max-width:860px){
+    .gp-grid{grid-template-columns:1fr;}
+    .gp-count{margin-left:0;flex-basis:100%;}
+    .pt-table .pt-s1{min-width:150px;max-width:150px;}
+    .pt-table .pt-s2{left:150px;min-width:140px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div class="sidebar__brand-text">
+        <span class="sidebar__brand-mark">Guru &amp; Penugasan</span>
+        <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
+      </div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="shield-check" style="width:13px;height:13px;"></i> Kepala Sekolah</div>
+
+    <nav class="menu-list" id="menuGP">
+      <a href="#" class="menu-item" data-view="guru"><i data-lucide="contact" class="menu-icon"></i><span class="menu-item__title">Data Guru</span></a>
+      <a href="#" class="menu-item" data-view="intra"><i data-lucide="briefcase" class="menu-icon"></i><span class="menu-item__title">Intrakurikuler</span></a>
+      <a href="#" class="menu-item" data-view="koku"><i data-lucide="sparkles" class="menu-icon"></i><span class="menu-item__title">Kokurikuler</span></a>
+      <a href="#" class="menu-item" data-view="ekskul"><i data-lucide="medal" class="menu-icon"></i><span class="menu-item__title">Ekstrakurikuler</span></a>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div style="margin-bottom:8px; opacity:0.8;">SMK Widya Mandala Tambak · Banyumas</div>
+      <div style="margin-top:8px;font-size:10px;opacity:0.45;">developed by Hanif Shohibul A.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar__title">Guru &amp; Penugasan</div>
+        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Memuat tahun ajaran aktif...</div><a href="portal.html" class="btn-small topbar__app"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Menu Utama</a></div>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip__text">
+          <div class="user-chip__name" id="userName">Memuat...</div>
+          <div class="user-chip__role" id="userRole">Kepala Sekolah</div>
+          <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
+        </div>
+        <div class="user-chip__avatar" id="userAvatar">•</div>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+      <div class="panel-note">Memuat data guru dan penugasan...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  var content = document.getElementById('content');
+  var topbarMeta = document.getElementById('topbarMeta');
+  var tahunAktif = null;
+  var D = null;            // semua data hasil muat (hanya-baca)
+  var viewAktif = 'guru';
+
+  var ROMAWI_TINGKAT = { 10: 'X', 11: 'XI', 12: 'XII' };
+
+  // ---------- util ----------
+  function esc(s) {
+    return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function banding(a, b) { return String(a).localeCompare(String(b), 'id', { numeric: true, sensitivity: 'base' }); }
+  function angka(n) { return (n === null || n === undefined) ? '—' : Number(n).toLocaleString('id-ID'); }
+  function icons() { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } }
+
+  function urutKelas(list) {
+    return list.slice().sort(function (a, b) {
+      return (Number(a.tingkat) - Number(b.tingkat)) || banding(a.nama, b.nama);
+    });
+  }
+
+  // Ambil semua baris walau lebih dari batas 1000 baris per permintaan.
+  async function ambilSemua(buat) {
+    var hasil = [], dari = 0, ukuran = 1000;
+    while (true) {
+      var r = await buat(dari, dari + ukuran - 1);
+      if (r.error) throw r.error;
+      var d = r.data || [];
+      hasil = hasil.concat(d);
+      if (d.length < ukuran) break;
+      dari += ukuran;
+    }
+    return hasil;
+  }
+
+  function tulisExcel(rows, headers, sheetName, namaFile) {
+    var ws = autoFitKolom(XLSX.utils.json_to_sheet(rows, { header: headers }));
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    unduhXlsxRapi(wb, namaFile);
+  }
+
+  function kepala(judul, desc) {
+    return '<div class="panel-head"><div><div class="panel-head__title">' + esc(judul) + '</div>' +
+      '<div class="panel-head__desc">' + desc + '</div></div></div>';
+  }
+  function kartu(ikon, label, nilai, sub) {
+    return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + ikon + '"></i> ' + esc(label) + '</div>' +
+      '<div class="stat-card__value">' + angka(nilai) + '</div>' +
+      (sub ? '<div class="stat-card__sub">' + esc(sub) + '</div>' : '') + '</div>';
+  }
+  function kosong(judul, desc) {
+    return '<div class="empty-state"><div class="empty-state__title">' + esc(judul) + '</div>' +
+      '<div class="empty-state__desc">' + desc + '</div></div>';
+  }
+  function tanpaTahun(untuk) {
+    return '<div class="empty-state"><div class="empty-state__mark">！</div><div class="empty-state__title">Belum ada tahun ajaran aktif</div>' +
+      '<div class="empty-state__desc">Tahun ajaran aktif belum ditetapkan, sehingga ' + untuk + ' belum dapat ditampilkan.</div></div>';
+  }
+  function namaKelasUrut(setNama) {
+    var arr = Object.keys(setNama);
+    arr.sort(function (a, b) { return (D.urutKelas[a] != null ? D.urutKelas[a] : 9999) - (D.urutKelas[b] != null ? D.urutKelas[b] : 9999) || banding(a, b); });
+    return arr;
+  }
+
+  // ---------- muat data ----------
+  async function muatTahunAktif() {
+    var r = await supabaseClient.from('tahun_ajaran').select('id, nama, semester').eq('is_aktif', true).maybeSingle();
+    tahunAktif = r.data;
+    topbarMeta.textContent = tahunAktif
+      ? 'Tahun Ajaran Aktif: ' + tahunAktif.nama + ' — Semester ' + tahunAktif.semester
+      : 'Belum ada tahun ajaran aktif.';
+  }
+
+  async function muatData() {
+    var d = { galat: {} };
+    function catat(kunci, e) { d.galat[kunci] = (e && e.message) ? e.message : String(e); }
+
+    // Guru (foto_path bisa belum ada kalau migrasi foto belum dijalankan)
+    var g = await supabaseClient.from('profiles').select('id, nama, foto_path').eq('role', 'guru').order('nama');
+    if (g.error) g = await supabaseClient.from('profiles').select('id, nama').eq('role', 'guru').order('nama');
+    if (g.error) throw g.error;
+    d.guru = (g.data || []).slice().sort(function (a, b) { return banding(a.nama, b.nama); });
+
+    var k = await supabaseClient.from('kelas').select('id, nama, tingkat');
+    d.kelas = urutKelas(k.data || []);
+    d.urutKelas = {};
+    d.kelas.forEach(function (x, i) { d.urutKelas[x.nama] = i; });
+
+    d.penugasan = []; d.wali = []; d.kegiatan = []; d.pj = []; d.ekskul = []; d.pembina = []; d.peserta = {};
+    if (!tahunAktif) return d;
+    var ta = tahunAktif.id;
+
+    var jobs = [
+      ambilSemua(function (a, b) {
+        return supabaseClient.from('penugasan_guru')
+          .select('id, guru_id, guru:guru_id(nama), mapel:mapel_id(nama), kelas:kelas_id(nama)')
+          .eq('tahun_ajaran_id', ta).order('id').range(a, b);
+      }).then(function (r) { d.penugasan = r.filter(function (x) { return x.guru && x.mapel && x.kelas; }); }, function (e) { catat('penugasan', e); }),
+
+      supabaseClient.from('wali_kelas').select('guru_id, kelas:kelas_id(nama)').eq('tahun_ajaran_id', ta)
+        .then(function (r) { if (r.error) catat('wali', r.error); else d.wali = r.data || []; }),
+
+      supabaseClient.from('kegiatan_kokurikuler').select('id, nama, keterangan').eq('tahun_ajaran_id', ta)
+        .then(function (r) { if (r.error) catat('kegiatan', r.error); else d.kegiatan = r.data || []; }),
+
+      supabaseClient.from('pj_kokurikuler')
+        .select('id, nama_kegiatan, guru_id, kelas_id, guru:guru_id(nama), kelas:kelas_id(nama)').eq('tahun_ajaran_id', ta)
+        .then(function (r) { if (r.error) catat('pj', r.error); else d.pj = (r.data || []).filter(function (x) { return x.guru; }); }),
+
+      supabaseClient.from('ekstrakurikuler').select('id, nama').order('nama')
+        .then(function (r) { if (r.error) catat('ekskul', r.error); else d.ekskul = r.data || []; }),
+
+      supabaseClient.from('pembina_ekstrakurikuler')
+        .select('id, guru_id, ekstrakurikuler_id, guru:guru_id(nama)').eq('tahun_ajaran_id', ta)
+        .then(function (r) { if (r.error) catat('pembina', r.error); else d.pembina = (r.data || []).filter(function (x) { return x.guru; }); })
+    ];
+    await Promise.all(jobs);
+
+    // Jumlah peserta tiap ekskul (hitung saja, tanpa mengunduh barisnya)
+    await Promise.all(d.ekskul.map(function (e) {
+      return supabaseClient.from('ekstrakurikuler_siswa').select('id', { count: 'exact', head: true })
+        .eq('ekstrakurikuler_id', e.id).eq('tahun_ajaran_id', ta)
+        .then(function (r) { d.peserta[e.id] = r.error ? null : r.count; }, function () { d.peserta[e.id] = null; });
+    }));
+    return d;
+  }
+
+  // Susun ringkasan per guru dari data mentah
+  function susunGuru() {
+    var peta = {};
+    D.guru.forEach(function (g) {
+      g.wali = null; g.mengajar = {}; g.pj = {}; g.ekskul = [];
+      peta[g.id] = g;
+    });
+    D.wali.forEach(function (w) { if (peta[w.guru_id] && w.kelas) peta[w.guru_id].wali = w.kelas.nama; });
+    D.penugasan.forEach(function (p) {
+      var g = peta[p.guru_id]; if (!g) return;
+      (g.mengajar[p.mapel.nama] = g.mengajar[p.mapel.nama] || {})[p.kelas.nama] = true;
+    });
+    D.pj.forEach(function (p) {
+      var g = peta[p.guru_id]; if (!g) return;
+      var e = g.pj[p.nama_kegiatan] = g.pj[p.nama_kegiatan] || { semua: false, kelas: {} };
+      if (p.kelas) e.kelas[p.kelas.nama] = true; else e.semua = true;
+    });
+    var namaEkskul = {};
+    D.ekskul.forEach(function (e) { namaEkskul[e.id] = e.nama; });
+    D.pembina.forEach(function (p) {
+      var g = peta[p.guru_id]; if (!g || !namaEkskul[p.ekstrakurikuler_id]) return;
+      g.ekskul.push(namaEkskul[p.ekstrakurikuler_id]);
+    });
+    D.guru.forEach(function (g) {
+      g.ekskul.sort(banding);
+      g.nMapel = Object.keys(g.mengajar).length;
+      var semuaKelas = {};
+      Object.keys(g.mengajar).forEach(function (m) { Object.keys(g.mengajar[m]).forEach(function (k) { semuaKelas[k] = true; }); });
+      g.nKelas = Object.keys(semuaKelas).length;
+      g.punyaMengajar = g.nMapel > 0;
+      g.punyaPJ = Object.keys(g.pj).length > 0;
+      g.punyaEkskul = g.ekskul.length > 0;
+      g.punyaTugas = !!g.wali || g.punyaMengajar || g.punyaPJ || g.punyaEkskul;
+    });
+  }
+
+  function teksLingkupPJ(e) {
+    if (e.semua) return 'Semua Kelas';
+    return namaKelasUrut(e.kelas).join(', ');
+  }
+
+  // =====================================================================
+  // TAB 1 — DATA GURU
+  // =====================================================================
+  var filterGuru = { q: '', peran: '' };
+
+  function barisGuruHtml(g) {
+    var chip = [];
+    if (g.wali) chip.push('<span class="chip chip--aktif">Wali Kelas ' + esc(g.wali) + '</span>');
+    if (g.punyaMengajar) chip.push('<span class="chip chip--muted">Guru Mapel</span>');
+    if (g.punyaPJ) chip.push('<span class="chip chip--muted">PJ Kokurikuler</span>');
+    if (g.punyaEkskul) chip.push('<span class="chip chip--muted">Pembina Ekskul</span>');
+    if (!chip.length) chip.push('<span class="chip chip--danger">Belum ada tugas</span>');
+
+    var mengajar = '<span class="gp-tak">—</span>';
+    if (g.punyaMengajar) {
+      var mapelUrut = Object.keys(g.mengajar).sort(banding);
+      mengajar = '<details class="gp-det"><summary>' + g.nMapel + ' mapel · ' + g.nKelas + ' kelas</summary><ul>' +
+        mapelUrut.map(function (m) { return '<li><b>' + esc(m) + '</b>: ' + esc(namaKelasUrut(g.mengajar[m]).join(', ')) + '</li>'; }).join('') +
+        '</ul></details>';
+    }
+
+    var pj = '<span class="gp-tak">—</span>';
+    if (g.punyaPJ) {
+      pj = '<ul class="gp-list">' + Object.keys(g.pj).sort(banding).map(function (kg) {
+        return '<li><b>' + esc(kg) + '</b><div class="gp-sub">' + esc(teksLingkupPJ(g.pj[kg])) + '</div></li>';
+      }).join('') + '</ul>';
+    }
+
+    var ekskul = g.punyaEkskul
+      ? '<ul class="gp-list">' + g.ekskul.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>'
+      : '<span class="gp-tak">—</span>';
+
+    return '<tr>' +
+      '<td><span class="fp-av" style="width:36px;height:36px;font-size:13px;" data-fp-id="' + g.id + '" data-fp-nama="' + esc(g.nama) + '"' +
+        (g.foto_path ? ' data-fp-path="' + esc(g.foto_path) + '"' : '') + '></span></td>' +
+      '<td><div class="gp-nama">' + esc(g.nama) + '</div></td>' +
+      '<td><div class="gp-chips">' + chip.join('') + '</div></td>' +
+      '<td>' + mengajar + '</td><td>' + pj + '</td><td>' + ekskul + '</td></tr>';
+  }
+
+  function guruTersaring() {
+    var q = filterGuru.q.trim().toLowerCase();
+    return D.guru.filter(function (g) {
+      if (q && g.nama.toLowerCase().indexOf(q) === -1) return false;
+      switch (filterGuru.peran) {
+        case 'wali': return !!g.wali;
+        case 'mengajar': return g.punyaMengajar;
+        case 'pj': return g.punyaPJ;
+        case 'ekskul': return g.punyaEkskul;
+        case 'kosong': return !g.punyaTugas;
+      }
+      return true;
+    });
+  }
+
+  function isiTabelGuru() {
+    var daftar = guruTersaring();
+    var wadah = document.getElementById('guruTabelWrap');
+    document.getElementById('guruJumlah').textContent = daftar.length + ' dari ' + D.guru.length + ' guru';
+    if (!daftar.length) {
+      wadah.innerHTML = kosong('Tidak ada guru yang cocok', 'Coba ubah kata kunci atau pilihan peran.');
+      return;
+    }
+    wadah.innerHTML = '<div class="table-wrap" style="overflow:auto;"><table class="data-table"><thead><tr>' +
+      '<th style="width:52px;">Foto</th><th>Nama Guru</th><th>Peran</th><th>Tugas Mengajar</th><th>PJ Kokurikuler</th><th>Pembina Ekskul</th>' +
+      '</tr></thead><tbody>' + daftar.map(barisGuruHtml).join('') + '</tbody></table></div>';
+    if (window.FotoProfil) FotoProfil.isiAvatar(wadah);
+  }
+
+  function renderGuru() {
+    var h = kepala('Data Guru', 'Daftar guru beserta seluruh tugasnya' + (tahunAktif ? ' pada Tahun Ajaran ' + esc(tahunAktif.nama) : '') +
+      ': wali kelas, guru mata pelajaran, penanggung jawab kokurikuler, dan pembina ekstrakurikuler.');
+
+    if (!D.guru.length) { content.innerHTML = h + kosong('Belum ada data guru', 'Belum ada akun guru yang tercatat.'); return; }
+
+    var nWali = 0, nMengajar = 0, nPJ = 0, nEkskul = 0, nKosong = 0;
+    D.guru.forEach(function (g) {
+      if (g.wali) nWali++; if (g.punyaMengajar) nMengajar++; if (g.punyaPJ) nPJ++; if (g.punyaEkskul) nEkskul++; if (!g.punyaTugas) nKosong++;
+    });
+
+    content.innerHTML = h +
+      (tahunAktif ? '' : '<div class="panel-note">Tahun ajaran aktif belum ditetapkan, jadi tugas guru belum dapat ditampilkan.</div>') +
+      '<div class="stat-grid">' +
+        kartu('users', 'Jumlah Guru', D.guru.length) +
+        kartu('user-check', 'Wali Kelas', nWali) +
+        kartu('book-open', 'Guru Mapel', nMengajar) +
+        kartu('sparkles', 'PJ Kokurikuler', nPJ) +
+        kartu('medal', 'Pembina Ekskul', nEkskul) +
+        kartu('user-x', 'Belum Ada Tugas', nKosong) +
+      '</div>' +
+      '<div class="toolbar"><button class="btn-small" id="btnUnduhGuru">⬇ Unduh Data (Excel)</button></div>' +
+      '<div class="gp-filter">' +
+        '<input type="search" id="guruCari" placeholder="Cari nama guru..." aria-label="Cari nama guru" value="' + esc(filterGuru.q) + '">' +
+        '<select id="guruPeran" aria-label="Saring berdasarkan peran">' +
+          '<option value="">Semua peran</option>' +
+          '<option value="wali">Wali Kelas</option>' +
+          '<option value="mengajar">Guru Mapel</option>' +
+          '<option value="pj">PJ Kokurikuler</option>' +
+          '<option value="ekskul">Pembina Ekskul</option>' +
+          '<option value="kosong">Belum ada tugas</option>' +
+        '</select>' +
+        '<span class="gp-count" id="guruJumlah"></span>' +
+      '</div>' +
+      '<div id="guruTabelWrap"></div>';
+
+    document.getElementById('guruPeran').value = filterGuru.peran;
+    document.getElementById('guruCari').addEventListener('input', function (e) { filterGuru.q = e.target.value; isiTabelGuru(); });
+    document.getElementById('guruPeran').addEventListener('change', function (e) { filterGuru.peran = e.target.value; isiTabelGuru(); });
+    document.getElementById('btnUnduhGuru').addEventListener('click', unduhGuru);
+    isiTabelGuru();
+  }
+
+  function unduhGuru() {
+    var headers = ['Nama Guru', 'Wali Kelas', 'Mata Pelajaran yang Diampu', 'PJ Kokurikuler', 'Pembina Ekstrakurikuler'];
+    var rows = guruTersaring().map(function (g) {
+      return {
+        'Nama Guru': g.nama,
+        'Wali Kelas': g.wali || '',
+        'Mata Pelajaran yang Diampu': Object.keys(g.mengajar).sort(banding).map(function (m) {
+          return m + ' (' + namaKelasUrut(g.mengajar[m]).join(', ') + ')';
+        }).join('; '),
+        'PJ Kokurikuler': Object.keys(g.pj).sort(banding).map(function (kg) { return kg + ' (' + teksLingkupPJ(g.pj[kg]) + ')'; }).join('; '),
+        'Pembina Ekstrakurikuler': g.ekskul.join('; ')
+      };
+    });
+    tulisExcel(rows, headers, 'Data Guru', 'data_guru.xlsx');
+  }
+
+  // =====================================================================
+  // TAB 2 — INTRAKURIKULER (PENUGASAN MAPEL)
+  // =====================================================================
+  var filterIntra = { q: '' };
+  var intraBaris = null;
+
+  function siapkanIntra() {
+    var peta = {}, kunci = [];
+    D.penugasan.forEach(function (x) {
+      var key = x.guru.nama + '\u0001' + x.mapel.nama;
+      if (!peta[key]) { peta[key] = { guru: x.guru.nama, mapel: x.mapel.nama, kelas: {} }; kunci.push(key); }
+      peta[key].kelas[x.kelas.nama] = true;
+    });
+    kunci.sort(function (a, b) { return banding(peta[a].guru, peta[b].guru) || banding(peta[a].mapel, peta[b].mapel); });
+    intraBaris = kunci.map(function (k) { return peta[k]; });
+  }
+
+  function headerKelas(kelasUrut, awal) {
+    var grup = [];
+    kelasUrut.forEach(function (k) {
+      var g = grup[grup.length - 1];
+      if (g && g.tingkat === k.tingkat) g.n++; else grup.push({ tingkat: k.tingkat, n: 1 });
+    });
+    return '<tr>' + awal + grup.map(function (g) {
+      return '<th colspan="' + g.n + '" class="pt-tingkat">Kelas ' + esc(ROMAWI_TINGKAT[g.tingkat] || g.tingkat) + '</th>';
+    }).join('') + '</tr><tr>' + kelasUrut.map(function (k) { return '<th class="pt-kelas">' + esc(k.nama) + '</th>'; }).join('') + '</tr>';
+  }
+
+  function barisIntraTersaring() {
+    var q = filterIntra.q.trim().toLowerCase();
+    if (!q) return intraBaris;
+    return intraBaris.filter(function (b) { return b.guru.toLowerCase().indexOf(q) !== -1 || b.mapel.toLowerCase().indexOf(q) !== -1; });
+  }
+
+  function isiTabelIntra() {
+    var rows = barisIntraTersaring(), wadah = document.getElementById('intraTabelWrap');
+    var guruSet = {}; rows.forEach(function (b) { guruSet[b.guru] = true; });
+    document.getElementById('intraJumlah').textContent = Object.keys(guruSet).length + ' guru · ' + rows.length + ' baris mapel';
+    if (!rows.length) { wadah.innerHTML = kosong('Tidak ada data yang cocok', 'Coba ubah kata kunci pencarian.'); return; }
+
+    var kelas = D.kelas, sebelumnya = null;
+    var tbody = rows.map(function (b) {
+      var ulang = b.guru === sebelumnya; sebelumnya = b.guru;
+      return '<tr><td class="pt-s1' + (ulang ? '' : ' pt-guru-pertama') + '">' + (ulang ? '' : esc(b.guru)) + '</td>' +
+        '<td class="pt-s2">' + esc(b.mapel) + '</td>' +
+        kelas.map(function (k) { return b.kelas[k.nama] ? '<td class="pt-c pt-ya">✓</td>' : '<td class="pt-c"></td>'; }).join('') + '</tr>';
+    }).join('');
+    var tfoot = '<tr><td class="pt-s1">Jumlah penugasan</td><td class="pt-s2"></td>' + kelas.map(function (k) {
+      var n = 0; rows.forEach(function (b) { if (b.kelas[k.nama]) n++; });
+      return '<td class="pt-c">' + n + '</td>';
+    }).join('') + '</tr>';
+
+    wadah.innerHTML = '<div class="table-wrap" style="overflow:auto;"><table class="data-table pt-table"><thead>' +
+      headerKelas(kelas, '<th rowspan="2" class="pt-s1">Guru</th><th rowspan="2" class="pt-s2">Mata Pelajaran</th>') +
+      '</thead><tbody>' + tbody + '</tbody><tfoot>' + tfoot + '</tfoot></table></div>';
+  }
+
+  function renderIntra() {
+    var h = kepala('Penugasan Intrakurikuler', 'Guru pengampu mata pelajaran di tiap kelas' +
+      (tahunAktif ? ', Tahun Ajaran ' + esc(tahunAktif.nama) : '') + '. Tanda ✓ berarti guru tersebut mengampu mata pelajaran itu di kelas yang bersangkutan.');
+    if (!tahunAktif) { content.innerHTML = h + tanpaTahun('penugasan mengajar'); return; }
+    if (D.galat.penugasan) { content.innerHTML = h + kosong('Data penugasan belum dapat dimuat', esc(D.galat.penugasan)); return; }
+    if (!D.kelas.length || !D.penugasan.length) {
+      content.innerHTML = h + kosong('Belum ada penugasan mengajar', 'Penugasan guru mata pelajaran belum diisi untuk tahun ajaran ini.');
+      return;
+    }
+    if (!intraBaris) siapkanIntra();
+
+    var nGuru = {}; intraBaris.forEach(function (b) { nGuru[b.guru] = true; });
+    content.innerHTML = h +
+      '<div class="stat-grid">' +
+        kartu('users', 'Guru Mengampu', Object.keys(nGuru).length) +
+        kartu('book-open', 'Mapel Diampu', (function () { var s = {}; intraBaris.forEach(function (b) { s[b.mapel] = true; }); return Object.keys(s).length; })()) +
+        kartu('school', 'Kelas', D.kelas.length) +
+        kartu('list-checks', 'Total Penugasan', D.penugasan.length, 'kombinasi guru – mapel – kelas') +
+      '</div>' +
+      '<div class="toolbar"><button class="btn-small" id="btnUnduhIntra">⬇ Unduh Excel</button></div>' +
+      '<div class="gp-filter"><input type="search" id="intraCari" placeholder="Cari guru atau mata pelajaran..." aria-label="Cari guru atau mata pelajaran" value="' + esc(filterIntra.q) + '">' +
+        '<span class="gp-count" id="intraJumlah"></span></div>' +
+      '<div id="intraTabelWrap"></div>';
+
+    document.getElementById('intraCari').addEventListener('input', function (e) { filterIntra.q = e.target.value; isiTabelIntra(); });
+    document.getElementById('btnUnduhIntra').addEventListener('click', function () {
+      var headers = ['Guru', 'Mata Pelajaran'].concat(D.kelas.map(function (k) { return k.nama; }));
+      var rows = barisIntraTersaring().map(function (b) {
+        var row = { 'Guru': b.guru, 'Mata Pelajaran': b.mapel };
+        D.kelas.forEach(function (k) { row[k.nama] = b.kelas[k.nama] ? '✓' : ''; });
+        return row;
+      });
+      tulisExcel(rows, headers, 'Penugasan Intrakurikuler', 'penugasan_intrakurikuler.xlsx');
+    });
+    isiTabelIntra();
+  }
+
+  // =====================================================================
+  // TAB 3 — KOKURIKULER
+  // =====================================================================
+  function kelompokKoku() {
+    // nama kegiatan -> { nama, keterangan, pj: { guru_id: { nama, semua, kelas:{} } } }
+    var peta = {}, urut = [];
+    D.kegiatan.slice().sort(function (a, b) { return banding(a.nama, b.nama); }).forEach(function (k) {
+      peta[k.nama.toLowerCase()] = { nama: k.nama, keterangan: k.keterangan || '', pj: {}, terdaftar: true };
+      urut.push(k.nama.toLowerCase());
+    });
+    D.pj.forEach(function (p) {
+      var kunci = String(p.nama_kegiatan || '').toLowerCase();
+      if (!peta[kunci]) { peta[kunci] = { nama: p.nama_kegiatan, keterangan: '', pj: {}, terdaftar: false }; urut.push(kunci); }
+      var e = peta[kunci].pj[p.guru_id] = peta[kunci].pj[p.guru_id] || { nama: p.guru.nama, semua: false, kelas: {} };
+      if (p.kelas) e.kelas[p.kelas.nama] = true; else e.semua = true;
+    });
+    return urut.map(function (k) { return peta[k]; });
+  }
+
+  function renderKoku() {
+    var h = kepala('Kokurikuler', 'Kegiatan kokurikuler beserta guru penanggung jawab (PJ) dan lingkup kelasnya' +
+      (tahunAktif ? ', Tahun Ajaran ' + esc(tahunAktif.nama) : '') + '. PJ inilah yang mengisi deskripsi capaian kokurikuler siswa.');
+    if (!tahunAktif) { content.innerHTML = h + tanpaTahun('data kokurikuler'); return; }
+    if (D.galat.pj || D.galat.kegiatan) {
+      content.innerHTML = h + kosong('Data kokurikuler belum dapat dimuat', esc(D.galat.pj || D.galat.kegiatan));
+      return;
+    }
+    var daftar = kelompokKoku();
+    if (!daftar.length) { content.innerHTML = h + kosong('Belum ada kegiatan kokurikuler', 'Kegiatan kokurikuler belum disusun untuk tahun ajaran ini.'); return; }
+
+    var tanpaPJ = daftar.filter(function (k) { return !Object.keys(k.pj).length; }).length;
+    var guruPJ = {}; D.pj.forEach(function (p) { guruPJ[p.guru_id] = true; });
+
+    content.innerHTML = h +
+      '<div class="stat-grid">' +
+        kartu('sparkles', 'Kegiatan', daftar.length) +
+        kartu('user-check', 'Sudah Ada PJ', daftar.length - tanpaPJ) +
+        kartu('user-x', 'Belum Ada PJ', tanpaPJ) +
+        kartu('users', 'Guru PJ', Object.keys(guruPJ).length) +
+      '</div>' +
+      '<div class="toolbar"><button class="btn-small" id="btnUnduhKoku">⬇ Unduh Data (Excel)</button></div>' +
+      '<div class="gp-grid">' + daftar.map(function (k) {
+        var ids = Object.keys(k.pj).sort(function (a, b) { return banding(k.pj[a].nama, k.pj[b].nama); });
+        return '<div class="gp-card' + (ids.length ? '' : ' gp-card--kosong') + '">' +
+          '<div class="gp-card__t">' + esc(k.nama) + '</div>' +
+          (k.keterangan ? '<div class="gp-card__d">' + esc(k.keterangan) + '</div>' : '') +
+          (ids.length ? ids.map(function (id) {
+            var e = k.pj[id];
+            var lingkup = e.semua ? ['Semua Kelas'] : namaKelasUrut(e.kelas);
+            return '<div class="gp-pj"><div class="gp-pj__n">' + esc(e.nama) + '</div><div class="gp-chips">' +
+              lingkup.map(function (n) { return '<span class="chip chip--muted">' + esc(n) + '</span>'; }).join('') + '</div></div>';
+          }).join('') : '<div class="gp-pj"><span class="chip chip--danger" style="align-self:flex-start;">Belum ada PJ</span></div>') +
+          (k.terdaftar ? '' : '<div class="gp-sub" style="margin-top:6px;">Belum tercatat di daftar kegiatan.</div>') +
+          '</div>';
+      }).join('') + '</div>';
+
+    document.getElementById('btnUnduhKoku').addEventListener('click', function () {
+      var headers = ['Kegiatan', 'Keterangan', 'Penanggung Jawab', 'Kelas'];
+      var rows = [];
+      daftar.forEach(function (k) {
+        var ids = Object.keys(k.pj).sort(function (a, b) { return banding(k.pj[a].nama, k.pj[b].nama); });
+        if (!ids.length) { rows.push({ 'Kegiatan': k.nama, 'Keterangan': k.keterangan, 'Penanggung Jawab': '(belum ada PJ)', 'Kelas': '' }); return; }
+        ids.forEach(function (id) {
+          var e = k.pj[id];
+          rows.push({ 'Kegiatan': k.nama, 'Keterangan': k.keterangan, 'Penanggung Jawab': e.nama, 'Kelas': e.semua ? 'Semua Kelas' : namaKelasUrut(e.kelas).join(', ') });
+        });
+      });
+      tulisExcel(rows, headers, 'PJ Kokurikuler', 'pj_kokurikuler.xlsx');
+    });
+  }
+
+  // =====================================================================
+  // TAB 4 — EKSTRAKURIKULER
+  // =====================================================================
+  function renderEkskul() {
+    var h = kepala('Ekstrakurikuler', 'Pembina tiap ekstrakurikuler beserta jumlah pesertanya' +
+      (tahunAktif ? ', Tahun Ajaran ' + esc(tahunAktif.nama) : '') + '.');
+    if (!tahunAktif) { content.innerHTML = h + tanpaTahun('data ekstrakurikuler'); return; }
+    if (D.galat.ekskul || D.galat.pembina) {
+      content.innerHTML = h + kosong('Data ekstrakurikuler belum dapat dimuat', esc(D.galat.ekskul || D.galat.pembina));
+      return;
+    }
+    if (!D.ekskul.length) { content.innerHTML = h + kosong('Belum ada ekstrakurikuler', 'Daftar ekstrakurikuler belum diisi.'); return; }
+
+    var pembinaPer = {};
+    D.pembina.forEach(function (p) { (pembinaPer[p.ekstrakurikuler_id] = pembinaPer[p.ekstrakurikuler_id] || []).push(p.guru.nama); });
+    Object.keys(pembinaPer).forEach(function (k) { pembinaPer[k].sort(banding); });
+
+    var daftar = D.ekskul.slice().sort(function (a, b) { return banding(a.nama, b.nama); });
+    var tanpa = daftar.filter(function (e) { return !(pembinaPer[e.id] || []).length; }).length;
+    var guruPembina = {}; D.pembina.forEach(function (p) { guruPembina[p.guru_id] = true; });
+    var totalPeserta = 0, adaHitung = false;
+    daftar.forEach(function (e) { if (D.peserta[e.id] != null) { totalPeserta += D.peserta[e.id]; adaHitung = true; } });
+
+    content.innerHTML = h +
+      '<div class="stat-grid">' +
+        kartu('medal', 'Ekstrakurikuler', daftar.length) +
+        kartu('user-check', 'Sudah Ada Pembina', daftar.length - tanpa) +
+        kartu('user-x', 'Belum Ada Pembina', tanpa) +
+        kartu('users', 'Guru Pembina', Object.keys(guruPembina).length) +
+        kartu('graduation-cap', 'Peserta (keikutsertaan)', adaHitung ? totalPeserta : null, 'siswa dihitung per ekskul yang diikuti') +
+      '</div>' +
+      '<div class="toolbar"><button class="btn-small" id="btnUnduhEkskul">⬇ Unduh Data (Excel)</button></div>' +
+      '<div class="table-wrap" style="overflow:auto;"><table class="data-table"><thead><tr>' +
+      '<th>Ekstrakurikuler</th><th>Pembina</th><th style="text-align:right;">Jumlah Peserta</th></tr></thead><tbody>' +
+      daftar.map(function (e) {
+        var pb = pembinaPer[e.id] || [];
+        return '<tr><td><b>' + esc(e.nama) + '</b></td><td>' +
+          (pb.length ? '<div class="gp-chips">' + pb.map(function (n) { return '<span class="chip chip--muted">' + esc(n) + '</span>'; }).join('') + '</div>'
+                     : '<span class="chip chip--danger">Belum ada pembina</span>') +
+          '</td><td style="text-align:right;font-variant-numeric:tabular-nums;">' + angka(D.peserta[e.id]) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+
+    document.getElementById('btnUnduhEkskul').addEventListener('click', function () {
+      var headers = ['Ekstrakurikuler', 'Pembina', 'Jumlah Peserta'];
+      var rows = daftar.map(function (e) {
+        return { 'Ekstrakurikuler': e.nama, 'Pembina': (pembinaPer[e.id] || []).join('; ') || '(belum ada pembina)', 'Jumlah Peserta': D.peserta[e.id] == null ? '' : D.peserta[e.id] };
+      });
+      tulisExcel(rows, headers, 'Pembina Ekskul', 'pembina_ekstrakurikuler.xlsx');
+    });
+  }
+
+  // =====================================================================
+  // NAVIGASI & MULAI
+  // =====================================================================
+  var VIEWS = { guru: renderGuru, intra: renderIntra, koku: renderKoku, ekskul: renderEkskul };
+
+  function setActiveMenu(view) {
+    document.querySelectorAll('#menuGP .menu-item').forEach(function (m) {
+      m.classList.toggle('menu-item--active', m.dataset.view === view);
+    });
+  }
+
+  function tampil(view) {
+    if (!VIEWS[view]) view = 'guru';
+    viewAktif = view;
+    setActiveMenu(view);
+    try { history.replaceState(null, '', '#' + view); } catch (e) { /* abaikan */ }
+    VIEWS[view]();
+    icons();
+    var m = document.querySelector('.main'); if (m && m.scrollTo) m.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll('#menuGP .menu-item').forEach(function (item) {
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (!D) return; // data belum selesai dimuat
+      tampil(item.dataset.view);
+    });
+  });
+
+  (async function () {
+    var ses = await supabaseClient.auth.getSession();
+    var session = ses.data.session;
+    if (!session) { window.location.href = 'index.html'; return; }
+
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', session.user.id).single();
+    if (pr.error || !pr.data) { window.location.href = 'portal.html'; return; }
+    // Aplikasi ini untuk Kepala Sekolah (admin ikut boleh melihat). Guru dikembalikan ke menu utama.
+    if (pr.data.role !== 'kepsek' && pr.data.role !== 'admin') { window.location.href = 'portal.html'; return; }
+
+    var nama = pr.data.nama || session.user.email;
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
+    document.getElementById('userRole').textContent = pr.data.role === 'admin' ? 'Admin' : 'Kepala Sekolah';
+
+    try {
+      await muatTahunAktif();
+      D = await muatData();
+      susunGuru();
+    } catch (e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div><div class="empty-state__title">Data belum dapat dimuat</div>' +
+        '<div class="empty-state__desc">' + esc(e && e.message ? e.message : e) + '</div></div>';
+      return;
+    }
+
+    var awal = (location.hash || '').replace('#', '');
+    tampil(VIEWS[awal] ? awal : 'guru');
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+    await supabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+  });
+</script>
+
+</body>
+</html>

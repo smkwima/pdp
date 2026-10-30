@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masuk — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="slideshow.css?v=2">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<style id="introSplashCss">
+/* ===== Animasi pembuka halaman Masuk ===== */
+.intro-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(22,37,74,.86) 0%,rgba(11,18,32,.92) 70%);color:#f8fafc;cursor:pointer;
+  transition:transform .9s cubic-bezier(.77,0,.18,1),opacity .4s ease .6s;}
+.intro-splash.is-leaving{transform:translateY(-100%);opacity:0;pointer-events:none;}
+.intro-splash.is-gone{display:none;}
+.intro-splash__inner{display:flex;flex-direction:column;align-items:center;gap:28px;padding:24px;text-align:center;max-width:720px;}
+.intro-splash__logo{position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center;
+  opacity:0;transform:scale(.7);animation:introLogo .9s cubic-bezier(.2,.8,.2,1) .15s forwards;}
+.intro-splash__logo img{width:72px;height:auto;position:relative;z-index:1;}
+.intro-splash__logo svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);}
+.intro-splash__logo circle{fill:none;stroke:#60a5fa;stroke-width:2;stroke-linecap:round;stroke-dasharray:289;stroke-dashoffset:289;
+  animation:introRing 1.4s ease-in-out .3s forwards;}
+.intro-splash__text{margin:0;font-family:var(--font-display,'Plus Jakarta Sans',sans-serif);font-weight:700;
+  font-size:clamp(22px,4.6vw,40px);line-height:1.25;letter-spacing:-.01em;}
+.intro-splash__text .w{display:inline-block;opacity:0;filter:blur(10px);letter-spacing:.08em;
+  animation:introWord .75s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(1s + var(--i)*.14s);}
+.intro-splash__skip{position:absolute;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:#94a3b8;
+  opacity:0;animation:introFade .6s ease 1.4s forwards;}
+@keyframes introLogo{to{opacity:1;transform:scale(1);}}
+@keyframes introRing{to{stroke-dashoffset:0;}}
+@keyframes introWord{to{opacity:1;filter:blur(0);letter-spacing:-.01em;}}
+@keyframes introFade{to{opacity:1;}}
+.intro-splash__inner,.intro-splash__skip{position:relative;z-index:2;}
+.intro-splash__skip{position:absolute;}
+@media (prefers-reduced-motion:reduce){
+  .intro-splash,.intro-splash__logo,.intro-splash__logo circle,.intro-splash__text .w,.intro-splash__skip{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.2s!important;transition-delay:0s!important;}
+  .intro-splash.is-leaving{transform:none;}
+}
+</style>
+<style id="pageBgCss">
+/* Latar slideshow hitam putih di belakang seluruh halaman Masuk */
+body{background:#0b1220;}
+.page-bg.login-slideshow{position:fixed;inset:0;width:100%;height:100%;aspect-ratio:auto;max-height:none;
+  border-radius:0;box-shadow:none;background:#0b1220;z-index:0;filter:grayscale(1) contrast(1.05);}
+.page-bg::after{content:"";position:absolute;inset:0;z-index:5;pointer-events:none;
+  background:linear-gradient(180deg,rgba(8,12,22,.5),rgba(8,12,22,.66));}
+.page-bg .login-slideshow__caption{display:none;}
+.login-shell{position:relative;z-index:1;background:transparent;background-image:none;}
+
+/* ===== Layout setelah animasi pembuka: panel merek (kiri) + kartu login (kanan) ===== */
+.login-shell{display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;
+  gap:clamp(32px,7vw,110px);min-height:100vh;padding:40px clamp(20px,6vw,96px);box-sizing:border-box;width:100%;}
+.login-shell .login-card{margin:0;}
+.login-shell .login-card__title{margin-bottom:22px;}
+.login-shell .login-card__icon,.login-shell .login-card__sub{display:none!important;}
+.brand-panel{flex:1 1 0;max-width:560px;color:#f8fafc;display:flex;flex-direction:column;align-items:flex-start;gap:20px;}
+.brand-panel__logo{width:clamp(84px,9vw,120px);height:auto;filter:drop-shadow(0 8px 24px rgba(0,0,0,.45));}
+.brand-panel__title{margin:0;font-family:var(--font-display,'Plus Jakarta Sans',sans-serif);font-weight:800;
+  font-size:clamp(28px,4.2vw,52px);line-height:1.1;letter-spacing:-.02em;}
+.brand-panel__tag{margin:0;font-size:clamp(11px,1.2vw,13px);font-weight:600;letter-spacing:.14em;line-height:1.8;
+  text-transform:uppercase;color:#cbd5e1;max-width:46ch;}
+.brand-panel__features{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;}
+.brand-feature{display:flex;align-items:center;gap:12px;padding:10px 18px 10px 10px;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.brand-feature__ico{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  background:rgba(96,165,250,.2);color:#93c5fd;}
+.brand-feature__ico svg{width:20px;height:20px;}
+.brand-feature__label{font-size:14px;font-weight:700;letter-spacing:.02em;}
+/* muncul setelah animasi pembuka selesai */
+body:not(.intro-done) .reveal{opacity:0;}
+body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(.1s + var(--r,0)*.14s);}
+@keyframes revealUp{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:none;}}
+@media (max-width:900px){
+  .login-shell{flex-direction:column!important;justify-content:flex-start;gap:28px;padding:36px 20px;}
+  .brand-panel{align-items:center;text-align:center;max-width:100%;flex:0 0 auto;}
+  .brand-panel__features{justify-content:center;}
+  .login-shell .login-card{width:min(400px,100%);}
+}
+@media (max-width:480px){
+  .login-shell{padding:28px 16px;gap:24px;}
+  .brand-panel__features{gap:10px;}
+  .brand-feature{padding:8px 14px 8px 8px;}
+  .brand-feature__label{font-size:13px;}
+}
+@media (prefers-reduced-motion:reduce){body.intro-done .reveal{animation-duration:.01s;animation-delay:0s;}}
+</style>
+</head>
+<body>
+<div class="login-slideshow page-bg" id="pageBg" aria-hidden="true"><div class="login-slideshow__track" id="pageBgTrack"></div></div>
+
+<div class="intro-splash" id="introSplash" role="presentation">
+  <div class="intro-splash__inner">
+    <div class="intro-splash__logo">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/></svg>
+      <img src="assets/logo.png" alt="">
+    </div>
+    <p class="intro-splash__text" id="introText" aria-label="Presented to incredible Teachers and Students of SMK WIMATA.">Presented to incredible Teachers and Students of SMK WIMATA.</p>
+  </div>
+  <div class="intro-splash__skip">Ketuk untuk melewati</div>
+</div>
+
+<div class="login-shell" id="loginShell">
+
+  <section class="brand-panel reveal" style="--r:0">
+    <img class="brand-panel__logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+    <h1 class="brand-panel__title">PORTAL DATA<br>DAN PENILAIAN</h1>
+    <p class="brand-panel__tag">Presented to incredible Teachers and Students of SMK Widya Mandala Tambak</p>
+    <div class="brand-panel__features">
+      <div class="brand-feature"><span class="brand-feature__ico"><i data-lucide="book-marked"></i></span><span class="brand-feature__label">Buku Induk</span></div>
+      <div class="brand-feature"><span class="brand-feature__ico"><i data-lucide="clipboard-check"></i></span><span class="brand-feature__label">E-Rapor</span></div>
+      <div class="brand-feature"><span class="brand-feature__ico"><i data-lucide="eye"></i></span><span class="brand-feature__label">Supervisi</span></div>
+    </div>
+  </section>
+
+  <form class="login-card reveal" style="--r:1" id="loginForm">
+
+    <div class="login-card__icon">
+      <img src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+    </div>
+
+    <div class="login-card__title" id="loginTitle">Masuk</div>
+
+    <div class="field">
+      <label for="email">NIS atau Email</label>
+      <input type="text" id="email" name="email" placeholder="NIS (siswa) atau email (guru/admin)" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+    </div>
+
+    <div class="field">
+      <label for="password">Kata sandi</label>
+      <div style="position:relative;">
+        <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" style="padding-right:42px;">
+        <button type="button" onclick="togglePassword()" style="position:absolute; top:0; right:0; bottom:0; width:40px; display:flex; align-items:center; justify-content:center; background:none; border:none; color:var(--ink-faint); cursor:pointer;">
+          <i data-lucide="eye" id="eyeIcon" style="width:18px; height:18px;"></i>
+        </button>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submitBtn">Masuk</button>
+
+    <div class="login-card__note" id="loginNote">Siswa masuk dengan NIS. Guru &amp; admin masuk dengan email. Peran ditentukan otomatis berdasarkan akun.</div>
+
+    <div class="login-card__foot">© <span id="year"></span> SMK Widya Mandala Tambak</div>
+    <div style="text-align:center;font-size:11px;opacity:0.55;margin-top:4px;">developed by wimata 2026.</div>
+  </form>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function togglePassword() {
+    var input = document.getElementById('password');
+    var icon = document.getElementById('eyeIcon');
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.setAttribute('data-lucide', input.type === 'password' ? 'eye' : 'eye-off');
+    lucide.createIcons();
+  }
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  var form = document.getElementById('loginForm');
+  var submitBtn = document.getElementById('submitBtn');
+  var note = document.getElementById('loginNote');
+  var noteDefault = note.textContent;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    // Siswa mengetik NIS (tanpa @) -> diubah ke email internal akun siswa.
+    var email = emailDariInputLogin(document.getElementById('email').value);
+    var password = document.getElementById('password').value;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Memeriksa...';
+    note.textContent = noteDefault;
+    note.style.color = '';
+
+    // 1. Login ke Supabase Auth pakai email & password
+    var authResult = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
+
+    if (authResult.error) {
+      note.textContent = 'NIS/email atau kata sandi salah.';
+      note.style.color = '#B3261E';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Masuk';
+      return;
+    }
+
+    var userId = authResult.data.user.id;
+
+    // 2. Ambil role dari tabel profiles berdasarkan id user yang login
+    var profileResult = await supabaseClient
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    // Akun siswa tidak punya baris di profiles; dikenali lewat siswa.auth_user_id.
+    if (profileResult.error || !profileResult.data) {
+      var siswaResult = await supabaseClient
+        .from('siswa')
+        .select('id')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+      if (siswaResult.data) {
+        await catatAktivitas('login', 'Akun', 'Masuk sebagai siswa');
+        window.location.href = 'siswa.html';
+        return;
+      }
+      await supabaseClient.auth.signOut();
+      note.textContent = 'Akun ini belum punya role. Hubungi admin.';
+      note.style.color = '#B3261E';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Masuk';
+      return;
+    }
+
+    // 3. Arahkan sesuai role
+    var role = profileResult.data.role;
+    // Penanda untuk pop up sambutan guru di portal.html (muncul sekali per login).
+    // Kunci harus sama dengan SambutanGuru.KUNCI_BARU_LOGIN di sambutan-guru.js.
+    if (role === 'guru') {
+      try { sessionStorage.setItem('erapor_sambutan_baru_login', '1'); } catch (e) { /* abaikan */ }
+    }
+    await catatAktivitas('login', 'Akun', 'Masuk sebagai ' + (role === 'admin' ? 'admin' : (role === 'kepsek' ? 'kepala sekolah' : 'guru')));
+    // Setelah login, semua pengguna masuk ke Menu Utama (Buku Induk / E-Rapor / Supervisi).
+    window.location.href = 'portal.html';
+  });
+</script>
+
+
+<script>
+(function () {
+  var el = document.getElementById('introSplash');
+  var txt = document.getElementById('introText');
+  if (!el || !txt) return;
+  var words = txt.textContent.split(' ');
+  txt.innerHTML = words.map(function (w, i) {
+    return '<span class="w" aria-hidden="true" style="--i:' + i + '">' + w + '</span>';
+  }).join(' ');
+  var done = false;
+  function tutup() {
+    if (done) return; done = true;
+    el.classList.add('is-leaving');
+    document.body.classList.add('intro-done');
+    setTimeout(function () { el.classList.add('is-gone'); document.documentElement.style.overflow = ''; }, 1100);
+  }
+  document.documentElement.style.overflow = 'hidden';
+  el.addEventListener('click', tutup);
+  document.addEventListener('keydown', tutup, { once: true });
+  setTimeout(tutup, 5000);
+})();
+</script>
+
+
+<script>
+// Slideshow latar halaman (hitam putih, selalu berjalan) — data sama dengan slideshow login.
+(function () {
+  var bg = document.getElementById('pageBg');
+  var track = document.getElementById('pageBgTrack');
+  if (!bg || !track) return;
+  var CACHE_KEY = 'login_slideshow_cache_v1';
+  var INTERVAL = 5500;
+  var EFEK = ['zoom', 'geser', 'lingkar', 'tirai', 'kabur'];
+  var slides = [], aktif = 0, timer = null, efekLalu = '';
+
+  function url(v) {
+    if (!v) return '';
+    if (/^(data:|https?:)/.test(v)) return v;
+    try { return supabaseClient.storage.from('login-slideshow').getPublicUrl(v).data.publicUrl; } catch (e) { return ''; }
+  }
+  function tambah(row) {
+    var u = url(row.gambar);
+    if (!u) return;
+    var el = document.createElement('div');
+    el.className = 'login-slideshow__slide' + (slides.length === 0 ? ' is-active' : '');
+    var img = document.createElement('img');
+    img.alt = ''; img.decoding = 'async'; img.src = u;
+    el.appendChild(img);
+    track.appendChild(el);
+    slides.push(el);
+    if (slides.length === 1) track.setAttribute('data-efek', 'kabur');
+    if (slides.length === 2) timer = setInterval(geser, INTERVAL);
+  }
+  function pilihEfek() {
+    var e; do { e = EFEK[Math.floor(Math.random() * EFEK.length)]; } while (e === efekLalu);
+    efekLalu = e; return e;
+  }
+  function geser() {
+    if (document.hidden) return;
+    var lama = aktif; aktif = (aktif + 1) % slides.length;
+    track.setAttribute('data-efek', pilihEfek());
+    slides.forEach(function (el, i) {
+      if (i === aktif) { el.classList.remove('is-leaving'); el.classList.add('is-active'); }
+      else if (i === lama) { el.classList.remove('is-active'); el.classList.add('is-leaving'); }
+      else el.classList.remove('is-active', 'is-leaving');
+    });
+  }
+
+  // Perbarui cache di belakang layar supaya perubahan dari Admin ikut muncul di kunjungan berikutnya.
+  function segarkanCache() {
+    if (typeof supabaseClient === 'undefined') return;
+    supabaseClient.from('login_slideshow').select('*')
+      .order('urutan', { ascending: true }).order('created_at', { ascending: true }).range(0, 9)
+      .then(function (r) {
+        if (r.error) return;
+        try {
+          if ((r.data || []).length) localStorage.setItem(CACHE_KEY, JSON.stringify(r.data));
+          else localStorage.removeItem(CACHE_KEY);
+        } catch (e) {
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify((r.data || []).slice(0, 1))); } catch (e2) {}
+        }
+      }).catch(function () {});
+  }
+
+  try {
+    var raw = localStorage.getItem(CACHE_KEY);
+    var cache = raw ? JSON.parse(raw) : null;
+    if (cache && cache.length) {
+      cache.slice(0, 10).forEach(tambah);
+      segarkanCache();
+      return;
+    }
+  } catch (e) { /* lanjut ambil dari server */ }
+
+  if (typeof supabaseClient === 'undefined') return;
+  supabaseClient.from('login_slideshow').select('*')
+    .order('urutan', { ascending: true }).order('created_at', { ascending: true }).limit(8)
+    .then(function (r) { (r.data || []).forEach(tambah); if ((r.data || []).length) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(r.data)); } catch (e) {} } })
+    .catch(function () { /* dekoratif: abaikan */ });
+})();
+</script>
+</body>
+</html>

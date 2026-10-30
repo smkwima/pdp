@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menu Utama — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="bottomnav.js?v=2" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<script src="sambutan-guru.js?v=2"></script>
+<style>
+  body { background: var(--bg); min-height: 100vh; }
+
+  /* ===== Kerangka: sidebar kiri (desktop) + konten ===== */
+  .pt-shell { display: flex; min-height: 100vh; }
+  .pt-side { width: 264px; flex-shrink: 0; background: var(--sidebar-bg); color: var(--sidebar-ink); display: flex; flex-direction: column; padding: 18px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .pt-side__brand { display: flex; align-items: center; gap: 11px; padding: 8px 8px 18px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .pt-side__brand img { width: 40px; height: 40px; object-fit: contain; padding: 5px; background: #fff; border-radius: 11px; flex-shrink: 0; }
+  .pt-side__brand b { display: block; font-family: var(--font-display); font-size: 12.5px; line-height: 1.3; color: #fff; letter-spacing: -.005em; }
+  .pt-side__label { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sidebar-ink-dim); padding: 0 10px; margin: 16px 0 6px; }
+  .pt-nav { display: flex; flex-direction: column; gap: 2px; }
+  .pt-nav a { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px; color: var(--sidebar-ink); font-size: 13.5px; font-weight: 600; transition: background .15s, color .15s; }
+  .pt-nav a i, .pt-nav a svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--sidebar-ink-dim); transition: color .15s; }
+  .pt-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .pt-nav a:hover i, .pt-nav a:hover svg { color: var(--sidebar-active-accent); }
+  .pt-nav a.is-active { background: var(--sidebar-active-bg); color: #fff; box-shadow: inset 3px 0 0 var(--sidebar-active-accent); }
+  .pt-nav a.is-active i, .pt-nav a.is-active svg { color: var(--sidebar-active-accent); }
+  .pt-side__foot { margin-top: auto; padding: 16px 10px 4px; font-size: 11px; color: var(--sidebar-ink-dim); line-height: 1.5; }
+
+  .pt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  /* ===== Topbar ===== */
+  .pt-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 28px; background: rgba(255,255,255,.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .pt-top__left { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .pt-top__logo { display: none; width: 34px; height: 34px; object-fit: contain; }
+  .pt-top__title { font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pt-top__sub { font-size: 11.5px; color: var(--ink-soft); }
+  .pt-top__right { display: flex; align-items: center; gap: 14px; }
+  .pt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--primary-tint); color: var(--primary-dim); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .pt-chip i, .pt-chip svg { width: 14px; height: 14px; }
+  .portal__user { display: flex; align-items: center; gap: 10px; text-align: right; font-size: 13px; }
+  .portal__user .pt-who { line-height: 1.25; }
+  .portal__user #userName { font-weight: 700; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pt-logout { display: inline-flex; align-items: center; gap: 5px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink-soft); font-size: 12px; font-weight: 700; transition: all .15s; }
+  .pt-logout:hover { color: var(--danger); border-color: var(--danger-border); background: var(--danger-tint); }
+
+  /* ===== Konten ===== */
+  .pt-content { padding: 24px 28px 48px; max-width: 1180px; width: 100%; margin: 0 auto; }
+
+  .pt-hero { position: relative; overflow: hidden; border-radius: 20px; color: #fff; padding: 26px 28px; background: linear-gradient(120deg, #1e40af 0%, #2563eb 55%, #4f46e5 100%); box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .pt-hero::before, .pt-hero::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
+  .pt-hero::before { width: 280px; height: 280px; right: -70px; top: -120px; background: radial-gradient(circle, rgba(255,255,255,.22), transparent 70%); }
+  .pt-hero::after { width: 200px; height: 200px; right: 160px; bottom: -120px; background: radial-gradient(circle, rgba(147,197,253,.35), transparent 70%); }
+  .pt-hero > * { position: relative; z-index: 1; }
+  .pt-hero__date { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #bfdbfe; }
+  .pt-hero__hello { font-family: var(--font-display); font-size: 27px; font-weight: 800; letter-spacing: -.02em; margin: 4px 0 4px; }
+  .pt-hero__sub { font-size: 13.5px; color: #dbeafe; margin: 0; }
+  .pt-hero__ta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 12px 18px; border-radius: 14px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); text-align: right; }
+  .pt-hero__ta span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #bfdbfe; }
+  .pt-hero__ta b { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
+
+  .pt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+  .pt-stat { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+  .pt-stat__ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pt-stat__ic i, .pt-stat__ic svg { width: 22px; height: 22px; }
+  .pt-stat__v { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; word-break: break-word; }
+  .pt-stat__v--txt { font-size: 17px; line-height: 1.25; }
+  .pt-stat__l { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin-top: 2px; }
+  .c-biru { background: var(--primary-tint-strong); color: var(--primary-dim); }
+  .c-hijau { background: var(--success-tint); color: var(--success); }
+  .c-ungu { background: var(--accent-tint); color: var(--accent); }
+  .c-merah { background: var(--danger-tint); color: var(--danger); }
+  .c-abu { background: var(--surface-tint-strong); color: var(--ink-soft); }
+  .c-oranye { background: #fff7ed; color: #ea580c; }
+
+  .pt-sec { display: flex; align-items: center; gap: 10px; margin: 28px 2px 14px; font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+  .pt-sec::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  .pt-mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+  .pt-mod { display: flex; align-items: flex-start; gap: 14px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .pt-mod:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--primary-soft); }
+  .pt-mod__ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pt-mod__ic i, .pt-mod__ic svg { width: 22px; height: 22px; }
+  .pt-mod__t { font-family: var(--font-display); font-size: 15px; font-weight: 800; letter-spacing: -.01em; display: flex; align-items: center; gap: 6px; }
+  .pt-mod__t i, .pt-mod__t svg { width: 14px; height: 14px; color: var(--ink-faint); opacity: 0; transform: translateX(-4px); transition: all .15s; }
+  .pt-mod:hover .pt-mod__t i, .pt-mod:hover .pt-mod__t svg { opacity: 1; transform: none; color: var(--primary); }
+  .pt-mod__d { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 3px; }
+
+  .pt-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+  .pt-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 18px 20px; }
+  .pt-panel__h { font-family: var(--font-display); font-size: 15px; font-weight: 800; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+  .pt-panel__h i, .pt-panel__h svg { width: 17px; height: 17px; color: var(--primary); }
+  .pt-empty { font-size: 13px; color: var(--ink-faint); padding: 6px 0; }
+
+  .pt-bar { display: grid; grid-template-columns: 74px 1fr 44px; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 13px; }
+  .pt-bar__l { font-weight: 700; color: var(--ink); }
+  .pt-bar__t { height: 10px; border-radius: 999px; background: var(--surface-tint-strong); overflow: hidden; }
+  .pt-bar__f { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--primary-soft), var(--primary)); transition: width .7s ease; }
+  .pt-bar__n { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  .pt-list { margin: 0; padding: 0; list-style: none; }
+  .pt-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .pt-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+  .pt-list li:first-child { padding-top: 0; }
+  .pt-list b { font-weight: 700; }
+  .pt-tag { padding: 3px 10px; border-radius: 999px; background: var(--primary-tint); color: var(--primary-dim); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+
+  .portal__foot { text-align: center; font-size: 11.5px; color: var(--ink-faint); margin-top: 40px; }
+
+  /* ===== Layar sempit / HP: sidebar disembunyikan, menu pindah ke bar bawah (bottomnav.js) ===== */
+  @media (max-width: 1100px) { .pt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pt-cols { grid-template-columns: 1fr; } }
+  @media (max-width: 860px) {
+    .pt-side { display: none; }
+    .pt-top { padding: 10px 14px; }
+    .pt-top__logo { display: block; }
+    .pt-top__title { font-size: 15px; }
+    .pt-chip, .pt-logout span, .portal__user .pt-who { display: none; }
+    .pt-logout { padding: 8px; }
+    .pt-content { padding: 16px 14px 28px; }
+    .pt-hero { padding: 20px 18px; border-radius: 18px; }
+    .pt-hero__hello { font-size: 22px; }
+    .pt-hero__ta { align-items: flex-start; text-align: left; width: 100%; flex-direction: row; justify-content: space-between; align-items: center; padding: 10px 14px; }
+    .pt-hero__ta b { font-size: 15px; }
+    .pt-stats { gap: 10px; margin-top: 14px; }
+    .pt-stat { padding: 13px; gap: 11px; }
+    .pt-stat__ic { width: 40px; height: 40px; border-radius: 11px; }
+    .pt-stat__v { font-size: 21px; }
+    .pt-stat__v--txt { font-size: 14px; }
+    .pt-stat__l { font-size: 11.5px; }
+    /* Modul di HP: kotak ikon 3 kolom, seperti menu aplikasi data sekolah */
+    .pt-mods { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .pt-mod { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 14px 6px; }
+    .pt-mod__d, .pt-mod__t i, .pt-mod__t svg { display: none; }
+    .pt-mod__t { font-size: 12px; justify-content: center; line-height: 1.25; }
+    .pt-mod__ic { width: 48px; height: 48px; }
+    .pt-bar { grid-template-columns: 64px 1fr 38px; }
+  }
+  @media (max-width: 380px) { .pt-mods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+
+<div class="pt-shell">
+
+  <!-- ===== Sidebar (desktop) ===== -->
+  <aside class="pt-side" id="side">
+    <div class="pt-side__brand">
+      <img src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div><b>PORTAL DATA DAN PENILAIAN</b><b style="font-weight:600;color:var(--sidebar-ink-dim);font-size:11px;">SMK Widya Mandala Tambak</b></div>
+    </div>
+    <nav class="pt-nav" id="sideNav"></nav>
+    <div class="pt-side__foot">© <span id="year"></span> SMK Widya Mandala Tambak<br>developed by Hanif Shohibul A.</div>
+  </aside>
+
+  <div class="pt-main">
+    <!-- ===== Topbar ===== -->
+    <header class="pt-top">
+      <div class="pt-top__left">
+        <img class="pt-top__logo" src="assets/logo.png" alt="">
+        <div style="min-width:0;">
+          <div class="pt-top__title">Menu Utama</div>
+          <div class="pt-top__sub" id="metaTa">Banyumas</div>
+        </div>
+      </div>
+      <div class="pt-top__right">
+        <span class="pt-chip" id="taChip" style="display:none;"><i data-lucide="calendar-days"></i><span id="taChipTxt"></span></span>
+        <div class="portal__user">
+          <div class="pt-who"><div id="userName">Memuat...</div><div id="userRole" style="font-size:11.5px;color:var(--ink-soft);"></div></div>
+          <a href="#" class="pt-logout" id="logoutBtn" title="Keluar"><i data-lucide="log-out" style="width:15px;height:15px;"></i><span>Keluar</span></a>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== Konten ===== -->
+    <main class="pt-content">
+      <section class="pt-hero">
+        <div>
+          <div class="pt-hero__date" id="tgl"></div>
+          <h1 class="pt-hero__hello" id="hello">Selamat datang</h1>
+          <p class="pt-hero__sub" id="heroSub">Pilih modul aplikasi yang ingin kamu buka.</p>
+        </div>
+        <div class="pt-hero__ta" id="heroTa" style="display:none;"><span>Tahun Ajaran Aktif</span><b id="heroTaTxt"></b></div>
+      </section>
+
+      <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec">Modul Aplikasi</div>
+      <div class="pt-mods" id="grid"></div>
+
+      <div class="pt-sec" id="secInfo" style="display:none;">Ringkasan</div>
+      <div class="pt-cols" id="panels"></div>
+
+      <div class="panel-note" id="note" style="display:none;margin-top:22px;"></div>
+
+      <div class="portal__foot">© <span id="year2"></span> PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK · developed by Hanif Shohibul A.</div>
+    </main>
+  </div>
+</div>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  document.getElementById('year2').textContent = new Date().getFullYear();
+  document.getElementById('tgl').textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  // Daftar modul — dipakai untuk sidebar DAN kotak modul di konten.
+  function daftarModul(admin, kepsek) {
+    // Kepala sekolah: modul tampilan admin (mode lihat saja), tanpa menu Administrasi.
+    if (kepsek) {
+      var desk = {
+        'Buku Induk': 'Lihat data induk lengkap seluruh siswa, mutasi & kelulusan, serta arsip nilai.',
+        'E-Rapor': 'Lihat kelas, siswa, mapel, nilai, leger dan rapor.',
+        'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
+        'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.'
+      };
+      var hasil = [];
+      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi'; }).forEach(function (m) {
+        if (desk[m.judul]) m.desc = desk[m.judul];
+        hasil.push(m);
+        if (m.judul === 'E-Rapor') {
+          hasil.push({ grup: 'Akademik', href: 'guru-penugasan.html', warna: 'c-ungu', ikon: 'users-round', judul: 'Guru & Penugasan',
+            desc: 'Lihat data guru, penugasan intrakurikuler, PJ kokurikuler, dan pembina ekstrakurikuler.' });
+        }
+      });
+      return hasil;
+    }
+    return [
+      { grup: 'Data Induk', href: admin ? 'bukuinduk-admin.html' : 'bukuinduk-guru.html', warna: 'c-oranye', ikon: 'book-user', judul: 'Buku Induk',
+        desc: admin ? 'Data induk lengkap seluruh siswa, mutasi & kelulusan, arsip nilai, cetak & Excel.' : 'Lengkapi Buku Induk siswa di kelas yang kamu ampu sebagai wali kelas.' },
+      { grup: 'Akademik', href: admin ? 'admin.html' : 'guru.html', warna: 'c-hijau', ikon: 'file-text', judul: 'E-Rapor',
+        desc: admin ? 'Kelola kelas, siswa, mapel, penugasan guru, nilai, leger dan rapor.' : 'Input nilai, tujuan pembelajaran, presensi, ekskul dan cetak rapor.' },
+      { grup: 'Akademik', href: 'pkl.html', warna: 'c-biru', ikon: 'briefcase-business', judul: 'Nilai PKL',
+        desc: admin ? 'Tunjuk pembimbing & penguji PKL, pantau dan unduh rekap nilai PKL.' : 'Input identitas DUDI, nilai, catatan & presensi PKL, lalu cetak.' },
+      { grup: 'Pembinaan & Mutu', href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'c-ungu', ikon: 'clipboard-check', judul: 'Supervisi',
+        desc: admin ? 'Atur jadwal, form dan data supervisi akademik guru.' : 'Lihat jadwal, isi form supervisi, dan jawab wawancara supervisi.' },
+      { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
+        desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' }
+    ].concat(admin ? [
+      { grup: 'Administrasi', href: 'pengaturan-admin.html', warna: 'c-biru', ikon: 'settings', judul: 'Pengaturan Sekolah',
+        desc: 'Profil sekolah, tahun ajaran, naik kelas & kelulusan, slideshow login.' },
+      { grup: 'Administrasi', href: 'log-admin.html', warna: 'c-abu', ikon: 'history', judul: 'Log Aktivitas',
+        desc: 'Pantau siapa melakukan apa dan kapan di semua aplikasi.' }
+    ] : []);
+  }
+
+  function renderSidebar(mods) {
+    var h = '<div class="pt-nav"><a class="is-active" href="portal.html"><i data-lucide="layout-dashboard"></i>Beranda</a></div>';
+    var grupTerakhir = '';
+    mods.forEach(function (m) {
+      if (m.grup !== grupTerakhir) {
+        if (grupTerakhir) h += '</div>';
+        h += '<div class="pt-side__label">' + esc(m.grup) + '</div><div class="pt-nav">';
+        grupTerakhir = m.grup;
+      }
+      h += '<a href="' + m.href + '"><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
+    });
+    h += '</div>';
+    document.getElementById('sideNav').outerHTML = '<div id="sideNav">' + h + '</div>';
+  }
+
+  function renderModul(mods) {
+    document.getElementById('grid').innerHTML = mods.map(function (m) {
+      return '<a class="pt-mod" href="' + m.href + '">' +
+        '<div class="pt-mod__ic ' + m.warna + '"><i data-lucide="' + m.ikon + '"></i></div>' +
+        '<div><div class="pt-mod__t">' + esc(m.judul) + '<i data-lucide="arrow-right"></i></div><div class="pt-mod__d">' + esc(m.desc) + '</div></div></a>';
+    }).join('');
+  }
+
+  function kartuStat(ikon, warna, id, label, teks) {
+    return '<div class="pt-stat"><div class="pt-stat__ic ' + warna + '"><i data-lucide="' + ikon + '"></i></div>' +
+      '<div style="min-width:0;"><div class="pt-stat__v' + (teks ? ' pt-stat__v--txt' : '') + '" id="' + id + '">…</div><div class="pt-stat__l">' + label + '</div></div></div>';
+  }
+  function isiStat(id, nilai) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = (nilai === null || nilai === undefined) ? '—' : (typeof nilai === 'number' ? nilai.toLocaleString('id-ID') : nilai);
+  }
+  // Hitung baris tanpa mengunduh datanya; gagal/ditolak RLS -> null (tampil "—").
+  async function hitung(q) {
+    try { var r = await q; return r.error ? null : r.count; } catch (e) { return null; }
+  }
+  function cnt(tabel) { return supabaseClient.from(tabel).select('id', { count: 'exact', head: true }); }
+
+  // ---------- Ringkasan ADMIN ----------
+  async function muatAdmin(ta, labelPeran) {
+    labelPeran = labelPeran || 'Admin';
+    document.getElementById('stats').innerHTML =
+      kartuStat('graduation-cap', 'c-biru', 'stSiswa', 'Siswa Aktif') +
+      kartuStat('users', 'c-hijau', 'stGuru', 'Guru') +
+      kartuStat('school', 'c-ungu', 'stKelas', 'Kelas / Rombel') +
+      kartuStat('book-open', 'c-oranye', 'stMapel', 'Mata Pelajaran');
+    document.getElementById('heroSub').textContent = labelPeran === 'Admin' ? 'Ringkasan data sekolah dan akses cepat ke seluruh modul.' : 'Ringkasan data sekolah (mode lihat saja — data tidak dapat diubah dari akun ini).';
+    if (window.lucide) lucide.createIcons();
+
+    isiStat('stSiswa', await hitung(cnt('siswa').eq('status', 'aktif')));
+    isiStat('stGuru', await hitung(cnt('profiles').eq('role', 'guru')));
+    var kelasRes = null;
+    try { kelasRes = await supabaseClient.from('kelas').select('id, tingkat'); } catch (e) { /* abaikan */ }
+    var kelas = kelasRes && !kelasRes.error ? (kelasRes.data || []) : null;
+    isiStat('stKelas', kelas ? kelas.length : null);
+    isiStat('stMapel', await hitung(cnt('mata_pelajaran')));
+
+    // Siswa per tingkat (tahun ajaran aktif)
+    var panel = '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="bar-chart-3"></i>Siswa per Tingkat</h3><div id="barTingkat"><div class="pt-empty">Memuat…</div></div></div>' +
+      '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="info"></i>Info Sistem</h3><ul class="pt-list">' +
+      '<li><span>Tahun ajaran</span><b>' + esc(ta ? ta.nama : '—') + '</b></li>' +
+      '<li><span>Semester</span><b>' + esc(ta ? ta.semester : '—') + '</b></li>' +
+      '<li><span>Login sebagai</span><span class="pt-tag">' + esc(labelPeran) + '</span></li></ul></div>';
+    document.getElementById('secInfo').style.display = '';
+    document.getElementById('panels').innerHTML = panel;
+    if (window.lucide) lucide.createIcons();
+
+    var box = document.getElementById('barTingkat');
+    if (!ta || !kelas) { box.innerHTML = '<div class="pt-empty">Data belum tersedia.</div>'; return; }
+    var hasil = [];
+    for (var i = 0; i < [10, 11, 12].length; i++) {
+      var t = [10, 11, 12][i];
+      var ids = kelas.filter(function (k) { return k.tingkat === t; }).map(function (k) { return k.id; });
+      var n = ids.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', ids)) : 0;
+      hasil.push({ t: t, n: n || 0 });
+    }
+    var maks = Math.max.apply(null, hasil.map(function (x) { return x.n; })) || 1;
+    var romawi = { 10: 'Kelas X', 11: 'Kelas XI', 12: 'Kelas XII' };
+    box.innerHTML = hasil.map(function (x) {
+      return '<div class="pt-bar"><div class="pt-bar__l">' + romawi[x.t] + '</div><div class="pt-bar__t"><div class="pt-bar__f" data-w="' + Math.round(x.n / maks * 100) + '"></div></div><div class="pt-bar__n">' + x.n + '</div></div>';
+    }).join('');
+    requestAnimationFrame(function () { box.querySelectorAll('.pt-bar__f').forEach(function (b) { b.style.width = b.getAttribute('data-w') + '%'; }); });
+  }
+
+  // ---------- Ringkasan GURU ----------
+  async function muatGuru(ta, uid) {
+    document.getElementById('stats').innerHTML =
+      kartuStat('school', 'c-biru', 'stKelas', 'Kelas Diampu') +
+      kartuStat('book-open', 'c-hijau', 'stMapel', 'Mata Pelajaran') +
+      kartuStat('graduation-cap', 'c-ungu', 'stSiswa', 'Siswa Diampu') +
+      kartuStat('user-check', 'c-oranye', 'stWali', 'Wali Kelas', true);
+    document.getElementById('heroSub').textContent = 'Lanjutkan pekerjaanmu — pilih modul di bawah ini.';
+    if (window.lucide) lucide.createIcons();
+    if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
+
+    var peng = [], wali = null;
+    try {
+      var r1 = await supabaseClient.from('penugasan_guru').select('kelas_id, mapel_id, kelas(nama, tingkat), mata_pelajaran(nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id);
+      if (!r1.error) peng = r1.data || [];
+    } catch (e) { /* abaikan */ }
+    try {
+      var r2 = await supabaseClient.from('wali_kelas').select('kelas(nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id).maybeSingle();
+      if (!r2.error && r2.data && r2.data.kelas) wali = r2.data.kelas.nama;
+    } catch (e) { /* abaikan */ }
+
+    var kelasIds = [], mapelIds = {};
+    peng.forEach(function (p) { if (kelasIds.indexOf(p.kelas_id) < 0) kelasIds.push(p.kelas_id); mapelIds[p.mapel_id] = 1; });
+    isiStat('stKelas', kelasIds.length);
+    isiStat('stMapel', Object.keys(mapelIds).length);
+    isiStat('stWali', wali || 'Bukan wali kelas');
+    isiStat('stSiswa', kelasIds.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', kelasIds)) : 0);
+
+    // Daftar tugas mengajar, dikelompokkan per kelas
+    var perKelas = {};
+    peng.forEach(function (p) {
+      var nk = p.kelas ? p.kelas.nama : '—';
+      (perKelas[nk] = perKelas[nk] || []).push(p.mata_pelajaran ? p.mata_pelajaran.nama : '—');
+    });
+    var namaKelas = Object.keys(perKelas).sort();
+    var isi = namaKelas.length ? '<ul class="pt-list">' + namaKelas.map(function (k) {
+      return '<li><b>' + esc(k) + '</b><span style="text-align:right;color:var(--ink-soft);">' + perKelas[k].map(esc).join(', ') + '</span></li>';
+    }).join('') + '</ul>' : '<div class="pt-empty">Belum ada penugasan mengajar di tahun ajaran ini. Hubungi admin.</div>';
+
+    document.getElementById('secInfo').style.display = '';
+    document.getElementById('panels').innerHTML =
+      '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="calendar-check"></i>Tugas Mengajar Saya</h3>' + isi + '</div>' +
+      '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="info"></i>Info</h3><ul class="pt-list">' +
+      '<li><span>Tahun ajaran</span><b>' + esc(ta.nama) + '</b></li>' +
+      '<li><span>Semester</span><b>' + esc(ta.semester) + '</b></li>' +
+      '<li><span>Login sebagai</span><span class="pt-tag">Guru</span></li></ul></div>';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  (async function () {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
+    if (pr.error || !pr.data) {
+      // Akun siswa tidak punya profil guru/admin -> arahkan ke halaman siswa.
+      var sw = await supabaseClient.from('siswa').select('id').eq('auth_user_id', user.id).maybeSingle();
+      if (sw.data) { window.location.href = 'siswa.html'; return; }
+      document.getElementById('userName').textContent = user.email;
+      document.getElementById('grid').innerHTML = '';
+      var n = document.getElementById('note');
+      n.style.display = ''; n.textContent = 'Akun ini belum punya role. Hubungi admin.';
+      return;
+    }
+    var admin = pr.data.role === 'admin';
+    try { if (pr.data.role === 'kepsek') localStorage.setItem('kepsek_hint', '1'); else localStorage.removeItem('kepsek_hint'); } catch (e) { /* abaikan */ }
+    var kepsek = pr.data.role === 'kepsek';
+    var nama = pr.data.nama || user.email;
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : 'Guru');
+    document.getElementById('hello').textContent = 'Halo, ' + nama.split(' ')[0] + '!';
+
+    var mods = daftarModul(admin, kepsek);
+    renderSidebar(mods);
+    renderModul(mods);
+    if (window.lucide) lucide.createIcons();
+
+    var ta = (await supabaseClient.from('tahun_ajaran').select('id, nama, semester').eq('is_aktif', true).maybeSingle()).data;
+    if (ta) {
+      var txt = ta.nama + ' — Semester ' + ta.semester;
+      document.getElementById('metaTa').textContent = 'Tahun Ajaran ' + txt;
+      document.getElementById('taChipTxt').textContent = ta.nama + ' · ' + ta.semester;
+      document.getElementById('taChip').style.display = '';
+      document.getElementById('heroTaTxt').textContent = ta.nama + ' · ' + ta.semester;
+      document.getElementById('heroTa').style.display = '';
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Pop up sambutan khusus guru — muncul sekali tepat setelah berhasil login
+    // (lihat sambutan-guru.js). Admin tidak mendapat pop up ini.
+    if (!admin && !kepsek && window.SambutanGuru) SambutanGuru.tampilkanJikaBaruLogin(pr.data.nama);
+
+    if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else await muatGuru(ta, user.id);
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+    await supabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+  });
+  if (window.lucide) lucide.createIcons();
+</script>
+
+</body>
+</html>
