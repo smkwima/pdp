@@ -309,7 +309,7 @@
       kartuStat('users', 'c-hijau', 'stGuru', 'Guru') +
       kartuStat('school', 'c-ungu', 'stKelas', 'Kelas / Rombel') +
       kartuStat('book-open', 'c-oranye', 'stMapel', 'Mata Pelajaran');
-    document.getElementById('heroSub').textContent = labelPeran === 'Admin' ? 'Ringkasan data sekolah dan akses cepat ke seluruh modul.' : 'Ringkasan data sekolah (mode lihat saja — data tidak dapat diubah dari akun ini).';
+    document.getElementById('heroSub').textContent = labelPeran === 'Admin' ? 'Ringkasan data sekolah dan akses cepat ke seluruh modul.' : 'Ringkasan data sekolah.';
     if (window.lucide) lucide.createIcons();
 
     isiStat('stSiswa', await hitung(cnt('siswa').eq('status', 'aktif')));

@@ -20,7 +20,7 @@
   'use strict';
   if (typeof supabaseClient === 'undefined') return;
 
-  var PESAN = 'Akun Kepala Sekolah hanya dapat melihat data (mode lihat saja).';
+  var PESAN = 'Akun Kepala Sekolah hanya dapat melihat data.';
   // Fungsi database (rpc) yang MENULIS data. catat_aktivitas & fungsi baca tetap boleh.
   var RPC_TULIS = /^(admin_reset|ajukan|batalkan|hapus|proses|supervisi_isi|buat|reset|sinkron)/i;
   // Teks tombol yang berarti mengubah data.
@@ -120,7 +120,7 @@
     document.head.appendChild(st);
     var b = document.createElement('div');
     b.id = 'kroBadge';
-    b.textContent = 'Mode lihat saja · Kepala Sekolah';
+    b.textContent = 'Mode Kepala Sekolah';
     document.body.appendChild(b);
   }
 
