@@ -57,6 +57,14 @@
   .pt-hero::before { width: 280px; height: 280px; right: -70px; top: -120px; background: radial-gradient(circle, rgba(255,255,255,.22), transparent 70%); }
   .pt-hero::after { width: 200px; height: 200px; right: 160px; bottom: -120px; background: radial-gradient(circle, rgba(147,197,253,.35), transparent 70%); }
   .pt-hero > * { position: relative; z-index: 1; }
+  /* Foto profil besar di kartu sambutan (klik = Edit Profil) */
+  .pt-foto { position: relative; flex-shrink: 0; width: 112px; height: 112px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 0 0 4px rgba(255,255,255,.22), 0 10px 24px rgba(15,23,42,.35); transition: box-shadow .15s ease, transform .15s ease; }
+  .pt-foto:hover { box-shadow: 0 0 0 4px rgba(255,255,255,.5), 0 12px 28px rgba(15,23,42,.4); transform: translateY(-1px); }
+  .pt-foto:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .pt-foto .fp-av { width: 100%; height: 100%; font-size: 44px; border: 0; background-origin: border-box; background-size: cover; background-position: center; background-repeat: no-repeat; }
+  .pt-foto__edit { position: absolute; right: 2px; bottom: 2px; width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #1d4ed8; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(15,23,42,.35); }
+  .pt-foto__edit svg, .pt-foto__edit i { width: 16px; height: 16px; }
+  .pt-hero__teks { flex: 1; min-width: 0; }
   .pt-hero__date { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #bfdbfe; }
   .pt-hero__hello { font-family: var(--font-display); font-size: 27px; font-weight: 800; letter-spacing: -.02em; margin: 4px 0 4px; }
   .pt-hero__sub { font-size: 13.5px; color: #dbeafe; margin: 0; }
@@ -123,6 +131,9 @@
     .pt-logout { padding: 8px; }
     .pt-content { padding: 16px 14px 28px; }
     .pt-hero { padding: 20px 18px; border-radius: 18px; }
+    .pt-foto { width: 88px; height: 88px; }
+    .pt-foto .fp-av { font-size: 34px; }
+    .pt-hero__teks { flex-basis: calc(100% - 110px); }
     .pt-hero__hello { font-size: 22px; }
     .pt-hero__ta { align-items: flex-start; text-align: left; width: 100%; flex-direction: row; justify-content: space-between; align-items: center; padding: 10px 14px; }
     .pt-hero__ta b { font-size: 15px; }
@@ -179,7 +190,11 @@
     <!-- ===== Konten ===== -->
     <main class="pt-content">
       <section class="pt-hero">
-        <div>
+        <button type="button" class="pt-foto" id="ptFotoBtn" title="Edit profil" aria-label="Edit foto & data profil" data-profil-saya="1" style="display:none;">
+          <span class="fp-av" id="ptFoto" aria-hidden="true"></span>
+          <span class="pt-foto__edit" aria-hidden="true"><i data-lucide="camera"></i></span>
+        </button>
+        <div class="pt-hero__teks">
           <div class="pt-hero__date" id="tgl"></div>
           <h1 class="pt-hero__hello" id="hello">Selamat datang</h1>
           <p class="pt-hero__sub" id="heroSub">Pilih modul aplikasi yang ingin kamu buka.</p>
@@ -404,6 +419,32 @@
     document.getElementById('userName').textContent = nama;
     document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : 'Guru');
     document.getElementById('hello').textContent = 'Halo, ' + nama.split(' ')[0] + '!';
+
+    // Foto profil besar di kartu sambutan (semua peran). Diam saja kalau fitur foto belum aktif.
+    (async function () {
+      try {
+        var btn = document.getElementById('ptFotoBtn'), img = document.getElementById('ptFoto');
+        for (var i = 0; i < 40 && !window.FotoProfil; i++) await new Promise(function (r) { setTimeout(r, 100); });
+        if (!btn || !img || !window.FotoProfil) return;
+        var pf = await FotoProfil.bacaProfil(user.id);
+        if (!pf) return;
+        var pathFoto = pf.data.foto_path || null;
+        img.dataset.fpNama = nama;
+        await FotoProfil.setFoto(img, pathFoto, nama);
+        btn.style.display = '';
+        if (window.lucide) lucide.createIcons();
+        btn.addEventListener('click', function () { FotoProfil.bukaProfilSaya(); });
+        document.addEventListener('fotoprofil:berubah', function (e) {
+          if (e.detail && e.detail.userId === user.id) FotoProfil.setFoto(img, e.detail.path, nama);
+        });
+        document.addEventListener('profil:berubah', function (e) {
+          if (!e.detail || e.detail.userId !== user.id || !e.detail.profil || !e.detail.profil.nama) return;
+          nama = e.detail.profil.nama;
+          var h = document.getElementById('hello'); if (h) h.textContent = 'Halo, ' + nama.split(' ')[0] + '!';
+          if (!img.classList.contains('has-foto')) img.textContent = nama.trim().charAt(0).toUpperCase();
+        });
+      } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
+    })();
 
     var mods = daftarModul(admin, kepsek);
     renderSidebar(mods);

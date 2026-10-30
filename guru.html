@@ -1191,7 +1191,6 @@
 
       var ringkasanPeranHtml =
         '<section class="dx-hero">' +
-        '<div class="fp-av dx-hero__foto" id="dxFoto" data-fp-nama="' + escapeHtml(nama) + '" aria-label="Foto profil"></div>' +
         dxRingG(pctGab) +
         '<div class="dx-hero__main"><h2 class="dx-hero__title">' + escapeHtml(judulHero) + '</h2>' +
         '<p class="dx-hero__sub">' + escapeHtml(subHero) + '</p>' +
@@ -1351,33 +1350,6 @@
           }
         })();
       }
-
-      // Foto profil di kartu hero (klik untuk ganti). Diam saja kalau fitur foto belum aktif.
-      (async function () {
-        try {
-          var fEl = document.getElementById('dxFoto');
-          if (!fEl || !window.FotoProfil) { if (fEl) fEl.style.display = 'none'; return; }
-          var fr = await supabaseClient.from('profiles').select('foto_path').eq('id', user.id).maybeSingle();
-          if (!document.getElementById('dxFoto')) return; // sudah pindah halaman
-          if (fr.error || !fr.data) { fEl.style.display = 'none'; return; }
-          var fPath = fr.data.foto_path || null;
-          FotoProfil.setFoto(fEl, fPath, nama);
-          fEl.classList.add('fp-klik');
-          fEl.setAttribute('role', 'button'); fEl.setAttribute('tabindex', '0'); fEl.setAttribute('title', 'Edit profil'); fEl.setAttribute('data-profil-saya', '1');
-          var bukaFoto = function () { FotoProfil.bukaProfilSaya(); };
-          fEl.addEventListener('click', bukaFoto);
-          fEl.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bukaFoto(); } });
-          // ikut berubah kalau foto diganti lewat avatar pojok kanan atas
-          if (window._dxFotoHandler) document.removeEventListener('fotoprofil:berubah', window._dxFotoHandler);
-          window._dxFotoHandler = function (e) {
-            var el = document.getElementById('dxFoto');
-            if (!el || !e.detail || e.detail.userId !== user.id) return;
-            fPath = e.detail.path;
-            FotoProfil.setFoto(el, fPath, nama);
-          };
-          document.addEventListener('fotoprofil:berubah', window._dxFotoHandler);
-        } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
-      })();
 
       if (dataAnalisis) {
         var anRankEl = document.getElementById('anRank');
