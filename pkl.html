@@ -163,16 +163,19 @@
   //      untuk pemantauan Admin & bahan format cetak PKL tersendiri
   //      (dicetak guru pembimbing lewat dashboard Guru).
   // =========================================================
-  async function renderPkl() {
+  async function renderPkl(hanyaRekap) {
     if (!tahunAktif) {
       content.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div><div class="empty-state__title">Belum ada tahun ajaran aktif</div><div class="empty-state__desc">Aktifkan tahun ajaran dulu sebelum mengelola PKL.</div></div>';
       return;
     }
 
-    var guruRes = await supabaseClient.from('profiles').select('id, nama').eq('role', 'guru').order('nama');
-    var guruList = guruRes.data || [];
-    var kelasRes = await supabaseClient.from('kelas').select('id, nama').order('nama');
-    var kelasList = kelasRes.data || [];
+    var guruList = [], kelasList = [];
+    if (!hanyaRekap) {
+      var guruRes = await supabaseClient.from('profiles').select('id, nama').eq('role', 'guru').order('nama');
+      guruList = guruRes.data || [];
+      var kelasRes = await supabaseClient.from('kelas').select('id, nama').order('nama');
+      kelasList = kelasRes.data || [];
+    }
 
     function opsi(list) { return list.map(function (x) { return '<option value="' + x.id + '">' + escapeHtml(x.nama) + '</option>'; }).join(''); }
 
@@ -285,7 +288,14 @@
     var clsPenguji = isSectionCollapsed('bodyPklPenguji') ? ' is-collapsed' : '';
     var clsRekap = isSectionCollapsed('bodyPklRekap') ? ' is-collapsed' : '';
 
-    content.innerHTML =
+    var htmlRekapSaja =
+      '<div class="pkl-rekap-bar" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:14px;">' +
+      '<div class="field" style="margin:0;"><label>Tampilkan Kelas</label><select id="pklRekapKelas"><option value="">Semua Kelas</option></select></div>' +
+      '<button type="button" class="btn-small" id="btnExportRekapPkl">⬇ Unduh Rekap (Excel)</button>' +
+      '</div>' +
+      '<div id="pklRekapArea"><div class="panel-note">Memuat rekap...</div></div>';
+
+    content.innerHTML = hanyaRekap ? htmlRekapSaja :
       '<div class="panel-head panel-head--toggle" data-target="bodyPklPembimbing"><div><div class="panel-head__title">Pembimbing PKL</div>' +
       '<div class="panel-head__desc">Pilih Guru &amp; Kelas, lalu centang siswa yang dibimbing guru tsb untuk PKL pada Tahun Ajaran ' + escapeHtml(tahunAktif.nama) + '. Satu siswa hanya punya satu pembimbing PKL — mencentang siswa yang sudah punya pembimbing lain akan memindahkannya ke guru yang baru dipilih. Admin juga bisa langsung mengisi Tempat PKL &amp; Lama Waktu PKL (Tanggal Mulai/Selesai) di tabel — begitu disimpan, datanya otomatis muncul di menu "Nilai PKL" milik guru tsb. Guru Pembimbing mengisi data DUDI dan Nilai DUDI (bukan nilai penguji).</div></div>' +
       '<span class="panel-head__toggle-icon">☰</span></div>' +
@@ -321,6 +331,7 @@
       '<div id="pklRekapArea"><div class="panel-note">Memuat rekap...</div></div>' +
       '</div>';
 
+    if (!hanyaRekap) {
     document.querySelectorAll('.panel-head--toggle').forEach(function (head) {
       head.addEventListener('click', function () {
         var body = document.getElementById(head.dataset.target);
@@ -724,6 +735,8 @@
         dataExportRekapPkl = await muatRekapPkl();
       });
     });
+
+    } // akhir blok penugasan (tidak dipakai di mode rekap saja)
 
     // ---------- C. Rekap Nilai PKL ----------
     // Semua data dimuat sekali ke rekapPklCache (terurut Kelas -> Nama),
@@ -2095,8 +2108,8 @@
     menu.innerHTML = '';
 
     if (!tahunAktif) {
-      topbarMeta.textContent = 'Belum ada tahun ajaran aktif — ' + (admin ? 'aktifkan salah satu di E-Rapor → Tahun Ajaran.' : 'hubungi admin.');
-      content.innerHTML = renderPlaceholder('Belum ada tahun ajaran aktif', admin
+      topbarMeta.textContent = 'Belum ada tahun ajaran aktif — ' + (kepsek ? 'belum ada data PKL.' : admin ? 'aktifkan salah satu di E-Rapor → Tahun Ajaran.' : 'hubungi admin.');
+      content.innerHTML = renderPlaceholder('Belum ada tahun ajaran aktif', kepsek ? 'Belum ada data PKL untuk ditampilkan.' : admin
         ? 'Aktifkan tahun ajaran dulu di E-Rapor (menu Tahun Ajaran) sebelum mengelola nilai PKL.'
         : 'Menunggu admin mengaktifkan tahun ajaran.');
       lucide.createIcons();
@@ -2105,6 +2118,15 @@
     topbarMeta.textContent = 'Tahun Ajaran ' + tahunAktif.nama + ' — Semester ' + tahunAktif.semester;
 
     var pertama = null;
+    if (kepsek) {
+      // Kepala Sekolah: langsung tabel rekap saja, tanpa menu lain.
+      menu.style.display = 'none';
+      var lbl = document.getElementById('labelPkl');
+      if (lbl) lbl.style.display = 'none';
+      lucide.createIcons();
+      await renderPkl(true);
+      return;
+    }
     if (admin) {
       pertama = { el: tambahMenu('clipboard-list', 'Penugasan &amp; Rekap PKL', renderPkl), fn: renderPkl };
     } else {
