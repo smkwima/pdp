@@ -3396,3 +3396,17 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
   .sidebar { view-transition-name: sidebar; }
   .topbar  { view-transition-name: topbar; }
 }
+
+/* ---------- Dashboard Guru: Tugas Tambahan ---------- */
+.tt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tt-col { background: var(--surface-tint); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.tt-col__title { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 10px; }
+.tt-col__title i, .tt-col__title svg { width: 15px; height: 15px; color: var(--primary); }
+.tt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tt-item { display: flex; flex-direction: column; gap: 2px; }
+.tt-item__name { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.tt-item__meta { font-size: 12.5px; color: var(--ink-soft); }
+.tt-empty { font-size: 13px; color: var(--ink-faint); }
+@media (max-width: 900px) {
+  .tt-grid { grid-template-columns: 1fr; }
+}

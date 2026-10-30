@@ -1231,10 +1231,58 @@
           '<div id="dxRankBody"><div class="task-section__empty" style="padding:8px 0;">Memuat peringkat kelas…</div></div></section>'
         : '';
 
+      // ---------- Tugas Tambahan: wali kelas, kokurikuler, ekstrakurikuler ----------
+      // Ringkasan penugasan di luar mengajar, tampil tepat di bawah hero.
+      var tugasTambahanHtml = '';
+      if (waliKelas || daftarPjKoku.length || daftarPembinaEkskul.length) {
+        function ttKosong(teks) { return '<div class="tt-empty">' + escapeHtml(teks) + '</div>'; }
+        function ttBaris(nama, meta) {
+          return '<li class="tt-item"><span class="tt-item__name">' + escapeHtml(nama) + '</span>' +
+            (meta ? '<span class="tt-item__meta">' + escapeHtml(meta) + '</span>' : '') + '</li>';
+        }
+        function ttKolom(icon, judul, isi) {
+          return '<div class="tt-col"><div class="tt-col__title"><i data-lucide="' + icon + '"></i>' + escapeHtml(judul) + '</div>' + isi + '</div>';
+        }
+
+        var isiWali;
+        if (waliKelas) {
+          var jmlSiswaWali = (kelasSiswaMap[waliKelas.kelas.id] || []).length;
+          var metaWali = [];
+          if (waliKelas.kelas.program_keahlian) metaWali.push(waliKelas.kelas.program_keahlian);
+          metaWali.push(jmlSiswaWali + ' siswa');
+          isiWali = '<ul class="tt-list">' + ttBaris('Kelas ' + waliKelas.kelas.nama, metaWali.join(' · ')) + '</ul>';
+        } else {
+          isiWali = ttKosong('Tidak menjadi wali kelas');
+        }
+
+        var isiKoku = rowsKoku.length
+          ? '<ul class="tt-list">' + rowsKoku.map(function (r) {
+              return ttBaris(r.namaKegiatan, r.labelKelas + ' · ' + r.total + ' siswa');
+            }).join('') + '</ul>'
+          : ttKosong('Tidak menjadi PJ kokurikuler');
+
+        var isiEkskul = rowsEkskul.length
+          ? '<ul class="tt-list">' + rowsEkskul.map(function (r) {
+              return ttBaris(r.ekskul.nama, r.total + ' peserta');
+            }).join('') + '</ul>'
+          : ttKosong('Tidak membina ekstrakurikuler');
+
+        tugasTambahanHtml =
+          '<section class="dx-card tt-card" style="margin-bottom:20px;">' +
+          '<div class="dx-card__head"><h3 class="dx-card__title"><i data-lucide="briefcase"></i>Tugas Tambahan</h3>' +
+          '<span class="dx-card__hint">Tahun Ajaran ' + escapeHtml(tahunAktif.nama) + ' Semester ' + escapeHtml(tahunAktif.semester) + '</span></div>' +
+          '<div class="tt-grid">' +
+          ttKolom('user-check', 'Wali Kelas', isiWali) +
+          ttKolom('sprout', 'Kokurikuler', isiKoku) +
+          ttKolom('medal', 'Ekstrakurikuler', isiEkskul) +
+          '</div></section>';
+      }
+
       content.innerHTML =
         '<div class="panel-head"><div><div class="panel-head__title">Dashboard Saya</div>' +
         '<div class="panel-head__desc">Semua tugas kamu — Tahun Ajaran ' + escapeHtml(tahunAktif.nama) + ' Semester ' + escapeHtml(tahunAktif.semester) + '.</div></div></div>' +
         ringkasanPeranHtml +
+        tugasTambahanHtml +
         peringkatKelasHtml +
         antreanHtml +
         sectionAnalisisHtml +
