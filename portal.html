@@ -100,6 +100,12 @@
   .pt-mod__d { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 3px; }
 
   .pt-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+  .pt-tt { grid-column: 1 / -1; }
+  .pt-tt__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .pt-tt__col { background: var(--surface-tint); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .pt-tt__t { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 10px; }
+  .pt-tt__t i, .pt-tt__t svg { width: 15px; height: 15px; color: var(--primary); }
+  @media (max-width: 900px) { .pt-tt__grid { grid-template-columns: 1fr; } }
   .pt-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 18px 20px; }
   .pt-panel__h { font-family: var(--font-display); font-size: 15px; font-weight: 800; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
   .pt-panel__h i, .pt-panel__h svg { width: 17px; height: 17px; color: var(--primary); }
@@ -358,15 +364,37 @@
     if (window.lucide) lucide.createIcons();
     if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
 
-    var peng = [], wali = null;
+    var peng = [], wali = null, waliKelasObj = null;
     try {
       var r1 = await supabaseClient.from('penugasan_guru').select('kelas_id, mapel_id, kelas(nama, tingkat), mata_pelajaran(nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id);
       if (!r1.error) peng = r1.data || [];
     } catch (e) { /* abaikan */ }
     try {
-      var r2 = await supabaseClient.from('wali_kelas').select('kelas(nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id).maybeSingle();
-      if (!r2.error && r2.data && r2.data.kelas) wali = r2.data.kelas.nama;
+      var r2 = await supabaseClient.from('wali_kelas').select('kelas(id, nama, program_keahlian)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id).maybeSingle();
+      if (!r2.error && r2.data && r2.data.kelas) { wali = r2.data.kelas.nama; waliKelasObj = r2.data.kelas; }
     } catch (e) { /* abaikan */ }
+
+    // Tugas tambahan lain: pembina ekstrakurikuler & PJ kokurikuler
+    var daftarEkskul = [], daftarKoku = [];
+    try {
+      var r3 = await supabaseClient.from('pembina_ekstrakurikuler').select('ekstrakurikuler:ekstrakurikuler_id(id, nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id);
+      if (!r3.error) daftarEkskul = (r3.data || []).filter(function (r) { return r.ekstrakurikuler; }).map(function (r) { return r.ekstrakurikuler; });
+    } catch (e) { /* abaikan */ }
+    try {
+      var r4 = await supabaseClient.from('pj_kokurikuler').select('nama_kegiatan, kelas:kelas_id(id, nama)').eq('guru_id', uid).eq('tahun_ajaran_id', ta.id);
+      if (!r4.error) daftarKoku = (r4.data || []).filter(function (r) { return r.nama_kegiatan; });
+    } catch (e) { /* abaikan */ }
+    daftarEkskul.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+    daftarKoku.sort(function (a, b) { return a.nama_kegiatan.localeCompare(b.nama_kegiatan); });
+
+    var jmlSiswaWali = null;
+    if (waliKelasObj) {
+      jmlSiswaWali = await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('kelas_id', waliKelasObj.id));
+    }
+    var pesertaEkskul = {};
+    await Promise.all(daftarEkskul.map(async function (e) {
+      pesertaEkskul[e.id] = await hitung(supabaseClient.from('ekstrakurikuler_siswa').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('ekstrakurikuler_id', e.id));
+    }));
 
     var kelasIds = [], mapelIds = {};
     peng.forEach(function (p) { if (kelasIds.indexOf(p.kelas_id) < 0) kelasIds.push(p.kelas_id); mapelIds[p.mapel_id] = 1; });
@@ -386,13 +414,33 @@
       return '<li><b>' + esc(k) + '</b><span style="text-align:right;color:var(--ink-soft);">' + perKelas[k].map(esc).join(', ') + '</span></li>';
     }).join('') + '</ul>' : '<div class="pt-empty">Belum ada penugasan mengajar di tahun ajaran ini. Hubungi admin.</div>';
 
+    // Panel Tugas Tambahan (wali kelas, kokurikuler, ekstrakurikuler)
+    function ttKolom(ikon, judul, isiHtml) {
+      return '<div class="pt-tt__col"><div class="pt-tt__t"><i data-lucide="' + ikon + '"></i>' + judul + '</div>' + isiHtml + '</div>';
+    }
+    function ttItem(nama, meta) {
+      return '<li><b>' + esc(nama) + '</b><span style="text-align:right;color:var(--ink-soft);">' + esc(meta) + '</span></li>';
+    }
+    var isiWaliTt = waliKelasObj
+      ? '<ul class="pt-list">' + ttItem('Kelas ' + waliKelasObj.nama, (waliKelasObj.program_keahlian ? waliKelasObj.program_keahlian + ' · ' : '') + (jmlSiswaWali || 0) + ' siswa') + '</ul>'
+      : '<div class="pt-empty">Bukan wali kelas</div>';
+    var isiKokuTt = daftarKoku.length
+      ? '<ul class="pt-list">' + daftarKoku.map(function (r) { return ttItem(r.nama_kegiatan, r.kelas ? r.kelas.nama : 'Semua Kelas'); }).join('') + '</ul>'
+      : '<div class="pt-empty">Bukan PJ kokurikuler</div>';
+    var isiEkskulTt = daftarEkskul.length
+      ? '<ul class="pt-list">' + daftarEkskul.map(function (e) { return ttItem(e.nama, (pesertaEkskul[e.id] || 0) + ' peserta'); }).join('') + '</ul>'
+      : '<div class="pt-empty">Bukan pembina ekstrakurikuler</div>';
+    var panelTugasTambahan = '<div class="pt-panel pt-tt"><h3 class="pt-panel__h"><i data-lucide="briefcase"></i>Tugas Tambahan</h3>' +
+      '<div class="pt-tt__grid">' + ttKolom('user-check', 'Wali Kelas', isiWaliTt) + ttKolom('sprout', 'Kokurikuler', isiKokuTt) + ttKolom('medal', 'Ekstrakurikuler', isiEkskulTt) + '</div></div>';
+
     document.getElementById('secInfo').style.display = '';
     document.getElementById('panels').innerHTML =
       '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="calendar-check"></i>Tugas Mengajar Saya</h3>' + isi + '</div>' +
       '<div class="pt-panel"><h3 class="pt-panel__h"><i data-lucide="info"></i>Info</h3><ul class="pt-list">' +
       '<li><span>Tahun ajaran</span><b>' + esc(ta.nama) + '</b></li>' +
       '<li><span>Semester</span><b>' + esc(ta.semester) + '</b></li>' +
-      '<li><span>Login sebagai</span><span class="pt-tag">Guru</span></li></ul></div>';
+      '<li><span>Login sebagai</span><span class="pt-tag">Guru</span></li></ul></div>' +
+      panelTugasTambahan;
     if (window.lucide) lucide.createIcons();
   }
 
