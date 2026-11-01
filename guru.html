@@ -1616,11 +1616,17 @@
     // berikutnya. Maka di sini deskripsi DIPOTONG ke panjang wajar
     // sebelum dipakai menyusun kalimat Capaian Kompetensi, apa pun
     // sumbernya (input manual maupun import Excel).
-    var BATAS_PANJANG_DESKRIPSI_TP = 300;
+    // BATAS_PANJANG_DESKRIPSI_TP = batas INPUT baru (form + import Excel):
+    // lebih dari ini ditolak dengan peringatan, TIDAK dipotong diam-diam.
+    // BATAS_TAMPIL_DESKRIPSI_TP = safety net saat menyusun rapor, sengaja
+    // dibiarkan 300 supaya TP lama (251–300 karakter) tidak tiba-tiba
+    // terpotong di rapor.
+    var BATAS_PANJANG_DESKRIPSI_TP = 250;
+    var BATAS_TAMPIL_DESKRIPSI_TP = 300;
     function rapikanDeskripsiTp(teks) {
       var bersih = String(teks || '').trim().replace(/[.;,\s]+$/, '');
-      if (bersih.length > BATAS_PANJANG_DESKRIPSI_TP) {
-        bersih = bersih.slice(0, BATAS_PANJANG_DESKRIPSI_TP).replace(/\s+\S*$/, '') + '…';
+      if (bersih.length > BATAS_TAMPIL_DESKRIPSI_TP) {
+        bersih = bersih.slice(0, BATAS_TAMPIL_DESKRIPSI_TP).replace(/\s+\S*$/, '') + '…';
       }
       return bersih;
     }
@@ -2759,6 +2765,28 @@
       { key: 'status', header: 'Status' }
     ];
 
+    // Kolom peringatan di file Excel: rumus LEN() menandai deskripsi yang
+    // melebihi batas. Kolom ini diabaikan saat import (import membaca
+    // berdasarkan nama header), jadi aman dibiarkan ada.
+    function tambahKolomCekPanjang(ws, jumlahBaris) {
+      var kolomDeskripsi = 'B';
+      var kolomCek = 'F';
+      ws[kolomCek + '1'] = { t: 's', v: 'Cek Panjang' };
+      for (var r = 2; r <= jumlahBaris + 1; r++) {
+        ws[kolomCek + r] = {
+          t: 's',
+          f: 'IF(' + kolomDeskripsi + r + '="","",IF(LEN(' + kolomDeskripsi + r + ')>' + BATAS_PANJANG_DESKRIPSI_TP +
+            ',"MELEBIHI ' + BATAS_PANJANG_DESKRIPSI_TP + ' ("&LEN(' + kolomDeskripsi + r + ')&")","OK ("&LEN(' + kolomDeskripsi + r + ')&")"))',
+          v: ''
+        };
+      }
+      var range = XLSX.utils.decode_range(ws['!ref']);
+      range.e.c = Math.max(range.e.c, 5);
+      range.e.r = Math.max(range.e.r, jumlahBaris);
+      ws['!ref'] = XLSX.utils.encode_range(range);
+      return ws;
+    }
+
     function opsiSemesterHtml(selected) {
       var opts = '';
       for (var s = 1; s <= 6; s++) {
@@ -2791,7 +2819,7 @@
         '<div id="importSummaryTujuan"></div>' +
         '<form class="add-form" id="formTujuan">' +
         '<div class="field"><label>Kode</label><input type="text" id="tpKode" placeholder="TP.1"></div>' +
-        '<div class="field" style="flex:2;min-width:260px;"><label>Deskripsi</label><input type="text" id="tpDeskripsi" placeholder="Uraian tujuan pembelajaran" maxlength="' + BATAS_PANJANG_DESKRIPSI_TP + '" style="text-transform:lowercase;" required>' +
+        '<div class="field" style="flex:2;min-width:260px;"><label>Deskripsi</label><input type="text" id="tpDeskripsi" placeholder="Uraian tujuan pembelajaran" style="text-transform:lowercase;" required>' +
         '<div id="tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">0/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter</div></div>' +
         '<div class="field" style="max-width:100px;"><label>Urutan</label><input type="number" id="tpUrutan" min="0" step="1" placeholder="0"></div>' +
         '<div class="field" style="max-width:150px;"><label>Semester</label><select id="tpSemester">' + opsiSemesterHtml(1) + '</select></div>' +
@@ -2803,8 +2831,10 @@
       var tpDeskripsiCounter = document.getElementById('tpDeskripsiCounter');
       function perbaruiCounterTpDeskripsi(el) {
         var panjang = el.value.length;
-        tpDeskripsiCounter.textContent = panjang + '/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter';
-        tpDeskripsiCounter.style.color = panjang >= BATAS_PANJANG_DESKRIPSI_TP ? 'var(--danger)' : 'var(--ink-soft)';
+        var lebih = panjang > BATAS_PANJANG_DESKRIPSI_TP;
+        tpDeskripsiCounter.textContent = panjang + '/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter' + (lebih ? ' — melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ', persingkat dulu' : '');
+        tpDeskripsiCounter.style.color = lebih ? 'var(--danger)' : 'var(--ink-soft)';
+        tpDeskripsiCounter.style.fontWeight = lebih ? '600' : '';
       }
       document.getElementById('tpDeskripsi').addEventListener('input', function (e) {
         e.target.value = e.target.value.toLowerCase();
@@ -2813,8 +2843,12 @@
 
       document.getElementById('formTujuan').addEventListener('submit', async function (e) {
         e.preventDefault();
-        var deskripsi = document.getElementById('tpDeskripsi').value.trim().toLowerCase().slice(0, BATAS_PANJANG_DESKRIPSI_TP);
+        var deskripsi = document.getElementById('tpDeskripsi').value.trim().toLowerCase();
         if (!deskripsi) return;
+        if (deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP) {
+          alert('Gagal menambah: deskripsi melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter (sekarang ' + deskripsi.length + ' karakter). Persingkat dulu.');
+          return;
+        }
         var res = await supabaseClient.from('tujuan_pembelajaran').insert({
           guru_id: user.id,
           mapel_id: mapel.id,
@@ -2892,8 +2926,8 @@
           '<div class="field"><label>Urutan</label><input type="number" id="f_tpUrutan" min="0" step="1" value="' + existing.urutan + '"></div>' +
           '<div class="field"><label>Semester</label><select id="f_tpSemester">' + opsiSemesterHtml(existing.semester) + '</select></div>' +
           '<div class="field"><label>Status</label><select id="f_tpStatus">' + opsiStatusHtml(existing.is_aktif) + '</select></div>' +
-          '<div class="field" style="grid-column:1 / -1;"><label>Deskripsi</label><input type="text" id="f_tpDeskripsi" value="' + escapeHtml(existing.deskripsi) + '" maxlength="' + BATAS_PANJANG_DESKRIPSI_TP + '" style="text-transform:lowercase;" required>' +
-          '<div id="f_tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">' + existing.deskripsi.length + '/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter</div></div>' +
+          '<div class="field" style="grid-column:1 / -1;"><label>Deskripsi</label><input type="text" id="f_tpDeskripsi" value="' + escapeHtml(existing.deskripsi) + '" style="text-transform:lowercase;" required>' +
+          '<div id="f_tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;"></div></div>' +
           '</div>' +
           '<div class="modal-box__actions">' +
           '<button type="button" class="btn-small" id="modalCancelBtn">Batal</button>' +
@@ -2911,18 +2945,25 @@
         var fTpDeskripsiCounter = document.getElementById('f_tpDeskripsiCounter');
         function perbaruiCounterFTpDeskripsi(el) {
           var panjang = el.value.length;
-          fTpDeskripsiCounter.textContent = panjang + '/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter';
-          fTpDeskripsiCounter.style.color = panjang >= BATAS_PANJANG_DESKRIPSI_TP ? 'var(--danger)' : 'var(--ink-soft)';
+          var lebih = panjang > BATAS_PANJANG_DESKRIPSI_TP;
+          fTpDeskripsiCounter.textContent = panjang + '/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter' + (lebih ? ' — melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ', persingkat dulu' : '');
+          fTpDeskripsiCounter.style.color = lebih ? 'var(--danger)' : 'var(--ink-soft)';
+          fTpDeskripsiCounter.style.fontWeight = lebih ? '600' : '';
         }
         document.getElementById('f_tpDeskripsi').addEventListener('input', function (e) {
           e.target.value = e.target.value.toLowerCase();
           perbaruiCounterFTpDeskripsi(e.target);
         });
+        perbaruiCounterFTpDeskripsi(document.getElementById('f_tpDeskripsi'));
 
         document.getElementById('formModalTujuan').addEventListener('submit', async function (e) {
           e.preventDefault();
-          var deskripsi = document.getElementById('f_tpDeskripsi').value.trim().toLowerCase().slice(0, BATAS_PANJANG_DESKRIPSI_TP);
+          var deskripsi = document.getElementById('f_tpDeskripsi').value.trim().toLowerCase();
           if (!deskripsi) return;
+          if (deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP) {
+            alert('Gagal menyimpan: deskripsi melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter (sekarang ' + deskripsi.length + ' karakter). Persingkat dulu.');
+            return;
+          }
           var payload = {
             kode: document.getElementById('f_tpKode').value.trim() || null,
             deskripsi: deskripsi,
@@ -2948,7 +2989,9 @@
             'Status': r.is_aktif ? 'Aktif' : 'Tidak Aktif'
           };
         });
-        var ws = autoFitKolom(XLSX.utils.json_to_sheet(rows, { header: TP_EXCEL_COLUMNS.map(function (c) { return c.header; }) }));
+        var ws = XLSX.utils.json_to_sheet(rows, { header: TP_EXCEL_COLUMNS.map(function (c) { return c.header; }) });
+        tambahKolomCekPanjang(ws, Math.max(rows.length, 1));
+        ws = autoFitKolom(ws);
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Tujuan Pembelajaran');
         unduhXlsxRapi(wb, 'tujuan_pembelajaran_' + mapel.nama.replace(/[^a-z0-9]/gi, '_') + '.xlsx');
@@ -2958,7 +3001,9 @@
       document.getElementById('btnTemplateTujuan').addEventListener('click', function () {
         var headers = TP_EXCEL_COLUMNS.map(function (c) { return c.header; });
         var contoh = { 'Kode': 'TP.1', 'Deskripsi': 'Menjelaskan konsep dasar ...', 'Urutan': 1, 'Semester': 1, 'Status': 'Aktif' };
-        var ws = autoFitKolom(XLSX.utils.json_to_sheet([contoh], { header: headers }));
+        var ws = XLSX.utils.json_to_sheet([contoh], { header: headers });
+        tambahKolomCekPanjang(ws, 200);
+        ws = autoFitKolom(ws);
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Template Tujuan');
         unduhXlsxRapi(wb, 'template_import_tujuan_pembelajaran.xlsx');
@@ -2991,9 +3036,7 @@
           for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             var kode = String(row['Kode'] || '').trim();
-            var deskripsiAsli = String(row['Deskripsi'] || '').trim().toLowerCase();
-            var deskripsi = deskripsiAsli.slice(0, BATAS_PANJANG_DESKRIPSI_TP);
-            var deskripsiDipotong = deskripsiAsli.length > BATAS_PANJANG_DESKRIPSI_TP;
+            var deskripsi = String(row['Deskripsi'] || '').trim().toLowerCase();
             var urutanRaw = row['Urutan'];
             var urutan = parseInt(urutanRaw, 10);
             if (isNaN(urutan)) urutan = 0;
@@ -3005,6 +3048,13 @@
             if (!deskripsi) {
               dilewati++;
               pesan.push('Baris ' + (i + 2) + ': dilewati (Deskripsi belum diisi).');
+              continue;
+            }
+
+            if (deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP) {
+              dilewati++;
+              pesan.push('Baris ' + (i + 2) + (kode ? ' (' + kode + ')' : '') + ': GAGAL — deskripsi ' + deskripsi.length +
+                ' karakter, melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + '. Persingkat di Excel lalu import ulang.');
               continue;
             }
 
@@ -3028,10 +3078,6 @@
               var ins = await supabaseClient.from('tujuan_pembelajaran').insert(payload);
               if (ins.error) { dilewati++; pesan.push('Baris ' + (i + 2) + (kode ? ' (' + kode + ')' : '') + ': gagal tambah — ' + ins.error.message); continue; }
               ditambah++;
-            }
-            if (deskripsiDipotong) {
-              pesan.push('Baris ' + (i + 2) + (kode ? ' (' + kode + ')' : '') + ': deskripsi ' + deskripsiAsli.length +
-                ' karakter, melebihi batas ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter — dipotong otomatis.');
             }
           }
 
