@@ -2765,26 +2765,73 @@
       { key: 'status', header: 'Status' }
     ];
 
-    // Kolom peringatan di file Excel: rumus LEN() menandai deskripsi yang
-    // melebihi batas. Kolom ini diabaikan saat import (import membaca
-    // berdasarkan nama header), jadi aman dibiarkan ada.
-    function tambahKolomCekPanjang(ws, jumlahBaris) {
-      var kolomDeskripsi = 'B';
-      var kolomCek = 'F';
-      ws[kolomCek + '1'] = { t: 's', v: 'Cek Panjang' };
-      for (var r = 2; r <= jumlahBaris + 1; r++) {
-        ws[kolomCek + r] = {
-          t: 's',
-          f: 'IF(' + kolomDeskripsi + r + '="","",IF(LEN(' + kolomDeskripsi + r + ')>' + BATAS_PANJANG_DESKRIPSI_TP +
-            ',"MELEBIHI ' + BATAS_PANJANG_DESKRIPSI_TP + ' ("&LEN(' + kolomDeskripsi + r + ')&")","OK ("&LEN(' + kolomDeskripsi + r + ')&")"))',
-          v: ''
-        };
-      }
-      var range = XLSX.utils.decode_range(ws['!ref']);
-      range.e.c = Math.max(range.e.c, 5);
-      range.e.r = Math.max(range.e.r, jumlahBaris);
-      ws['!ref'] = XLSX.utils.encode_range(range);
-      return ws;
+    // Peringatan panjang deskripsi di file Excel (dibuat lewat ExcelJS):
+    // 1) validasi data: mengetik >250 karakter di kolom Deskripsi langsung
+    //    ditolak dengan pesan peringatan,
+    // 2) format bersyarat: sel Deskripsi >250 (mis. hasil paste, yang
+    //    melewati validasi) otomatis merah,
+    // 3) kolom "Cek Panjang" (rumus LEN) menampilkan jumlah karakter.
+    // Kolom Cek Panjang diabaikan saat import (import membaca per header).
+    function siapkanPeringatanPanjangTp(jumlahBaris, daftarDeskripsi) {
+      return {
+        setelahSheet: function (sheetEx) {
+          var batas = BATAS_PANJANG_DESKRIPSI_TP;
+          var akhir = jumlahBaris + 1;
+          var garis = { style: 'thin', color: { argb: 'FF7F7F7F' } };
+          var hc = sheetEx.getCell('F1');
+          hc.value = 'Cek Panjang';
+          hc.font = { name: 'Calibri', size: 10, bold: true };
+          hc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
+          hc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          hc.border = { top: garis, left: garis, bottom: garis, right: garis };
+          sheetEx.getColumn(6).width = 24;
+          for (var r = 2; r <= akhir; r++) {
+            var teks = daftarDeskripsi && daftarDeskripsi[r - 2] ? String(daftarDeskripsi[r - 2]) : '';
+            var hasil = !teks ? '' : (teks.length > batas ? 'MELEBIHI ' + batas + ' (' + teks.length + ')' : 'OK (' + teks.length + ')');
+            var c = sheetEx.getCell('F' + r);
+            c.value = {
+              formula: 'IF(B' + r + '="","",IF(LEN(B' + r + ')>' + batas + ',"MELEBIHI ' + batas + ' ("&LEN(B' + r + ')&")","OK ("&LEN(B' + r + ')&")"))',
+              result: hasil
+            };
+            c.font = { name: 'Calibri', size: 10 };
+            c.alignment = { horizontal: 'center', vertical: 'top' };
+            sheetEx.getCell('B' + r).dataValidation = {
+              type: 'textLength',
+              operator: 'lessThanOrEqual',
+              formula1: batas,
+              allowBlank: true,
+              showErrorMessage: true,
+              errorStyle: 'stop',
+              errorTitle: 'Melebihi ' + batas + ' karakter',
+              error: 'Deskripsi tujuan pembelajaran maksimal ' + batas + ' karakter. Persingkat dulu.'
+            };
+          }
+          sheetEx.addConditionalFormatting({
+            ref: 'B2:B' + akhir,
+            rules: [{
+              type: 'expression',
+              formulae: ['LEN($B2)>' + batas],
+              priority: 1,
+              style: {
+                font: { bold: true, color: { argb: 'FF9C0006' } },
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }
+              }
+            }]
+          });
+          sheetEx.addConditionalFormatting({
+            ref: 'F2:F' + akhir,
+            rules: [{
+              type: 'expression',
+              formulae: ['LEFT($F2,3)="MEL"'],
+              priority: 2,
+              style: {
+                font: { bold: true, color: { argb: 'FF9C0006' } },
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } }
+              }
+            }]
+          });
+        }
+      };
     }
 
     function opsiSemesterHtml(selected) {
@@ -2992,24 +3039,22 @@
             'Status': r.is_aktif ? 'Aktif' : 'Tidak Aktif'
           };
         });
-        var ws = XLSX.utils.json_to_sheet(rows, { header: TP_EXCEL_COLUMNS.map(function (c) { return c.header; }) });
-        tambahKolomCekPanjang(ws, Math.max(rows.length, 1));
-        ws = autoFitKolom(ws);
+        var ws = autoFitKolom(XLSX.utils.json_to_sheet(rows, { header: TP_EXCEL_COLUMNS.map(function (c) { return c.header; }) }));
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Tujuan Pembelajaran');
-        unduhXlsxRapi(wb, 'tujuan_pembelajaran_' + mapel.nama.replace(/[^a-z0-9]/gi, '_') + '.xlsx');
+        unduhXlsxRapi(wb, 'tujuan_pembelajaran_' + mapel.nama.replace(/[^a-z0-9]/gi, '_') + '.xlsx',
+          siapkanPeringatanPanjangTp(rows.length + 50, rows.map(function (r) { return r['Deskripsi']; })));
       });
 
       // ---------- Unduh Template ----------
       document.getElementById('btnTemplateTujuan').addEventListener('click', function () {
         var headers = TP_EXCEL_COLUMNS.map(function (c) { return c.header; });
         var contoh = { 'Kode': 'TP.1', 'Deskripsi': 'Menjelaskan konsep dasar ...', 'Urutan': 1, 'Semester': 1, 'Status': 'Aktif' };
-        var ws = XLSX.utils.json_to_sheet([contoh], { header: headers });
-        tambahKolomCekPanjang(ws, 200);
-        ws = autoFitKolom(ws);
+        var ws = autoFitKolom(XLSX.utils.json_to_sheet([contoh], { header: headers }));
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Template Tujuan');
-        unduhXlsxRapi(wb, 'template_import_tujuan_pembelajaran.xlsx');
+        unduhXlsxRapi(wb, 'template_import_tujuan_pembelajaran.xlsx',
+          siapkanPeringatanPanjangTp(200, [contoh['Deskripsi']]));
       });
 
       // ---------- Import Excel ----------

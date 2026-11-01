@@ -188,12 +188,18 @@
     }
   }
 
-  async function unduhXlsxRapi(wb, namaFile) {
+  // opsi (opsional): { setelahSheet: function (sheetExcelJS, namaSheet) {...} }
+  // dipanggil sesudah sheet disalin, untuk menambah fitur yang tidak bisa
+  // ditulis SheetJS (rumus, validasi data, format bersyarat).
+  async function unduhXlsxRapi(wb, namaFile, opsi) {
     if (typeof catatAktivitas === 'function') catatAktivitas('unduh', 'Unduh Excel', namaFile);
     try {
       if (typeof ExcelJS === 'undefined') throw new Error('ExcelJS belum dimuat');
       var wbEx = new ExcelJS.Workbook();
-      wb.SheetNames.forEach(function (nama) { salinSheet(wbEx, nama, wb.Sheets[nama]); });
+      wb.SheetNames.forEach(function (nama) {
+        salinSheet(wbEx, nama, wb.Sheets[nama]);
+        if (opsi && typeof opsi.setelahSheet === 'function') opsi.setelahSheet(wbEx.getWorksheet(String(nama).slice(0, 31)), nama);
+      });
       var buffer = await wbEx.xlsx.writeBuffer();
       var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       var url = URL.createObjectURL(blob);
