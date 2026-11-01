@@ -2879,7 +2879,10 @@
         rows.forEach(function (r) {
           var tr = document.createElement('tr');
           tr.innerHTML =
-            '<td>Semester ' + r.semester + '</td><td>' + r.urutan + '</td><td>' + escapeHtml(r.kode || '—') + '</td><td>' + escapeHtml(r.deskripsi) + '</td>' +
+            '<td>Semester ' + r.semester + '</td><td>' + r.urutan + '</td><td>' + escapeHtml(r.kode || '—') + '</td><td>' + escapeHtml(r.deskripsi) +
+            (r.deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP
+              ? '<div style="color:var(--danger);font-size:11px;font-weight:600;margin-top:2px;">⚠ ' + r.deskripsi.length + ' karakter, melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' — klik Edit untuk mempersingkat</div>'
+              : '') + '</td>' +
             '<td>' + statusChipHtml(r.is_aktif) + '</td>' +
             '<td><button class="btn-small" data-toggle-id="' + r.id + '">' + (r.is_aktif ? 'Nonaktifkan' : 'Aktifkan') + '</button> ' +
             '<button class="btn-small" data-edit-id="' + r.id + '">Edit</button> ' +
