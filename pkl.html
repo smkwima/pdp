@@ -1795,6 +1795,167 @@
     // Menu tersendiri: Cetak Nilai PKL (guru pembimbing).
     function renderCetakPkl() { return renderNilaiPkl('cetak'); }
 
+    // ================= PEMBIMBING PKL: Rekap Nilai (baca saja) =================
+    // Menu "Rekap Nilai" untuk guru pembimbing: menampilkan Nilai DUDI, Nilai
+    // Penguji (TP 1-4, nilai akhir tiap sumber & nilai akhir total) serta
+    // Deskripsi TP 1-4 untuk semua siswa binaan. Tidak ada input di sini —
+    // pengisian tetap lewat menu "Input Nilai sebagai Pendamping" / Penguji.
+    async function renderRekapNilaiPkl() {
+      content.innerHTML = renderPlaceholder('Memuat...', 'Mengambil rekap nilai siswa binaan PKL.');
+
+      var pembimbingRes = await supabaseClient
+        .from('pkl_pembimbing')
+        .select('siswa_id, nama_dudi, tanggal_mulai, tanggal_selesai, deskripsi_tp1, deskripsi_tp2, deskripsi_tp3, deskripsi_tp4, siswa:siswa_id(nis, nama), kelas:kelas_id(nama)')
+        .eq('guru_id', user.id)
+        .eq('tahun_ajaran_id', tahunAktif.id);
+      var binaan = (pembimbingRes.data || []).filter(function (r) { return r.siswa && r.kelas; });
+      binaan.sort(function (a, b) {
+        var k = a.kelas.nama.localeCompare(b.kelas.nama, 'id', { numeric: true });
+        return k !== 0 ? k : a.siswa.nama.localeCompare(b.siswa.nama);
+      });
+
+      if (!binaan.length) {
+        content.innerHTML = renderPlaceholder('Rekap Nilai', 'Belum ada siswa yang ditetapkan sebagai binaan PKL Anda. Hubungi admin untuk penugasan.');
+        return;
+      }
+
+      var siswaIds = binaan.map(function (r) { return r.siswa_id; });
+      var nilaiRes = await supabaseClient
+        .from('nilai_pkl')
+        .select('siswa_id, sumber, tp1, tp2, tp3, tp4, nilai_akhir')
+        .eq('tahun_ajaran_id', tahunAktif.id)
+        .in('siswa_id', siswaIds);
+      var nilaiMap = {}; // siswa_id -> { dudi: row, penguji: row }
+      (nilaiRes.data || []).forEach(function (r) {
+        if (!nilaiMap[r.siswa_id]) nilaiMap[r.siswa_id] = {};
+        nilaiMap[r.siswa_id][r.sumber] = r;
+      });
+
+      var pengujiRes = await supabaseClient
+        .from('pkl_penguji')
+        .select('siswa_id, guru:guru_id(nama)')
+        .eq('tahun_ajaran_id', tahunAktif.id)
+        .in('siswa_id', siswaIds);
+      var pengujiMap = {}; // siswa_id -> nama guru penguji
+      (pengujiRes.data || []).forEach(function (r) { if (r.guru) pengujiMap[r.siswa_id] = r.guru.nama; });
+
+      function kosong(v) { return v === null || v === undefined || v === ''; }
+      function fmtN(v) { return kosong(v) ? '—' : Number(v).toFixed(2); }
+      function rata2(a, b) { return (kosong(a) || kosong(b)) ? null : (Number(a) + Number(b)) / 2; }
+      // Rata-rata hanya dari TP yang terisi (dipakai kalau nilai_akhir belum tersimpan).
+      function akhirDari(row) {
+        if (!row) return null;
+        if (!kosong(row.nilai_akhir)) return Number(row.nilai_akhir);
+        var v = [row.tp1, row.tp2, row.tp3, row.tp4].filter(function (x) { return !kosong(x); }).map(Number);
+        return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null;
+      }
+
+      // Susun data per siswa sekali, dipakai tabel di layar & unduhan Excel.
+      var data = binaan.map(function (r) {
+        var p = nilaiMap[r.siswa_id] || {};
+        var du = p.dudi || {}, pg = p.penguji || {};
+        var akhirDu = akhirDari(p.dudi), akhirPg = akhirDari(p.penguji);
+        return {
+          kelas: r.kelas.nama, nis: r.siswa.nis || '', nama: r.siswa.nama,
+          dudi: r.nama_dudi || '', penguji: pengujiMap[r.siswa_id] || '',
+          du: du, pg: pg, akhirDu: akhirDu, akhirPg: akhirPg, akhir: rata2(akhirDu, akhirPg),
+          desk: [1, 2, 3, 4].map(function (n) { return r['deskripsi_tp' + n] || ''; })
+        };
+      });
+
+      var kelasUrut = [];
+      data.forEach(function (d) { if (kelasUrut.indexOf(d.kelas) < 0) kelasUrut.push(d.kelas); });
+
+      content.innerHTML =
+        '<div class="panel-head"><div><div class="panel-head__title">Rekap Nilai PKL</div>' +
+        '<div class="panel-head__desc">Tahun Ajaran ' + escapeHtml(tahunAktif.nama) + ' · ' + data.length + ' siswa binaan Anda. Menampilkan Nilai DUDI, Nilai Penguji, dan Deskripsi TP (baca saja). Untuk mengisi atau mengubah nilai, gunakan menu "Input Nilai sebagai Pendamping".</div></div></div>' +
+        '<div class="toolbar">' +
+        (kelasUrut.length > 1
+          ? '<div class="field" style="margin:0;"><label>Tampilkan Kelas</label><select id="rekapGuruKelas"><option value="">Semua Kelas (' + data.length + ' siswa)</option>' +
+            kelasUrut.map(function (k) {
+              var jml = data.filter(function (d) { return d.kelas === k; }).length;
+              return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + ' (' + jml + ' siswa)</option>';
+            }).join('') + '</select></div>'
+          : '') +
+        '<button class="btn-small" id="btnExportRekapGuru" style="margin-left:auto;">⬇ Unduh Rekap (Excel)</button>' +
+        '</div>' +
+        '<div id="rekapGuruArea"></div>';
+
+      function tampilData() {
+        var el = document.getElementById('rekapGuruKelas');
+        var pilih = el ? el.value : '';
+        return pilih ? data.filter(function (d) { return d.kelas === pilih; }) : data;
+      }
+
+      function gambar() {
+        var tampil = tampilData();
+        var lengkap = tampil.filter(function (d) { return d.akhir !== null; }).length;
+
+        var head1 = [1, 2, 3, 4].map(function (n) { return '<th colspan="3">TP ' + n + '</th>'; }).join('');
+        var head2 = [1, 2, 3, 4].map(function () {
+          return '<th class="tc-center">DUDI</th><th class="tc-center">Penguji</th><th class="tc-center">Rata-rata</th>';
+        }).join('');
+
+        var no = 0;
+        var rowsNilai = tampil.map(function (d) {
+          no++;
+          var tpCells = [1, 2, 3, 4].map(function (n) {
+            var a = d.du['tp' + n], b = d.pg['tp' + n];
+            return '<td class="tc-center">' + fmtN(a) + '</td><td class="tc-center">' + fmtN(b) + '</td>' +
+              '<td class="tc-center"><strong>' + fmtN(rata2(a, b)) + '</strong></td>';
+          }).join('');
+          return '<tr><td class="tc-center">' + no + '</td>' +
+            '<td>' + escapeHtml(d.nama) + '<div style="font-size:11px;color:#888;">' + escapeHtml(d.nis || '—') + ' · ' + escapeHtml(d.kelas) +
+            '<br>DUDI: ' + escapeHtml(d.dudi || '—') + '<br>Penguji: ' + escapeHtml(d.penguji || 'belum ditunjuk') + '</div></td>' +
+            tpCells +
+            '<td class="tc-center"><strong>' + fmtN(d.akhirDu) + '</strong></td>' +
+            '<td class="tc-center"><strong>' + fmtN(d.akhirPg) + '</strong></td>' +
+            '<td class="tc-center"><strong>' + fmtN(d.akhir) + '</strong></td></tr>';
+        }).join('');
+
+        no = 0;
+        var rowsDesk = tampil.map(function (d) {
+          no++;
+          return '<tr><td class="tc-center">' + no + '</td><td>' + escapeHtml(d.nama) + '</td>' +
+            d.desk.map(function (t) { return '<td>' + (t ? escapeHtml(t) : '<span style="color:#aaa;">—</span>') + '</td>'; }).join('') + '</tr>';
+        }).join('');
+
+        document.getElementById('rekapGuruArea').innerHTML =
+          '<div class="panel-note">Menampilkan ' + tampil.length + ' siswa. Nilai Akhir Total sudah terhitung untuk ' + lengkap + ' siswa (butuh Nilai DUDI &amp; Nilai Penguji); "—" berarti belum diisi.</div>' +
+          '<div class="table-wrap"><table class="data-table"><thead>' +
+          '<tr><th rowspan="2">No</th><th rowspan="2">Nama Siswa</th>' + head1 + '<th rowspan="2">Nilai Akhir DUDI</th><th rowspan="2">Nilai Akhir Penguji</th><th rowspan="2">Nilai Akhir Total</th></tr>' +
+          '<tr>' + head2 + '</tr></thead><tbody>' + rowsNilai + '</tbody></table></div>' +
+          '<div class="panel-note">Deskripsi Capaian TP (diisi/disusun di menu Input Nilai sebagai Pendamping → langkah 2):</div>' +
+          '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama Siswa</th><th>Deskripsi TP1</th><th>Deskripsi TP2</th><th>Deskripsi TP3</th><th>Deskripsi TP4</th></tr></thead>' +
+          '<tbody>' + rowsDesk + '</tbody></table></div>';
+      }
+
+      gambar();
+      var selKelas = document.getElementById('rekapGuruKelas');
+      if (selKelas) selKelas.addEventListener('change', gambar);
+
+      document.getElementById('btnExportRekapGuru').addEventListener('click', function () {
+        var tampil = tampilData();
+        var rows = tampil.map(function (d, i) {
+          var row = { 'No': i + 1, 'NIS': d.nis, 'Nama': d.nama, 'Kelas': d.kelas, 'Tempat DUDI': d.dudi, 'Guru Penguji': d.penguji };
+          [1, 2, 3, 4].forEach(function (n) {
+            row['TP' + n + ' - DUDI'] = kosong(d.du['tp' + n]) ? '' : Number(d.du['tp' + n]);
+            row['TP' + n + ' - Penguji'] = kosong(d.pg['tp' + n]) ? '' : Number(d.pg['tp' + n]);
+          });
+          row['Nilai Akhir DUDI'] = d.akhirDu === null ? '' : Number(d.akhirDu.toFixed(2));
+          row['Nilai Akhir Penguji'] = d.akhirPg === null ? '' : Number(d.akhirPg.toFixed(2));
+          row['Nilai Akhir Total'] = d.akhir === null ? '' : Number(d.akhir.toFixed(2));
+          [1, 2, 3, 4].forEach(function (n) { row['Deskripsi TP' + n] = d.desk[n - 1]; });
+          return row;
+        });
+        if (!rows.length) { alert('Belum ada data untuk diunduh.'); return; }
+        var ws = autoFitKolom(XLSX.utils.json_to_sheet(rows, { header: Object.keys(rows[0]) }));
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Rekap Nilai PKL');
+        unduhXlsxRapi(wb, 'rekap_nilai_pkl_binaan_' + tahunAktif.nama.replace(/[^a-z0-9]/gi, '_') + '.xlsx');
+      });
+    }
+
     // ================= PENGUJI PKL: Nilai PKL (Penguji) =================
     // Modul untuk guru yang ditunjuk Admin sebagai PENGUJI PKL — TERPISAH
     // dari Pembimbing PKL (bisa guru yang sama, bisa berbeda). Guru penguji
@@ -2141,6 +2302,7 @@
       if (pembRes.data && pembRes.data.length) {
         var itemPend = tambahMenu('briefcase-business', 'Input Nilai sebagai Pendamping (Nilai DU/DI)', renderNilaiPkl);
         if (!pertama) pertama = { el: itemPend, fn: renderNilaiPkl };
+        tambahMenu('table-properties', 'Rekap Nilai', renderRekapNilaiPkl);
         tambahMenu('printer', 'Cetak Nilai PKL', renderCetakPkl);
       }
     }
