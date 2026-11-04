@@ -17,11 +17,15 @@
 (function () {
   'use strict';
 
+  // pemuat modul RPP Maker (masuk otomatis tanpa login ulang)
+  if (!window.__rppLauncher) { var sl = document.createElement('script'); sl.src = 'rpp-launcher.js'; document.head.appendChild(sl); }
+
   var APP_GURU = [
     { href: 'portal.html',          judul: 'Menu Utama',          ikon: 'layout-grid',        warna: 'teal',   desc: 'Beranda semua aplikasi' },
     { href: 'guru.html',            judul: 'E-Rapor',             ikon: 'file-text',          warna: 'hijau',  desc: 'Nilai, presensi & cetak rapor' },
     { href: 'bukuinduk-guru.html',  judul: 'Buku Induk',          ikon: 'book-user',          warna: 'oranye', desc: 'Data induk siswa kelas wali' },
     { href: 'pkl.html',             judul: 'Nilai PKL',           ikon: 'briefcase-business', warna: 'biru',   desc: 'Pengolahan nilai PKL' },
+    { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi.html',       judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal & form supervisi' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' }
   ];
@@ -30,6 +34,7 @@
     { href: 'admin.html',             judul: 'E-Rapor',             ikon: 'file-text',          warna: 'hijau',  desc: 'Kelas, siswa, nilai & rapor' },
     { href: 'bukuinduk-admin.html',   judul: 'Buku Induk',          ikon: 'book-user',          warna: 'oranye', desc: 'Data induk seluruh siswa' },
     { href: 'pkl.html',               judul: 'Nilai PKL',           ikon: 'briefcase-business', warna: 'biru',   desc: 'Pembimbing, penguji & rekap' },
+    { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi-admin.html',   judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal, form & data supervisi' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' },
@@ -102,7 +107,7 @@
     wrap.className = 'as-wrap';
     var items = daftar.map(function (a) {
       var aktif = a.href.toLowerCase() === kini;
-      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (aktif ? ' aria-current="page"' : '') + '>' +
+      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (a.sso ? ' data-sso="rpp"' : '') + (aktif ? ' aria-current="page"' : '') + '>' +
         '<span class="as-ic as-ic--' + a.warna + '"><i data-lucide="' + a.ikon + '"></i></span>' +
         '<span style="min-width:0;"><span class="as-t">' + esc(a.judul) + (aktif ? '<span class="as-now">Dibuka</span>' : '') + '</span>' +
         '<span class="as-d" style="display:block;">' + esc(a.desc) + '</span></span></a>';

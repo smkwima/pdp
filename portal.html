@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="rpp-launcher.js"></script>
 <script src="bottomnav.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
@@ -241,7 +242,7 @@
         'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.'
       };
       var hasil = [];
-      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi'; }).forEach(function (m) {
+      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso; }).forEach(function (m) {
         if (desk[m.judul]) m.desc = desk[m.judul];
         hasil.push(m);
         if (m.judul === 'E-Rapor') {
@@ -258,6 +259,8 @@
         desc: admin ? 'Kelola kelas, siswa, mapel, penugasan guru, nilai, leger dan rapor.' : 'Input nilai, tujuan pembelajaran, presensi, ekskul dan cetak rapor.' },
       { grup: 'Akademik', href: 'pkl.html', warna: 'c-biru', ikon: 'briefcase-business', judul: 'Nilai PKL',
         desc: admin ? 'Tunjuk pembimbing & penguji PKL, pantau dan unduh rekap nilai PKL.' : 'Input identitas DUDI, nilai, catatan & presensi PKL, lalu cetak.' },
+      { grup: 'Akademik', href: '#', sso: true, warna: 'c-ungu', ikon: 'sparkles', judul: 'RPP Maker',
+        desc: 'Susun RPM, LKPD, asesmen, ATP dan Prota/Prosem dengan bantuan AI. Masuk otomatis dari PDP.' },
       { grup: 'Pembinaan & Mutu', href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'c-ungu', ikon: 'clipboard-check', judul: 'Supervisi',
         desc: admin ? 'Atur jadwal, form dan data supervisi akademik guru.' : 'Lihat jadwal, isi form supervisi, dan jawab wawancara supervisi.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
@@ -279,7 +282,7 @@
         h += '<div class="pt-side__label">' + esc(m.grup) + '</div><div class="pt-nav">';
         grupTerakhir = m.grup;
       }
-      h += '<a href="' + m.href + '"><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
+      h += '<a href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + '><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
     });
     h += '</div>';
     document.getElementById('sideNav').outerHTML = '<div id="sideNav">' + h + '</div>';
@@ -287,7 +290,7 @@
 
   function renderModul(mods) {
     document.getElementById('grid').innerHTML = mods.map(function (m) {
-      return '<a class="pt-mod" href="' + m.href + '">' +
+      return '<a class="pt-mod" href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + '>' +
         '<div class="pt-mod__ic ' + m.warna + '"><i data-lucide="' + m.ikon + '"></i></div>' +
         '<div><div class="pt-mod__t">' + esc(m.judul) + '<i data-lucide="arrow-right"></i></div><div class="pt-mod__d">' + esc(m.desc) + '</div></div></a>';
     }).join('');
