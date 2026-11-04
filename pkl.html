@@ -289,11 +289,18 @@
     var clsRekap = isSectionCollapsed('bodyPklRekap') ? ' is-collapsed' : '';
 
     var htmlRekapSaja =
+      '<div class="pg-tabs" role="tablist">' +
+      '<button type="button" class="pg-tab is-active" id="pgTabProgres" role="tab">Progres Guru</button>' +
+      '<button type="button" class="pg-tab" id="pgTabRekap" role="tab">Rekap Nilai Siswa</button>' +
+      '</div>' +
+      '<div id="pgPaneProgres"><div class="panel-note">Memuat progres guru...</div></div>' +
+      '<div id="pgPaneRekap" hidden>' +
       '<div class="pkl-rekap-bar" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:14px;">' +
       '<div class="field" style="margin:0;"><label>Tampilkan Kelas</label><select id="pklRekapKelas"><option value="">Semua Kelas</option></select></div>' +
       '<button type="button" class="btn-small" id="btnExportRekapPkl">⬇ Unduh Rekap (Excel)</button>' +
       '</div>' +
-      '<div id="pklRekapArea"><div class="panel-note">Memuat rekap...</div></div>';
+      '<div id="pklRekapArea"><div class="panel-note">Memuat rekap...</div></div>' +
+      '</div>';
 
     content.innerHTML = hanyaRekap ? htmlRekapSaja :
       '<div class="panel-head panel-head--toggle" data-target="bodyPklPembimbing"><div><div class="panel-head__title">Pembimbing PKL</div>' +
@@ -901,6 +908,223 @@
       var namaFile = pilih ? 'rekap_nilai_pkl_' + pilih.replace(/[^a-z0-9]/gi, '_') + '.xlsx' : 'rekap_nilai_pkl.xlsx';
       tulisExcelPkl(dataExportRekapPkl, Object.keys(dataExportRekapPkl[0]), namaSheet, namaFile);
     });
+
+    // ---------- D. Progres Guru (khusus Kepala Sekolah) ----------
+    // Memantau kemajuan pengisian oleh guru Pendamping (3 langkah: Identitas
+    // DUDI, Nilai DUDI TP1-4, Catatan PKL) dan guru Penguji (Nilai Penguji
+    // TP1-4). Hanya membaca data; tidak ada yang ditulis.
+    if (hanyaRekap) {
+      (function () {
+        var pane = document.getElementById('pgPaneProgres');
+        var paneRekap = document.getElementById('pgPaneRekap');
+        var tabP = document.getElementById('pgTabProgres');
+        var tabR = document.getElementById('pgTabRekap');
+        var dataPg = null, urutPg = 'nama', dataExportPg = [];
+
+        function pindahTab(keProgres) {
+          pane.hidden = !keProgres; paneRekap.hidden = keProgres;
+          tabP.classList.toggle('is-active', keProgres);
+          tabR.classList.toggle('is-active', !keProgres);
+        }
+        tabP.addEventListener('click', function () { pindahTab(true); });
+        tabR.addEventListener('click', function () { pindahTab(false); });
+
+        if (!document.getElementById('pgStyle')) {
+          var st = document.createElement('style');
+          st.id = 'pgStyle';
+          st.textContent =
+            '.pg-tabs{display:inline-flex;gap:4px;padding:4px;margin-bottom:16px;background:var(--surface-tint,#f1f5f9);border:1px solid var(--border,#e2e8f0);border-radius:12px;}' +
+            '.pg-tab{border:0;background:transparent;padding:8px 16px;border-radius:9px;font:700 13.5px/1 inherit;color:var(--ink-soft,#64748b);cursor:pointer;}' +
+            '.pg-tab.is-active{background:var(--surface,#fff);color:var(--primary-dim,#3730a3);box-shadow:0 1px 4px rgba(0,0,0,.12);}' +
+            '.pg-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;}' +
+            '.pg-card{padding:14px 16px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;}' +
+            '.pg-card__n{font-size:26px;font-weight:800;line-height:1.1;color:var(--ink,#0f172a);}' +
+            '.pg-card__l{margin-top:4px;font-size:12.5px;font-weight:600;color:var(--ink-soft,#64748b);}' +
+            '.pg-bar-tools{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:14px;}' +
+            '.pg-judul{display:flex;align-items:baseline;gap:10px;margin:22px 0 4px;font-size:15px;font-weight:800;color:var(--ink,#0f172a);}' +
+            '.pg-judul small{font-size:12.5px;font-weight:600;color:var(--ink-soft,#64748b);}' +
+            '.pg-bar{display:flex;align-items:center;gap:8px;min-width:150px;}' +
+            '.pg-bar__track{flex:1;height:8px;border-radius:99px;background:var(--border,#e2e8f0);overflow:hidden;}' +
+            '.pg-bar__fill{height:100%;border-radius:99px;background:var(--primary,#4f46e5);}' +
+            '.pg-bar__fill.is-selesai{background:var(--success,#059669);}' +
+            '.pg-bar__fill.is-belum{background:#cbd5e1;}' +
+            '.pg-pct{min-width:38px;text-align:right;font-weight:800;font-size:13px;}' +
+            '.pg-status{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:800;border:1px solid;white-space:nowrap;}' +
+            '.pg-status--selesai{color:var(--success,#059669);background:var(--success-tint,#ecfdf5);border-color:var(--success-border,#a7f3d0);}' +
+            '.pg-status--jalan{color:#b45309;background:#fffbeb;border-color:#fde68a;}' +
+            '.pg-status--belum{color:var(--ink-soft,#64748b);background:var(--surface-tint,#f1f5f9);border-color:var(--border,#e2e8f0);}' +
+            '.pg-langkah{font-size:12.5px;color:var(--ink-soft,#64748b);line-height:1.6;}' +
+            '.pg-langkah b{color:var(--ink,#0f172a);}' +
+            '.pg-btn-rinci{border:1px solid var(--border,#e2e8f0);background:var(--surface,#fff);border-radius:8px;padding:5px 10px;font:700 12px/1 inherit;cursor:pointer;color:var(--primary-dim,#3730a3);}' +
+            '.pg-rinci td{background:var(--surface-tint,#f8fafc);padding:10px 14px;}' +
+            '.pg-rinci table{width:100%;border-collapse:collapse;font-size:12.5px;}' +
+            '.pg-rinci th,.pg-rinci td.s{padding:6px 8px;border-bottom:1px solid var(--border,#e2e8f0);text-align:left;background:transparent;}' +
+            '.pg-ok{color:var(--success,#059669);font-weight:800;}' +
+            '.pg-no{color:#94a3b8;}' +
+            '@media print{.pg-tabs,.pg-bar-tools,.pg-btn-rinci{display:none !important;}}';
+          document.head.appendChild(st);
+        }
+
+        function kosong(v) { return v === null || v === undefined || v === ''; }
+        function tpLengkap(r) { return !!r && !kosong(r.tp1) && !kosong(r.tp2) && !kosong(r.tp3) && !kosong(r.tp4); }
+        function tpTerisi(r) { return !!r && [r.tp1, r.tp2, r.tp3, r.tp4].filter(function (v) { return !kosong(v); }).length; }
+        function statusDari(pct) { return pct >= 100 ? 'selesai' : (pct > 0 ? 'jalan' : 'belum'); }
+        function labelStatus(k) { return k === 'selesai' ? 'Selesai' : (k === 'jalan' ? 'Berjalan' : 'Belum mulai'); }
+        function bar(pct) {
+          var k = statusDari(pct);
+          return '<div class="pg-bar"><div class="pg-bar__track"><div class="pg-bar__fill' + (k === 'selesai' ? ' is-selesai' : (k === 'belum' ? ' is-belum' : '')) +
+            '" style="width:' + pct + '%"></div></div><span class="pg-pct">' + pct + '%</span></div>';
+        }
+        function cek(v) { return v ? '<span class="pg-ok">✓</span>' : '<span class="pg-no">—</span>'; }
+
+        async function muat() {
+          var ta = tahunAktif.id;
+          var pbRes = await supabaseClient.from('pkl_pembimbing')
+            .select('siswa_id, guru_id, nama_dudi, tanggal_mulai, tanggal_selesai, catatan, siswa:siswa_id(nis, nama), kelas:kelas_id(nama), guru:guru_id(nama)')
+            .eq('tahun_ajaran_id', ta);
+          var pgRes = await supabaseClient.from('pkl_penguji')
+            .select('siswa_id, guru_id, siswa:siswa_id(nis, nama), kelas:kelas_id(nama), guru:guru_id(nama)')
+            .eq('tahun_ajaran_id', ta);
+          var nlRes = await supabaseClient.from('nilai_pkl')
+            .select('siswa_id, sumber, tp1, tp2, tp3, tp4')
+            .eq('tahun_ajaran_id', ta);
+          var galat = pbRes.error || pgRes.error || nlRes.error;
+          if (galat) { pane.innerHTML = '<div class="panel-note">Gagal memuat progres guru: ' + escapeHtml(galat.message) + '</div>'; return false; }
+
+          var nilai = {};
+          (nlRes.data || []).forEach(function (r) {
+            if (!nilai[r.siswa_id]) nilai[r.siswa_id] = {};
+            nilai[r.siswa_id][r.sumber] = r;
+          });
+
+          var pend = {}, uji = {};
+          (pbRes.data || []).forEach(function (r) {
+            if (!r.siswa || !r.guru) return;
+            var g = pend[r.guru_id] || (pend[r.guru_id] = { guru: r.guru.nama, siswa: [] });
+            var n = nilai[r.siswa_id] || {};
+            var idn = !kosong(r.nama_dudi) && !kosong(r.tanggal_mulai) && !kosong(r.tanggal_selesai);
+            var nd = tpLengkap(n.dudi);
+            var ct = !kosong(r.catatan) && String(r.catatan).trim() !== '';
+            g.siswa.push({ nama: r.siswa.nama, kelas: r.kelas ? r.kelas.nama : '', idn: idn, nd: nd, tp: tpTerisi(n.dudi) || 0, ct: ct, selesai: (idn ? 1 : 0) + (nd ? 1 : 0) + (ct ? 1 : 0) });
+          });
+          (pgRes.data || []).forEach(function (r) {
+            if (!r.siswa || !r.guru) return;
+            var g = uji[r.guru_id] || (uji[r.guru_id] = { guru: r.guru.nama, siswa: [] });
+            var n = nilai[r.siswa_id] || {};
+            g.siswa.push({ nama: r.siswa.nama, kelas: r.kelas ? r.kelas.nama : '', np: tpLengkap(n.penguji), tp: tpTerisi(n.penguji) || 0, selesai: tpLengkap(n.penguji) ? 1 : 0 });
+          });
+
+          function hitung(map, langkah) {
+            return Object.keys(map).map(function (id) {
+              var g = map[id], n = g.siswa.length;
+              var done = g.siswa.reduce(function (a, x) { return a + x.selesai; }, 0);
+              g.n = n; g.pct = n ? Math.round(done / (n * langkah) * 100) : 0;
+              g.siswa.sort(function (a, b) { return a.kelas.localeCompare(b.kelas, 'id', { numeric: true }) || a.nama.localeCompare(b.nama); });
+              return g;
+            });
+          }
+          dataPg = { pend: hitung(pend, 3), uji: hitung(uji, 1) };
+          return true;
+        }
+
+        function urutkan(list) {
+          var a = list.slice();
+          a.sort(function (x, y) {
+            if (urutPg === 'terendah' && x.pct !== y.pct) return x.pct - y.pct;
+            return x.guru.localeCompare(y.guru);
+          });
+          return a;
+        }
+
+        function rataPct(list) {
+          var total = list.reduce(function (a, g) { return a + g.n; }, 0);
+          if (!total) return 0;
+          return Math.round(list.reduce(function (a, g) { return a + g.pct * g.n; }, 0) / total);
+        }
+
+        function gambar() {
+          var P = urutkan(dataPg.pend), U = urutkan(dataPg.uji);
+          dataExportPg = [];
+          var belum = P.concat(U).filter(function (g) { return g.pct === 0; }).length;
+
+          var html =
+            '<div class="pg-cards">' +
+            '<div class="pg-card"><div class="pg-card__n">' + P.length + '</div><div class="pg-card__l">Guru Pendamping</div></div>' +
+            '<div class="pg-card"><div class="pg-card__n">' + U.length + '</div><div class="pg-card__l">Guru Penguji</div></div>' +
+            '<div class="pg-card"><div class="pg-card__n">' + rataPct(dataPg.pend) + '%</div><div class="pg-card__l">Rata-rata progres Pendamping</div></div>' +
+            '<div class="pg-card"><div class="pg-card__n">' + rataPct(dataPg.uji) + '%</div><div class="pg-card__l">Rata-rata progres Penguji</div></div>' +
+            '<div class="pg-card"><div class="pg-card__n">' + belum + '</div><div class="pg-card__l">Penugasan belum dimulai</div></div>' +
+            '</div>' +
+            '<div class="pg-bar-tools">' +
+            '<div class="field" style="margin:0;"><label>Urutkan</label><select id="pgUrut">' +
+            '<option value="nama"' + (urutPg === 'nama' ? ' selected' : '') + '>Nama guru (A–Z)</option>' +
+            '<option value="terendah"' + (urutPg === 'terendah' ? ' selected' : '') + '>Progres terendah dulu</option></select></div>' +
+            '<button type="button" class="btn-small" id="btnExportProgresGuru">⬇ Unduh Progres (Excel)</button>' +
+            '</div>';
+
+          // --- Pendamping ---
+          html += '<div class="pg-judul">Guru Pendamping <small>Identitas DUDI · Nilai DUDI (TP 1–4) · Catatan PKL</small></div>';
+          if (!P.length) html += '<div class="panel-note">Belum ada guru yang ditugaskan sebagai pendamping.</div>';
+          else {
+            html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Guru Pendamping</th><th class="tc-center">Siswa</th><th>Progres</th><th>Rincian langkah</th><th>Status</th><th></th></tr></thead><tbody>';
+            P.forEach(function (g, i) {
+              var a = g.siswa.filter(function (x) { return x.idn; }).length;
+              var b = g.siswa.filter(function (x) { return x.nd; }).length;
+              var c = g.siswa.filter(function (x) { return x.ct; }).length;
+              var k = statusDari(g.pct);
+              dataExportPg.push({ 'Peran': 'Pendamping', 'Nama Guru': g.guru, 'Jumlah Siswa': g.n, 'Identitas DUDI': a + '/' + g.n, 'Nilai DUDI': b + '/' + g.n, 'Catatan PKL': c + '/' + g.n, 'Nilai Penguji': '', 'Progres (%)': g.pct, 'Status': labelStatus(k) });
+              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong></td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
+                '<td class="pg-langkah">Identitas <b>' + a + '/' + g.n + '</b> · Nilai DUDI <b>' + b + '/' + g.n + '</b> · Catatan <b>' + c + '/' + g.n + '</b></td>' +
+                '<td><span class="pg-status pg-status--' + k + '">' + labelStatus(k) + '</span></td>' +
+                '<td><button type="button" class="pg-btn-rinci" data-pg="p' + i + '">Rincian siswa</button></td></tr>' +
+                '<tr class="pg-rinci" id="pgR_p' + i + '" hidden><td colspan="7"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Identitas</th><th>Nilai DUDI</th><th>Catatan</th></tr></thead><tbody>' +
+                g.siswa.map(function (x) {
+                  return '<tr><td class="s">' + escapeHtml(x.nama) + '</td><td class="s">' + escapeHtml(x.kelas) + '</td><td class="s">' + cek(x.idn) + '</td><td class="s">' + cek(x.nd) + (x.tp && !x.nd ? ' <small>(' + x.tp + '/4 TP)</small>' : '') + '</td><td class="s">' + cek(x.ct) + '</td></tr>';
+                }).join('') + '</tbody></table></td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+
+          // --- Penguji ---
+          html += '<div class="pg-judul">Guru Penguji <small>Nilai Penguji (TP 1–4)</small></div>';
+          if (!U.length) html += '<div class="panel-note">Belum ada guru yang ditugaskan sebagai penguji.</div>';
+          else {
+            html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Guru Penguji</th><th class="tc-center">Siswa diuji</th><th>Progres</th><th>Nilai terisi</th><th>Status</th><th></th></tr></thead><tbody>';
+            U.forEach(function (g, i) {
+              var d = g.siswa.filter(function (x) { return x.np; }).length;
+              var k = statusDari(g.pct);
+              dataExportPg.push({ 'Peran': 'Penguji', 'Nama Guru': g.guru, 'Jumlah Siswa': g.n, 'Identitas DUDI': '', 'Nilai DUDI': '', 'Catatan PKL': '', 'Nilai Penguji': d + '/' + g.n, 'Progres (%)': g.pct, 'Status': labelStatus(k) });
+              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong></td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
+                '<td class="pg-langkah">Nilai Penguji <b>' + d + '/' + g.n + '</b></td>' +
+                '<td><span class="pg-status pg-status--' + k + '">' + labelStatus(k) + '</span></td>' +
+                '<td><button type="button" class="pg-btn-rinci" data-pg="u' + i + '">Rincian siswa</button></td></tr>' +
+                '<tr class="pg-rinci" id="pgR_u' + i + '" hidden><td colspan="7"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Nilai Penguji</th></tr></thead><tbody>' +
+                g.siswa.map(function (x) {
+                  return '<tr><td class="s">' + escapeHtml(x.nama) + '</td><td class="s">' + escapeHtml(x.kelas) + '</td><td class="s">' + cek(x.np) + (x.tp && !x.np ? ' <small>(' + x.tp + '/4 TP)</small>' : '') + '</td></tr>';
+                }).join('') + '</tbody></table></td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+
+          pane.innerHTML = html;
+
+          pane.querySelectorAll('.pg-btn-rinci').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var r = document.getElementById('pgR_' + btn.getAttribute('data-pg'));
+              r.hidden = !r.hidden;
+              btn.textContent = r.hidden ? 'Rincian siswa' : 'Tutup rincian';
+            });
+          });
+          document.getElementById('pgUrut').addEventListener('change', function () { urutPg = this.value; gambar(); });
+          document.getElementById('btnExportProgresGuru').addEventListener('click', function () {
+            if (!dataExportPg.length) { alert('Belum ada data untuk diunduh.'); return; }
+            tulisExcelPkl(dataExportPg, Object.keys(dataExportPg[0]), 'Progres Guru PKL', 'progres_guru_pkl.xlsx');
+          });
+        }
+
+        muat().then(function (ok) { if (ok) gambar(); });
+      })();
+    }
   }
 
   // =========================================================
