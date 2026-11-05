@@ -4,14 +4,14 @@
 2. Upload file ke hosting: `jadwal-kegiatan.js` (BARU) dan halaman yang berubah:
    `pengaturan-admin.html`, `admin.html`, `guru.html`, `siswa.html`, `pkl.html`, `bukuinduk-admin.html`,
    `bukuinduk-guru.html`, `supervisi.html`, `supervisi-admin.html`, `pelanggaran.html`,
-   `guru-penugasan.html`, `portal.html`.
+   `guru-penugasan.html`.
 3. Admin: **Pengaturan Sekolah → Jadwal Kegiatan** → isi kegiatan, pilih modul, atur waktu (WIB).
 
 ## Cara kerja
 - **Modul** menentukan dashboard mana yang menampilkan hitung mundur:
   E-Rapor (dashboard admin & Dashboard Saya guru), Nilai PKL, Buku Induk (admin & guru), Supervisi,
   Catatan Pelanggaran, Guru & Penugasan. Pilih **Umum** untuk tampil di semua modul.
-- **Portal (Menu Utama)** dan **Beranda siswa** menampilkan kegiatan dari semua modul.
+- **Beranda siswa** menampilkan kegiatan dari semua modul. **Portal (Menu Utama)** tidak menampilkan hitung mundur.
 - **Ditampilkan untuk**: centang Admin & Kepsek / Guru / Siswa. Kegiatan yang tidak dicentang untuk
   suatu peran tidak muncul di peran itu.
 - **Mulai** = tujuan hitung mundur. **Selesai** opsional; kalau kosong, kegiatan dianggap berlangsung
