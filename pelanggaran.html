@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="kepsek-nav.js?v=5"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
@@ -67,6 +68,7 @@
   lucide.createIcons();
 
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'pelanggaran' });
   var taAktif = null;
   var kelasList = [];
   var siswaKelas = null;   // { kelas, siswa: [...], peta: { siswaId: [catatan] } } untuk kelas yang sedang dibuka

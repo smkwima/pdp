@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="bukuinduk-fields.js?v=1"></script>
 <script src="bukuinduk-core.js?v=17"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
@@ -299,6 +300,7 @@
   // State
   // =====================================================================
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'semua', tampilJika: function () { return (location.hash || '#beranda') === '#beranda'; } });
   var S = {
     user: null,
     siswa: null,

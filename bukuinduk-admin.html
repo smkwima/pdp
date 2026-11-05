@@ -13,6 +13,7 @@
 <script src="xlsx-autofit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="kepsek-readonly.js?v=9"></script>
 <script src="kepsek-nav.js?v=5"></script>
@@ -80,6 +81,7 @@
 <script>
   lucide.createIcons();
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'bukuinduk', tampilJika: function () { var a = document.querySelector('#menuBI .menu-item--active'); return !!a && a.dataset.view === 'dashboard'; } });
   var esc = BI.esc;
   var taAktif = null; // tahun ajaran aktif (dipakai daftar pengajuan data siswa)
 

@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="unsaved-guard.js?v=1"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="kepsek-readonly.js?v=9"></script>
 <script src="kepsek-nav.js?v=5"></script>
@@ -85,6 +86,7 @@
   //           presensi), Cetak Nilai PKL (menu sendiri) dan/atau Input Nilai sebagai Penguji
   // ---------------------------------------------------------
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'pkl', tampilJika: function () { var m = document.querySelectorAll('#menuPkl .menu-item'); if (!m.length) return document.getElementById('menuPkl').style.display === 'none'; return m[0].classList.contains('menu-item--active'); } });
   var topbarMeta = document.getElementById('topbarMeta');
   var tahunAktif = null;
   var user = null;

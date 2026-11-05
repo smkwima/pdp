@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="kepsek-readonly.js?v=9"></script>
 <script src="kepsek-nav.js?v=5"></script>
@@ -55,6 +56,7 @@
 
 <script>
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'supervisi', tampilJika: function () { var a = document.querySelector('#menu .menu-item--active'); return !!a && a.dataset.view === 'jadwal'; } });
   var guruList = [], mapelList = [], formList = [], profil = null, penugasanList = [], penugasanSiap = false;
   // Mapel yang ditugaskan ke guru (salinan penugasan E-Rapor). Bila salinan belum pernah dimuat, semua mapel ditampilkan.
   function mapelGuru(guruId, tambah) {

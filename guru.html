@@ -15,6 +15,7 @@
 <script src="excel-rekap.js?v=4"></script>
 <script src="unsaved-guard.js?v=1"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="bukuinduk-fields.js?v=1"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
@@ -282,6 +283,7 @@
     var user = session.user;
 
     var content = document.getElementById('content');
+    JadwalKegiatan.pasang({ modul: 'erapor', tampilJika: function () { var a = document.getElementById('menuDashboardGuru'); return !!a && a.classList.contains('menu-item--active'); } });
     var topbarMeta = document.getElementById('topbarMeta');
 
     // 2. Ambil nama dari tabel profiles

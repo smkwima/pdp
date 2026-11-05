@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=1" defer></script>
 <script src="unsaved-guard.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
@@ -34,6 +35,7 @@
       <a href="#profilSekolah" class="menu-item" data-view="profilSekolah"><i data-lucide="school" class="menu-icon"></i><span class="menu-item__title">Profil Sekolah</span></a>
       <a href="#tahunAjaran" class="menu-item" data-view="tahunAjaran"><i data-lucide="calendar-clock" class="menu-icon"></i><span class="menu-item__title">Tahun Ajaran</span></a>
       <a href="#slideshowLogin" class="menu-item" data-view="slideshowLogin"><i data-lucide="images" class="menu-icon"></i><span class="menu-item__title">Slideshow Login</span></a>
+      <a href="#jadwalKegiatan" class="menu-item" data-view="jadwalKegiatan"><i data-lucide="timer" class="menu-icon"></i><span class="menu-item__title">Jadwal Kegiatan</span></a>
     </nav>
 
     <div class="sidebar__footer">
@@ -891,7 +893,124 @@
   }
 
 
-  var views = { profilSekolah: renderProfilSekolah, tahunAjaran: renderTahunAjaran, slideshowLogin: renderSlideshowLogin };
+  // ================= PANEL: JADWAL KEGIATAN (HITUNG MUNDUR) =================
+  // Admin mengatur kegiatan sekolah (mis. Terima Rapor, Penilaian Tengah
+  // Semester, Pembekalan PKL). Hitung mundurnya otomatis muncul di dashboard
+  // modul yang dipilih (lihat jadwal-kegiatan.js). Waktu diinput dalam WIB.
+  async function renderJadwalKegiatan(idEdit) {
+    var JK = window.JadwalKegiatan;
+    content.innerHTML = '<div class="panel-head"><div><div class="panel-head__title">Jadwal Kegiatan</div>' +
+      '<div class="panel-head__desc">Memuat jadwal kegiatan...</div></div></div>';
+
+    var rows = await JK.ambilSemua(false);
+    var tabelAda = true;
+    var cek = await supabaseClient.from('jadwal_kegiatan').select('id').limit(1);
+    if (cek.error) tabelAda = false;
+    if (!tabelAda) {
+      content.innerHTML = '<div class="panel-head"><div><div class="panel-head__title">Jadwal Kegiatan</div></div></div>' +
+        '<div class="panel-note">Tabel <b>jadwal_kegiatan</b> belum ada. Jalankan <b>migrasi_jadwal_kegiatan.sql</b> di Supabase → SQL Editor (aman diulang), lalu muat ulang halaman ini.<br><small>' + escapeHtml(cek.error.message) + '</small></div>';
+      return;
+    }
+
+    var edit = idEdit ? rows.filter(function (r) { return r.id === idEdit; })[0] : null;
+    var v = edit || { modul: 'erapor', judul: '', keterangan: '', waktu_mulai: '', waktu_selesai: '', untuk_admin: true, untuk_guru: true, untuk_siswa: true, aktif: true };
+
+    var opsiModul = Object.keys(JK.MODUL).map(function (k) {
+      return '<option value="' + k + '"' + (v.modul === k ? ' selected' : '') + '>' + escapeHtml(JK.MODUL[k]) + '</option>';
+    }).join('');
+
+    function cb(id, label, on) {
+      return '<label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-weight:600;"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '> ' + label + '</label>';
+    }
+
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Jadwal Kegiatan (Hitung Mundur)</div>' +
+      '<div class="panel-head__desc">Atur kegiatan sekolah di sini. Hitung mundurnya otomatis tampil di <b>dashboard modul</b> yang dipilih — mis. kegiatan bermodul <i>E-Rapor</i> muncul di dashboard E-Rapor. Pilih <i>Umum</i> untuk menampilkannya di semua modul. Waktu dalam WIB.</div></div></div>' +
+      '<form class="add-form" id="formJK" style="flex-direction:column;align-items:stretch;max-width:560px;">' +
+      '<div style="font-weight:800;margin-bottom:4px;">' + (edit ? 'Edit Kegiatan' : 'Tambah Kegiatan') + '</div>' +
+      '<div class="field"><label>Tampil di dashboard modul</label><select id="jkModul">' + opsiModul + '</select></div>' +
+      '<div class="field"><label>Nama Kegiatan</label><input type="text" id="jkJudul" value="' + escapeHtml(v.judul) + '" placeholder="Pembagian Rapor Semester Gasal" required></div>' +
+      '<div class="field"><label>Keterangan (opsional)</label><input type="text" id="jkKet" value="' + escapeHtml(v.keterangan || '') + '" placeholder="Wali murid mengambil rapor di kelas masing-masing"></div>' +
+      '<div class="field"><label>Mulai (tujuan hitung mundur, WIB)</label><input type="datetime-local" id="jkMulai" value="' + escapeHtml(JK.keInputWib(v.waktu_mulai)) + '" required></div>' +
+      '<div class="field"><label>Selesai (opsional, WIB — kosong = berakhir di akhir hari Mulai)</label><input type="datetime-local" id="jkSelesai" value="' + escapeHtml(JK.keInputWib(v.waktu_selesai)) + '"></div>' +
+      '<div class="field"><label>Ditampilkan untuk</label><div>' +
+        cb('jkAdmin', 'Admin &amp; Kepsek', v.untuk_admin) + cb('jkGuru', 'Guru', v.untuk_guru) + cb('jkSiswa', 'Siswa', v.untuk_siswa) +
+      '</div></div>' +
+      '<div class="field">' + cb('jkAktif', 'Aktif (tampilkan hitung mundur)', v.aktif) + '</div>' +
+      '<div id="jkMsg" class="import-summary" style="display:none;"></div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button type="submit" class="btn-small btn-small--primary">' + (edit ? 'Simpan Perubahan' : 'Tambah') + '</button>' +
+      (edit ? '<button type="button" class="btn-small" id="jkBatal">Batal</button>' : '') +
+      '</div></form>' +
+      '<div class="table-wrap" style="margin-top:22px;"><table class="data-table"><thead><tr><th>Kegiatan</th><th>Modul</th><th>Mulai (WIB)</th><th>Untuk</th><th>Status</th><th></th></tr></thead><tbody id="jkBody"></tbody></table></div>';
+
+    document.getElementById('formJK').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var msg = document.getElementById('jkMsg');
+      var mulai = JK.dariInputWib(document.getElementById('jkMulai').value);
+      var selesai = JK.dariInputWib(document.getElementById('jkSelesai').value);
+      var judul = document.getElementById('jkJudul').value.trim();
+      function galat(t) { msg.style.display = 'block'; msg.style.color = 'var(--danger)'; msg.textContent = t; }
+      if (!judul) { galat('Nama kegiatan wajib diisi.'); return; }
+      if (!mulai) { galat('Waktu mulai wajib diisi.'); return; }
+      if (selesai && new Date(selesai) < new Date(mulai)) { galat('Waktu selesai tidak boleh lebih awal dari waktu mulai.'); return; }
+      var data = {
+        modul: document.getElementById('jkModul').value,
+        judul: judul,
+        keterangan: document.getElementById('jkKet').value.trim() || null,
+        waktu_mulai: mulai,
+        waktu_selesai: selesai,
+        untuk_admin: document.getElementById('jkAdmin').checked,
+        untuk_guru: document.getElementById('jkGuru').checked,
+        untuk_siswa: document.getElementById('jkSiswa').checked,
+        aktif: document.getElementById('jkAktif').checked
+      };
+      var res = edit
+        ? await supabaseClient.from('jadwal_kegiatan').update(data).eq('id', edit.id)
+        : await supabaseClient.from('jadwal_kegiatan').insert(data);
+      if (res.error) { galat('Gagal menyimpan: ' + res.error.message); return; }
+      renderJadwalKegiatan();
+    });
+    var btnBatal = document.getElementById('jkBatal');
+    if (btnBatal) btnBatal.addEventListener('click', function () { renderJadwalKegiatan(); });
+
+    var body = document.getElementById('jkBody');
+    body.innerHTML = rows.length ? '' : '<tr><td colspan="6">Belum ada kegiatan.</td></tr>';
+    var now = Date.now();
+    rows.slice().sort(function (a, b) { return new Date(b.waktu_mulai) - new Date(a.waktu_mulai); }).forEach(function (r) {
+      var st = JK.statusKegiatan(r, now);
+      var chipSt = !r.aktif ? '<span class="chip chip--muted">Nonaktif</span>'
+        : st === 'akan' ? '<span class="chip chip--aktif">Akan datang</span>'
+        : st === 'berlangsung' ? '<span class="chip chip--aktif">Berlangsung</span>'
+        : '<span class="chip chip--muted">Selesai</span>';
+      var untuk = [r.untuk_admin ? 'Admin' : '', r.untuk_guru ? 'Guru' : '', r.untuk_siswa ? 'Siswa' : ''].filter(Boolean).join(', ') || '—';
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><b>' + escapeHtml(r.judul) + '</b>' + (r.keterangan ? '<br><small>' + escapeHtml(r.keterangan) + '</small>' : '') + '</td>' +
+        '<td>' + escapeHtml(JK.MODUL[r.modul] || r.modul) + '</td>' +
+        '<td>' + escapeHtml(JK.formatWaktu(r.waktu_mulai)) + '</td>' +
+        '<td>' + escapeHtml(untuk) + '</td>' +
+        '<td>' + chipSt + '</td>' +
+        '<td style="white-space:nowrap;"><button class="btn-small" data-aksi="edit">Edit</button> ' +
+        '<button class="btn-small" data-aksi="toggle">' + (r.aktif ? 'Nonaktifkan' : 'Aktifkan') + '</button> ' +
+        '<button class="btn-small" data-aksi="hapus" style="color:var(--danger);">Hapus</button></td>';
+      body.appendChild(tr);
+      tr.querySelector('[data-aksi="edit"]').addEventListener('click', function () { renderJadwalKegiatan(r.id); window.scrollTo(0, 0); });
+      tr.querySelector('[data-aksi="toggle"]').addEventListener('click', async function () {
+        var res = await supabaseClient.from('jadwal_kegiatan').update({ aktif: !r.aktif }).eq('id', r.id);
+        if (res.error) { alert('Gagal mengubah: ' + res.error.message); return; }
+        renderJadwalKegiatan();
+      });
+      tr.querySelector('[data-aksi="hapus"]').addEventListener('click', async function () {
+        if (!confirm('Hapus kegiatan "' + r.judul + '"?')) return;
+        var res = await supabaseClient.from('jadwal_kegiatan').delete().eq('id', r.id);
+        if (res.error) { alert('Gagal menghapus: ' + res.error.message); return; }
+        renderJadwalKegiatan();
+      });
+    });
+  }
+
+  var views = { profilSekolah: renderProfilSekolah, tahunAjaran: renderTahunAjaran, slideshowLogin: renderSlideshowLogin, jadwalKegiatan: function () { return renderJadwalKegiatan(); } };
 
   function bukaView(nama) {
     if (!views[nama]) nama = 'profilSekolah';
