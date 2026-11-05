@@ -4,7 +4,7 @@
 2. Upload file ke hosting: `jadwal-kegiatan.js` (BARU) dan halaman yang berubah:
    `pengaturan-admin.html`, `admin.html`, `guru.html`, `siswa.html`, `pkl.html`, `bukuinduk-admin.html`,
    `bukuinduk-guru.html`, `supervisi.html`, `supervisi-admin.html`, `pelanggaran.html`,
-   `guru-penugasan.html`.
+   `guru-penugasan.html`, `portal.html` (versi bersih: counter dihapus dari Menu Utama).
 3. Admin: **Pengaturan Sekolah → Jadwal Kegiatan** → isi kegiatan, pilih modul, atur waktu (WIB).
 
 ## Cara kerja
