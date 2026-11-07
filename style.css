@@ -3410,3 +3410,12 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
 @media (max-width: 900px) {
   .tt-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Cetak Nilai PKL: kolom identitas dibuat tetap supaya nilai (nama siswa,
+   program/konsentrasi keahlian) tidak terpotong ke dua baris. */
+.ident-table--pkl { table-layout: fixed; }
+.ident-table--pkl .ident-label { width: auto; white-space: nowrap; }
+/* Label kolom kanan (Kelas, Program Keahlian, dst.) lebih rapat ke kiri. */
+.ident-table--pkl .ident-label[style] { padding-left: 6px !important; }
+.ident-table--pkl .ident-value { overflow-wrap: anywhere; }

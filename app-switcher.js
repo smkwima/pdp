@@ -5,7 +5,7 @@
  *
  *  - Satu tombol "Aplikasi" -> panel berisi SEMUA aplikasi sesuai peran:
  *      Guru  : Menu Utama, E-Rapor, Buku Induk, Nilai PKL, Supervisi, Kinerja Saya, Catatan Pelanggaran
- *      Admin : semua milik guru versi admin + Pengaturan Sekolah + Log Aktivitas
+ *      Admin : semua milik guru versi admin + Guru & Penugasan + Pengaturan Sekolah + Log Aktivitas
  *  - Aplikasi yang sedang dibuka diberi tanda.
  *  - Kepala Sekolah tidak diubah (memakai kepsek-nav.js).
  *  - Di HP tetap memakai bottomnav.js (tombol ini ikut disembunyikan
@@ -33,6 +33,7 @@
   var APP_ADMIN = [
     { href: 'portal.html',            judul: 'Menu Utama',          ikon: 'layout-grid',        warna: 'teal',   desc: 'Beranda semua aplikasi' },
     { href: 'admin.html',             judul: 'E-Rapor',             ikon: 'file-text',          warna: 'hijau',  desc: 'Kelas, siswa, nilai & rapor' },
+    { href: 'penugasan-admin.html',   judul: 'Guru & Penugasan',    ikon: 'users-round',        warna: 'biru',   desc: 'Tugas mengajar, wali kelas, kokurikuler & ekskul' },
     { href: 'bukuinduk-admin.html',   judul: 'Buku Induk',          ikon: 'book-user',          warna: 'oranye', desc: 'Data induk seluruh siswa' },
     { href: 'pkl.html',               judul: 'Nilai PKL',           ikon: 'briefcase-business', warna: 'biru',   desc: 'Pembimbing, penguji & rekap' },
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
@@ -44,7 +45,7 @@
   ];
 
   // Halaman yang pasti milik satu peran (dipakai agar menu langsung tampil tanpa menunggu cek role).
-  var HALAMAN_ADMIN = ['admin.html', 'bukuinduk-admin.html', 'supervisi-admin.html', 'pengaturan-admin.html', 'log-admin.html'];
+  var HALAMAN_ADMIN = ['admin.html', 'penugasan-admin.html', 'bukuinduk-admin.html', 'supervisi-admin.html', 'pengaturan-admin.html', 'log-admin.html'];
   var HALAMAN_GURU = ['guru.html', 'bukuinduk-guru.html', 'supervisi.html'];
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }

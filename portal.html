@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="rpp-launcher.js"></script>
-<script src="bottomnav.js?v=3" defer></script>
+<script src="bottomnav.js?v=4" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
 <style>
@@ -243,7 +243,7 @@
         'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.'
       };
       var hasil = [];
-      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso; }).forEach(function (m) {
+      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso && m.href !== 'penugasan-admin.html'; }).forEach(function (m) {
         if (desk[m.judul]) m.desc = desk[m.judul];
         hasil.push(m);
         if (m.judul === 'E-Rapor') {
@@ -257,7 +257,9 @@
       { grup: 'Data Induk', href: admin ? 'bukuinduk-admin.html' : 'bukuinduk-guru.html', warna: 'c-oranye', ikon: 'book-user', judul: 'Buku Induk',
         desc: admin ? 'Data induk lengkap seluruh siswa, mutasi & kelulusan, arsip nilai, cetak & Excel.' : 'Lengkapi Buku Induk siswa di kelas yang kamu ampu sebagai wali kelas.' },
       { grup: 'Akademik', href: admin ? 'admin.html' : 'guru.html', warna: 'c-hijau', ikon: 'file-text', judul: 'E-Rapor',
-        desc: admin ? 'Kelola kelas, siswa, mapel, penugasan guru, nilai, leger dan rapor.' : 'Input nilai, tujuan pembelajaran, presensi, ekskul dan cetak rapor.' },
+        desc: admin ? 'Kelola kelas, siswa, mapel, nilai, leger dan rapor.' : 'Input nilai, tujuan pembelajaran, presensi, ekskul dan cetak rapor.' },
+      admin ? { grup: 'Akademik', href: 'penugasan-admin.html', warna: 'c-ungu', ikon: 'users-round', judul: 'Guru & Penugasan',
+        desc: 'Bagi tugas mengajar, wali kelas, PJ kokurikuler dan pembina ekstrakurikuler; kelola data guru.' } : null,
       { grup: 'Akademik', href: 'pkl.html', warna: 'c-biru', ikon: 'briefcase-business', judul: 'Nilai PKL',
         desc: admin ? 'Tunjuk pembimbing & penguji PKL, pantau dan unduh rekap nilai PKL.' : 'Input identitas DUDI, nilai, catatan & presensi PKL, lalu cetak.' },
       { grup: 'Akademik', href: '#', sso: true, warna: 'c-ungu', ikon: 'sparkles', judul: 'RPP Maker',
@@ -268,7 +270,7 @@
         desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
         desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' }
-    ].concat(admin ? [
+    ].filter(Boolean).concat(admin ? [
       { grup: 'Administrasi', href: 'pengaturan-admin.html', warna: 'c-biru', ikon: 'settings', judul: 'Pengaturan Sekolah',
         desc: 'Profil sekolah, tahun ajaran, naik kelas & kelulusan, slideshow login.' },
       { grup: 'Administrasi', href: 'log-admin.html', warna: 'c-abu', ikon: 'history', judul: 'Log Aktivitas',

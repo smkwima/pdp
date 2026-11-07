@@ -47,7 +47,7 @@ function aplikasiDariHalaman() {
   if (b.indexOf("bukuinduk") === 0) return "Buku Induk";
   if (b === "admin.html" || b === "guru.html") return "E-Rapor";
   if (b === "pkl.html") return "PKL";
-  if (b === "guru-penugasan.html") return "Guru & Penugasan";
+  if (b === "guru-penugasan.html" || b === "penugasan-admin.html") return "Guru & Penugasan";
   if (b.indexOf("supervisi") === 0) return "Supervisi";
   if (b === "pelanggaran.html") return "Pelanggaran";
   if (b === "kinerja.html") return "Kinerja";

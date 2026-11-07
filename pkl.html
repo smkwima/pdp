@@ -15,13 +15,13 @@
 <script src="unsaved-guard.js?v=1"></script>
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=2" defer></script>
+<script src="app-switcher.js?v=3" defer></script>
 <script src="kepsek-readonly.js?v=9"></script>
 <script src="kepsek-nav.js?v=6"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=3" defer></script>
+<script src="bottomnav.js?v=4" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 </head>
 <body>
@@ -843,14 +843,57 @@
       return dataExport;
     }
 
+    // Ambil baris bertahap (batas 1000 baris per permintaan di Supabase).
+    async function ambilSemuaRekap(buatQuery) {
+      var hasil = [];
+      for (var dari = 0; ; dari += 1000) {
+        var r = await buatQuery().range(dari, dari + 999);
+        if (r.error) throw r.error;
+        var d = r.data || [];
+        hasil = hasil.concat(d);
+        if (d.length < 1000) break;
+      }
+      return hasil;
+    }
+    // Filter .in('siswa_id', ids) dipecah per 100 id: kalau semua id dikirim sekaligus,
+    // alamat permintaan terlalu panjang dan Supabase menolaknya (data tampil kosong).
+    async function ambilPerPotong(ids, buatQuery) {
+      var hasil = [];
+      for (var i = 0; i < ids.length; i += 100) {
+        var potong = ids.slice(i, i + 100);
+        var baris = await ambilSemuaRekap(function () { return buatQuery(potong); });
+        hasil = hasil.concat(baris);
+      }
+      return hasil;
+    }
+    function kosongPkl(v) { return v === null || v === undefined || v === ''; }
+    // Nilai akhir satu sumber: pakai nilai_akhir tersimpan; kalau kosong, rata-rata TP1-4 yang terisi.
+    function akhirSumberPkl(row) {
+      if (!row) return null;
+      if (!kosongPkl(row.nilai_akhir)) return Number(row.nilai_akhir);
+      var v = [row.tp1, row.tp2, row.tp3, row.tp4].filter(function (x) { return !kosongPkl(x); }).map(Number);
+      return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null;
+    }
+
     async function muatRekapPkl() {
       var rekapArea = document.getElementById('pklRekapArea');
+      var galat = [];
 
-      var pembimbingRes = await supabaseClient
-        .from('pkl_pembimbing')
-        .select('siswa_id, nama_dudi, tanggal_mulai, tanggal_selesai, siswa:siswa_id(nis, nama), kelas:kelas_id(nama), guru:guru_id(nama)')
-        .eq('tahun_ajaran_id', tahunAktif.id);
-      var pembimbingRows = (pembimbingRes.data || []).filter(function (r) { return r.siswa && r.kelas && r.guru; });
+      var pembimbingAll;
+      try {
+        pembimbingAll = await ambilSemuaRekap(function () {
+          return supabaseClient
+            .from('pkl_pembimbing')
+            .select('siswa_id, nama_dudi, tanggal_mulai, tanggal_selesai, siswa:siswa_id(nis, nama), kelas:kelas_id(nama), guru:guru_id(nama)')
+            .eq('tahun_ajaran_id', tahunAktif.id).order('siswa_id');
+        });
+      } catch (e) {
+        rekapPklCache = [];
+        segarkanFilterKelasPkl();
+        rekapArea.innerHTML = '<div class="panel-note" style="color:var(--danger);">Gagal memuat data pembimbing PKL: ' + escapeHtml(e && e.message ? e.message : e) + '</div>';
+        return [];
+      }
+      var pembimbingRows = pembimbingAll.filter(function (r) { return r.siswa && r.kelas && r.guru; });
       pembimbingRows.sort(function (a, b) {
         var k = a.kelas.nama.localeCompare(b.kelas.nama, 'id', { numeric: true });
         return k !== 0 ? k : a.siswa.nama.localeCompare(b.siswa.nama);
@@ -864,24 +907,28 @@
       }
 
       var siswaIds = pembimbingRows.map(function (r) { return r.siswa_id; });
-      var pengujiRes = await supabaseClient
-        .from('pkl_penguji')
-        .select('siswa_id, guru:guru_id(nama)')
-        .eq('tahun_ajaran_id', tahunAktif.id)
-        .in('siswa_id', siswaIds);
-      var pengujiMap = {}; // siswa_id -> nama guru penguji
-      (pengujiRes.data || []).forEach(function (r) { if (r.guru) pengujiMap[r.siswa_id] = r.guru.nama; });
 
-      var nilaiRes = await supabaseClient
-        .from('nilai_pkl')
-        .select('siswa_id, sumber, nilai_akhir')
-        .eq('tahun_ajaran_id', tahunAktif.id)
-        .in('siswa_id', siswaIds);
-      var nilaiMap = {}; // siswa_id -> { dudi: n, penguji: n }
-      (nilaiRes.data || []).forEach(function (r) {
-        if (!nilaiMap[r.siswa_id]) nilaiMap[r.siswa_id] = {};
-        nilaiMap[r.siswa_id][r.sumber] = r.nilai_akhir;
-      });
+      var pengujiMap = {}; // siswa_id -> nama guru penguji
+      try {
+        var pengujiRows = await ambilPerPotong(siswaIds, function (potong) {
+          return supabaseClient.from('pkl_penguji').select('siswa_id, guru:guru_id(nama)')
+            .eq('tahun_ajaran_id', tahunAktif.id).in('siswa_id', potong).order('siswa_id');
+        });
+        pengujiRows.forEach(function (r) { if (r.guru) pengujiMap[r.siswa_id] = r.guru.nama; });
+      } catch (e) { galat.push('data penguji: ' + (e && e.message ? e.message : e)); }
+
+      var nilaiMap = {}; // siswa_id -> { dudi: nilai, penguji: nilai }
+      try {
+        var nilaiRows = await ambilPerPotong(siswaIds, function (potong) {
+          return supabaseClient.from('nilai_pkl').select('siswa_id, sumber, tp1, tp2, tp3, tp4, nilai_akhir')
+            .eq('tahun_ajaran_id', tahunAktif.id).in('siswa_id', potong).order('siswa_id');
+        });
+        nilaiRows.forEach(function (r) {
+          if (!nilaiMap[r.siswa_id]) nilaiMap[r.siswa_id] = {};
+          var sumber = String(r.sumber || '').trim().toLowerCase();
+          nilaiMap[r.siswa_id][sumber] = akhirSumberPkl(r);
+        });
+      } catch (e) { galat.push('nilai PKL: ' + (e && e.message ? e.message : e)); }
 
       rekapPklCache = pembimbingRows.map(function (r) {
         var pasangan = nilaiMap[r.siswa_id] || {};
@@ -894,7 +941,11 @@
       });
 
       segarkanFilterKelasPkl();
-      return gambarRekapPkl();
+      var dataExport = gambarRekapPkl();
+      if (galat.length) {
+        rekapArea.insertAdjacentHTML('afterbegin', '<div class="panel-note" style="color:var(--danger);">Sebagian data gagal dimuat (' + escapeHtml(galat.join('; ')) + '). Nilai/penguji yang tampil "—" mungkin hanya karena gagal dimuat, bukan karena belum diisi.</div>');
+      }
+      return dataExport;
     }
 
     var dataExportRekapPkl = await muatRekapPkl();
@@ -1155,6 +1206,50 @@
     // biasa — dicetak lewat menu "Cetak Nilai PKL".
     // mode 'cetak' = menu tersendiri "Cetak Nilai PKL" (tanpa tab langkah);
     // mode kosong = menu "Input Nilai sebagai Pendamping" (langkah 1-3 saja).
+    // ---- Rubrik Deskripsi Capaian per TP PKL (dari file "Rubrik Penilaian
+    // PKL Peserta Didik") — dipakai untuk menyusun otomatis Deskripsi TP
+    // 1-4 di Langkah 2 berdasarkan rata-rata Nilai DUDI & Nilai Penguji. ----
+    var RUBRIK_PKL_TP = {
+      1: [
+        { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik secara konsisten menunjukkan sikap disiplin, komunikatif, inisiatif, kerja sama tim, dan tanggung jawab tinggi tanpa perlu diingatkan, serta mampu menjadi contoh bagi rekan kerja lain di tempat PKL.' },
+        { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik menunjukkan disiplin, komunikasi, dan kerja sama yang baik dengan sesekali arahan ringan dari pembimbing lapangan.' },
+        { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik menunjukkan soft skills dasar (disiplin, sopan santun, kerja sama) namun masih memerlukan pengingat atau bimbingan secara berkala.' },
+        { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik menunjukkan soft skills yang belum stabil, sering perlu ditegur terkait kedisiplinan, komunikasi, atau sikap kerja.' },
+        { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum mampu menerapkan soft skills dasar dunia kerja; sikap dan perilaku sering menyimpang dari yang diharapkan tempat PKL.' }
+      ],
+      2: [
+        { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik memahami dan menerapkan norma perusahaan, SOP kerja, serta prinsip K3LH secara konsisten dan mandiri, termasuk mengingatkan rekan kerja lain jika diperlukan.' },
+        { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik menerapkan norma, SOP, dan K3LH dengan baik, hanya sesekali memerlukan koreksi kecil.' },
+        { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik memahami norma, SOP, dan K3LH namun penerapannya belum konsisten dan masih perlu pengawasan.' },
+        { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik sering melanggar SOP atau kurang memperhatikan aspek K3LH meski sudah diberi arahan.' },
+        { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum memahami atau mengabaikan norma, SOP, dan K3LH sehingga berisiko terhadap keselamatan kerja.' }
+      ],
+      3: [
+        { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis secara mandiri, tepat, dan efisien, bahkan mampu menyelesaikan tugas teknis baru yang belum diajarkan di sekolah dengan cepat beradaptasi.' },
+        { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis dengan hasil kerja yang baik dan sesuai standar, dengan bimbingan minimal.' },
+        { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis dasar namun hasil kerja belum selalu sesuai standar dan masih memerlukan bimbingan.' },
+        { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik mengalami kesulitan menerapkan kompetensi teknis; hasil kerja sering perlu diperbaiki oleh pembimbing lapangan.' },
+        { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum mampu menerapkan kompetensi teknis yang relevan meski sudah dibimbing berulang kali.' }
+      ],
+      4: [
+        { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik memahami secara menyeluruh alur bisnis (proses, produk/jasa, hubungan antarbagian, dan posisi perusahaan di industrinya) serta mampu menjelaskannya secara runtut dan kritis.' },
+        { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik memahami sebagian besar alur bisnis dan mampu menjelaskan proses kerja utama di tempat PKL dengan cukup jelas.' },
+        { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik memahami alur bisnis secara umum namun penjelasannya masih terbatas pada bagian tempat ia bertugas saja.' },
+        { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Pemahaman peserta didik terhadap alur bisnis perusahaan masih sangat terbatas dan kurang mampu menjelaskan keterkaitan antarproses.' },
+        { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum memahami alur bisnis dunia kerja tempat PKL sama sekali.' }
+      ]
+    };
+    // Cari deskripsi rubrik untuk TP tertentu berdasarkan nilai (0-100,
+    // dibulatkan dulu ke bilangan bulat supaya batas rentang konsisten).
+    function deskripsiRubrikTp(tpKe, nilai) {
+      if (nilai === null || nilai === undefined || nilai === '' || isNaN(Number(nilai))) return '';
+      var list = RUBRIK_PKL_TP[tpKe];
+      if (!list) return '';
+      var bulat = Math.round(Number(nilai));
+      var cocok = list.find(function (r) { return bulat >= r.min && bulat <= r.max; });
+      return cocok ? cocok.deskripsi : '';
+    }
+
     async function renderNilaiPkl(mode) {
       var modeCetak = (mode === 'cetak');
       content.innerHTML = renderPlaceholder('Memuat...', 'Mengambil daftar siswa binaan PKL.');
@@ -1194,6 +1289,18 @@
         .in('siswa_id', siswaIds);
       var pengujiGuruMap = {}; // siswa_id -> nama guru penguji
       (pengujiRes.data || []).forEach(function (r) { if (r.guru) pengujiGuruMap[r.siswa_id] = r.guru.nama; });
+      // Nama guru penguji bisa tidak terbaca oleh akun pembimbing (profil guru lain dibatasi RLS).
+      // Cadangan: fungsi server pkl_penguji_binaan() (lihat migrasi_pkl_penguji_baca.sql).
+      if (siswaIds.some(function (id) { return !pengujiGuruMap[id]; })) {
+        try {
+          var rpcPg = await supabaseClient.rpc('pkl_penguji_binaan');
+          if (!rpcPg.error && Array.isArray(rpcPg.data)) {
+            rpcPg.data.forEach(function (x) {
+              if (String(x.tahun_ajaran_id) === String(tahunAktif.id) && x.nama && !pengujiGuruMap[x.siswa_id]) pengujiGuruMap[x.siswa_id] = x.nama;
+            });
+          }
+        } catch (e) { /* fungsi belum dibuat: biarkan */ }
+      }
 
       function fmtN(n) { return (n === null || n === undefined || n === '') ? '—' : Number(n).toFixed(2); }
       function rataTp(tp1, tp2, tp3, tp4) {
@@ -1212,49 +1319,6 @@
         return isNaN(n) ? null : n;
       }
 
-      // ---- Rubrik Deskripsi Capaian per TP PKL (dari file "Rubrik Penilaian
-      // PKL Peserta Didik") — dipakai untuk menyusun otomatis Deskripsi TP
-      // 1-4 di Langkah 2 berdasarkan rata-rata Nilai DUDI & Nilai Penguji. ----
-      var RUBRIK_PKL_TP = {
-        1: [
-          { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik secara konsisten menunjukkan sikap disiplin, komunikatif, inisiatif, kerja sama tim, dan tanggung jawab tinggi tanpa perlu diingatkan, serta mampu menjadi contoh bagi rekan kerja lain di tempat PKL.' },
-          { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik menunjukkan disiplin, komunikasi, dan kerja sama yang baik dengan sesekali arahan ringan dari pembimbing lapangan.' },
-          { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik menunjukkan soft skills dasar (disiplin, sopan santun, kerja sama) namun masih memerlukan pengingat atau bimbingan secara berkala.' },
-          { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik menunjukkan soft skills yang belum stabil, sering perlu ditegur terkait kedisiplinan, komunikasi, atau sikap kerja.' },
-          { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum mampu menerapkan soft skills dasar dunia kerja; sikap dan perilaku sering menyimpang dari yang diharapkan tempat PKL.' }
-        ],
-        2: [
-          { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik memahami dan menerapkan norma perusahaan, SOP kerja, serta prinsip K3LH secara konsisten dan mandiri, termasuk mengingatkan rekan kerja lain jika diperlukan.' },
-          { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik menerapkan norma, SOP, dan K3LH dengan baik, hanya sesekali memerlukan koreksi kecil.' },
-          { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik memahami norma, SOP, dan K3LH namun penerapannya belum konsisten dan masih perlu pengawasan.' },
-          { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik sering melanggar SOP atau kurang memperhatikan aspek K3LH meski sudah diberi arahan.' },
-          { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum memahami atau mengabaikan norma, SOP, dan K3LH sehingga berisiko terhadap keselamatan kerja.' }
-        ],
-        3: [
-          { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis secara mandiri, tepat, dan efisien, bahkan mampu menyelesaikan tugas teknis baru yang belum diajarkan di sekolah dengan cepat beradaptasi.' },
-          { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis dengan hasil kerja yang baik dan sesuai standar, dengan bimbingan minimal.' },
-          { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik mampu menerapkan kompetensi teknis dasar namun hasil kerja belum selalu sesuai standar dan masih memerlukan bimbingan.' },
-          { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Peserta didik mengalami kesulitan menerapkan kompetensi teknis; hasil kerja sering perlu diperbaiki oleh pembimbing lapangan.' },
-          { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum mampu menerapkan kompetensi teknis yang relevan meski sudah dibimbing berulang kali.' }
-        ],
-        4: [
-          { min: 90, max: 100, predikat: 'Sangat Baik', deskripsi: 'Peserta didik memahami secara menyeluruh alur bisnis (proses, produk/jasa, hubungan antarbagian, dan posisi perusahaan di industrinya) serta mampu menjelaskannya secara runtut dan kritis.' },
-          { min: 80, max: 89, predikat: 'Baik', deskripsi: 'Peserta didik memahami sebagian besar alur bisnis dan mampu menjelaskan proses kerja utama di tempat PKL dengan cukup jelas.' },
-          { min: 70, max: 79, predikat: 'Cukup', deskripsi: 'Peserta didik memahami alur bisnis secara umum namun penjelasannya masih terbatas pada bagian tempat ia bertugas saja.' },
-          { min: 60, max: 69, predikat: 'Kurang', deskripsi: 'Pemahaman peserta didik terhadap alur bisnis perusahaan masih sangat terbatas dan kurang mampu menjelaskan keterkaitan antarproses.' },
-          { min: 0, max: 59, predikat: 'Sangat Kurang', deskripsi: 'Peserta didik belum memahami alur bisnis dunia kerja tempat PKL sama sekali.' }
-        ]
-      };
-      // Cari deskripsi rubrik untuk TP tertentu berdasarkan nilai (0-100,
-      // dibulatkan dulu ke bilangan bulat supaya batas rentang konsisten).
-      function deskripsiRubrikTp(tpKe, nilai) {
-        if (nilai === null || nilai === undefined || nilai === '' || isNaN(Number(nilai))) return '';
-        var list = RUBRIK_PKL_TP[tpKe];
-        if (!list) return '';
-        var bulat = Math.round(Number(nilai));
-        var cocok = list.find(function (r) { return bulat >= r.min && bulat <= r.max; });
-        return cocok ? cocok.deskripsi : '';
-      }
 
       var BULAN_INDONESIA_PKL = {
         januari: 1, jan: 1, februari: 2, feb: 2, maret: 3, mar: 3, april: 4, apr: 4,
@@ -1525,7 +1589,11 @@
           var duVal = angkaAtauNull(tpInputByN(sId, n) ? tpInputByN(sId, n).value : null);
           var pasangan = nilaiMap[sId] || {};
           var pgVal = pasangan.penguji ? angkaAtauNull(pasangan.penguji['tp' + n]) : null;
-          return rataTaPkl(duVal, pgVal);
+          // Deskripsi tetap disusun walau baru salah satu sumber yang terisi
+          // (sama seperti kolom Skor di format cetak = rata-rata yang tersedia).
+          var ada = [duVal, pgVal].filter(function (v) { return v !== null; });
+          if (!ada.length) return null;
+          return ada.reduce(function (a, v) { return a + v; }, 0) / ada.length;
         }
         function otomatisDeskripsiTp(sId, n) {
           return deskripsiRubrikTp(n, rataTpGabungan(sId, n));
@@ -1556,7 +1624,11 @@
           [1, 2, 3, 4].forEach(function (n) {
             var elRata = document.getElementById('pklRata-' + sId + '-' + n);
             var rata = rataTpGabungan(sId, n);
-            if (elRata) elRata.textContent = fmtN(rata);
+            if (elRata) {
+              var pgTp = nilaiMap[sId] && nilaiMap[sId].penguji ? angkaAtauNull(nilaiMap[sId].penguji['tp' + n]) : null;
+              var duTp = tpInputByN(sId, n) ? angkaAtauNull(tpInputByN(sId, n).value) : null;
+              elRata.textContent = fmtN(rataTaPkl(duTp, pgTp));
+            }
             var ta = deskripsiInputByN(sId, n);
             if (ta && ta.dataset.auto === '1') ta.value = deskripsiRubrikTp(n, rata);
           });
@@ -1574,7 +1646,7 @@
         document.getElementById('btnSusunDeskripsiPkl').addEventListener('click', function () {
           var konfirmasi = confirm(
             'Susun ulang Deskripsi TP 1-4 untuk semua siswa binaan berdasarkan rata-rata Nilai DUDI & Nilai Penguji saat ini?\n\n' +
-            'Teks yang sudah disunting manual akan DITIMPA. TP yang rata-ratanya belum bisa dihitung (DUDI atau Penguji belum diisi) akan dikosongkan.'
+            'Teks yang sudah disunting manual akan DITIMPA. TP yang belum punya nilai sama sekali (DUDI maupun Penguji kosong) akan dikosongkan.'
           );
           if (!konfirmasi) return;
 
@@ -1592,7 +1664,7 @@
           });
 
           document.getElementById('pklNdMsg').innerHTML =
-            '<div class="import-summary">Deskripsi disusun ulang otomatis (' + diisi + ' dari ' + total + ' kolom TP terisi — sisanya menunggu Nilai DUDI dan/atau Nilai Penguji diisi). Klik "Simpan Nilai DUDI" untuk menyimpannya.</div>';
+            '<div class="import-summary">Deskripsi disusun ulang otomatis (' + diisi + ' dari ' + total + ' kolom TP terisi — sisanya menunggu Nilai DUDI atau Nilai Penguji diisi). Klik "Simpan Nilai DUDI" untuk menyimpannya.</div>';
         });
 
         document.getElementById('btnTemplatePklNd').addEventListener('click', function () {
@@ -1938,7 +2010,7 @@
           return '<div class="rapor-cetak rapor-cetak--identitas rapor-cetak--pkl rapor-cetak--f13" id="cetakPkl-' + siswaId + '">' +
             '<div class="rapor-cetak__bar" style="line-height:1.6;">DAFTAR NILAI PESERTA DIDIK MATA PELAJARAN PKL<br>' + escapeHtml(NAMA_SEKOLAH.toUpperCase()) + '<br>TAHUN AJARAN ' + escapeHtml(tahunAktif.nama) + '</div>' +
 
-            '<table class="ident-table" style="margin-top:10px;"><tbody>' +
+            '<table class="ident-table ident-table--pkl" style="margin-top:10px;"><colgroup><col style="width:150px"><col style="width:12px"><col style="width:32%"><col style="width:160px"><col style="width:12px"><col></colgroup><tbody>' +
             baris2('Nama Peserta Didik', b.siswa.nama, 'Kelas', b.kelas.nama) +
             baris2('NISN', b.siswa.nisn, 'Program Keahlian', b.kelas.program_keahlian) +
             baris2('Tempat PKL', b.nama_dudi, 'Konsentrasi Keahlian', b.kelas.konsentrasi_keahlian) +
@@ -1951,7 +2023,7 @@
             [1, 2, 3, 4].map(function (n) {
               return '<tr><td>' + n + '. ' + escapeHtml(TEKS_TP_PKL[n - 1]) + '</td>' +
                 '<td class="tc-center">' + fmtN(skorGabunganTp(n)) + '</td>' +
-                '<td>' + escapeHtml(b['deskripsi_tp' + n] || '') + '</td></tr>';
+                '<td>' + escapeHtml(b['deskripsi_tp' + n] || deskripsiRubrikTp(n, skorGabunganTp(n)) || '') + '</td></tr>';
             }).join('') +
             '<tr><td><strong>NILAI AKHIR</strong></td><td class="tc-center"><strong>' + fmtN(akhirTotal) + '</strong></td><td></td></tr>' +
             '</tbody></table>' +
@@ -2064,6 +2136,18 @@
         .in('siswa_id', siswaIds);
       var pengujiMap = {}; // siswa_id -> nama guru penguji
       (pengujiRes.data || []).forEach(function (r) { if (r.guru) pengujiMap[r.siswa_id] = r.guru.nama; });
+      // Nama guru lain bisa tidak terbaca oleh akun pembimbing (profil guru lain dibatasi RLS), padahal
+      // penguji sudah ditunjuk. Cadangan: fungsi server pkl_penguji_binaan() (lihat migrasi_pkl_rekap_pembimbing.sql).
+      if (binaan.some(function (r) { return !pengujiMap[r.siswa_id]; })) {
+        try {
+          var rpc = await supabaseClient.rpc('pkl_penguji_binaan');
+          if (!rpc.error && Array.isArray(rpc.data)) {
+            rpc.data.forEach(function (x) {
+              if (String(x.tahun_ajaran_id) === String(tahunAktif.id) && x.nama && !pengujiMap[x.siswa_id]) pengujiMap[x.siswa_id] = x.nama;
+            });
+          }
+        } catch (e) { /* fungsi belum dibuat: biarkan */ }
+      }
 
       function kosong(v) { return v === null || v === undefined || v === ''; }
       function fmtN(v) { return kosong(v) ? '—' : Number(v).toFixed(2); }
@@ -2085,7 +2169,13 @@
           kelas: r.kelas.nama, nis: r.siswa.nis || '', nama: r.siswa.nama,
           dudi: r.nama_dudi || '', penguji: pengujiMap[r.siswa_id] || '',
           du: du, pg: pg, akhirDu: akhirDu, akhirPg: akhirPg, akhir: rata2(akhirDu, akhirPg),
-          desk: [1, 2, 3, 4].map(function (n) { return r['deskripsi_tp' + n] || ''; })
+          // Deskripsi tersimpan dipakai dulu; kalau kosong, disusun otomatis dari
+          // rubrik berdasarkan rata-rata skor TP yang tersedia (sama seperti Cetak Nilai PKL).
+          desk: [1, 2, 3, 4].map(function (n) {
+            if (r['deskripsi_tp' + n]) return r['deskripsi_tp' + n];
+            var v = [du['tp' + n], pg['tp' + n]].filter(function (x) { return !kosong(x); }).map(Number);
+            return v.length ? deskripsiRubrikTp(n, v.reduce(function (a, b) { return a + b; }, 0) / v.length) : '';
+          })
         };
       });
 
@@ -2106,6 +2196,15 @@
         '<button class="btn-small" id="btnExportRekapGuru" style="margin-left:auto;">⬇ Unduh Rekap (Excel)</button>' +
         '</div>' +
         '<div id="rekapGuruArea"></div>';
+
+      // Jika pembacaan nilai/penguji ditolak server (mis. izin akses/RLS), beri tahu — jangan diam-diam tampil kosong.
+      var galatRekapGuru = [];
+      if (nilaiRes.error) galatRekapGuru.push('nilai PKL: ' + nilaiRes.error.message);
+      if (pengujiRes.error) galatRekapGuru.push('data penguji: ' + pengujiRes.error.message);
+      if (galatRekapGuru.length) {
+        content.insertAdjacentHTML('afterbegin', '<div class="panel-note" style="color:var(--danger);">Sebagian data gagal dimuat (' + escapeHtml(galatRekapGuru.join('; ')) +
+          '). Tanda "—" dan "belum ditunjuk" di bawah bisa jadi karena data tidak boleh dibaca akun ini, bukan karena belum diisi. Hubungi admin (lihat berkas migrasi_pkl_rekap_pembimbing.sql).</div>');
+      }
 
       function tampilData() {
         var el = document.getElementById('rekapGuruKelas');
@@ -2219,6 +2318,20 @@
         .in('siswa_id', siswaIds);
       var pembimbingMap = {};
       (pembimbingRes.data || []).forEach(function (r) { pembimbingMap[r.siswa_id] = r; });
+
+      // Nama guru pembimbing bisa tidak terbaca (profil guru lain dibatasi RLS).
+      // Cadangan: fungsi server pkl_pembimbing_uji() (lihat migrasi_pkl_penguji_baca.sql).
+      if (ujiList.some(function (r) { var pb = pembimbingMap[r.siswa_id]; return pb && !pb.guru; })) {
+        try {
+          var rpcPb = await supabaseClient.rpc('pkl_pembimbing_uji');
+          if (!rpcPb.error && Array.isArray(rpcPb.data)) {
+            rpcPb.data.forEach(function (x) {
+              var pb = pembimbingMap[x.siswa_id];
+              if (pb && !pb.guru && x.nama && String(x.tahun_ajaran_id) === String(tahunAktif.id)) pb.guru = { nama: x.nama };
+            });
+          }
+        } catch (e) { /* fungsi belum dibuat: biarkan */ }
+      }
 
       var nilaiRes = await supabaseClient
         .from('nilai_pkl')

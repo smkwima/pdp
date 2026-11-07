@@ -39,6 +39,7 @@
   else if (berkas === 'admin.html') { kunciAktif = 'rapor'; roleDariBerkas = 'admin'; }
   else if (berkas === 'guru.html') { kunciAktif = 'rapor'; roleDariBerkas = 'guru'; }
   else if (berkas === 'guru-penugasan.html') { kunciAktif = 'gp'; roleDariBerkas = 'kepsek'; }
+  else if (berkas === 'penugasan-admin.html') { kunciAktif = 'gp'; roleDariBerkas = 'admin'; }
   else if (berkas === 'pkl.html') { kunciAktif = 'pkl'; }
   else if (berkas === 'supervisi-admin.html') { kunciAktif = 'sup'; roleDariBerkas = 'admin'; }
   else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
@@ -52,13 +53,13 @@
       { k: 'menu',  label: 'Menu Utama',  href: 'portal.html' },
       { k: 'bi',    label: 'Buku Induk',  href: admin ? 'bukuinduk-admin.html' : 'bukuinduk-guru.html' },
       { k: 'rapor', label: 'E-Rapor',     href: admin ? 'admin.html' : 'guru.html' },
-      { k: 'gp',    label: 'Guru',        href: 'guru-penugasan.html', hanyaKepsek: true },
+      { k: 'gp',    label: 'Guru',        href: role === 'kepsek' ? 'guru-penugasan.html' : 'penugasan-admin.html', hanyaPimpinan: true },
       { k: 'pkl',   label: 'PKL',         href: 'pkl.html' },
       { k: 'sup',   label: 'Supervisi',   href: admin ? 'supervisi-admin.html' : 'supervisi.html' },
       { k: 'kin',   label: 'Kinerja',     href: 'kinerja.html' },
       { k: 'pel',   label: 'Pelanggaran', href: 'pelanggaran.html' }
     ];
-    return menu.filter(function (it) { return !it.hanyaKepsek || role === 'kepsek'; });
+    return menu.filter(function (it) { return !it.hanyaPimpinan || role === 'kepsek' || role === 'admin'; });
   }
 
   // ---------- gaya (disisipkan lewat JS supaya tidak tergantung versi style.css) ----------

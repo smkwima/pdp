@@ -10,7 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
-<script src="app-switcher.js?v=2" defer></script>
+<script src="app-switcher.js?v=3" defer></script>
 <script src="mobile.js?v=1" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 </head>
@@ -109,7 +109,7 @@
       return '<option value="' + a.id + '">' + escapeHtml(a.nama || '(tanpa nama)') + ' (' + escapeHtml(a.role) + ')</option>';
     }).join('');
 
-    var APLIKASI = ['E-Rapor', 'Buku Induk', 'PKL', 'Supervisi', 'Pengaturan Sekolah', 'Pelanggaran', 'Portal Siswa', 'Akun'];
+    var APLIKASI = ['E-Rapor', 'Guru & Penugasan', 'Buku Induk', 'PKL', 'Supervisi', 'Pengaturan Sekolah', 'Pelanggaran', 'Portal Siswa', 'Akun'];
     var opsiApp = '<option value="">Semua aplikasi</option>' + APLIKASI.map(function (m) {
       return '<option value="' + escapeHtml(m) + '"' + (preset.aplikasi === m ? ' selected' : '') + '>' + escapeHtml(m) + '</option>';
     }).join('');
