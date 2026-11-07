@@ -16,7 +16,7 @@
  *   - Untuk role lain skrip ini tidak melakukan apa-apa.
  *
  * Dimuat di: admin.html, bukuinduk-admin.html, pkl.html,
- * supervisi-admin.html, guru-penugasan.html, pelanggaran.html (setelah supabase-client.js).
+ * supervisi-admin.html, guru-penugasan.html, pelanggaran.html, kinerja.html (setelah supabase-client.js).
  * (portal.html sudah memakai sidebar aplikasi sendiri.)
  * -----------------------------------------------------------------
  */
@@ -31,6 +31,7 @@
     { grup: 'Akademik',           href: 'guru-penugasan.html',   ikon: 'users-round',         judul: 'Guru & Penugasan' },
     { grup: 'Akademik',           href: 'pkl.html',              ikon: 'briefcase-business',  judul: 'Nilai PKL' },
     { grup: 'Pembinaan & Mutu',   href: 'supervisi-admin.html',  ikon: 'clipboard-check',     judul: 'Supervisi' },
+    { grup: 'Pembinaan & Mutu',   href: 'kinerja.html',          ikon: 'award',               judul: 'Kinerja Guru' },
     { grup: 'Pembinaan & Mutu',   href: 'pelanggaran.html',      ikon: 'shield-alert',        judul: 'Catatan Pelanggaran' }
   ];
 

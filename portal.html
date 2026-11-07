@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="rpp-launcher.js"></script>
-<script src="bottomnav.js?v=2" defer></script>
+<script src="bottomnav.js?v=3" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
 <style>
@@ -239,7 +239,8 @@
         'Buku Induk': 'Lihat data induk lengkap seluruh siswa, mutasi & kelulusan, serta arsip nilai.',
         'E-Rapor': 'Lihat kelas, siswa, mapel, nilai, leger dan rapor.',
         'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
-        'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.'
+        'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.',
+        'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.'
       };
       var hasil = [];
       daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso; }).forEach(function (m) {
@@ -263,6 +264,8 @@
         desc: 'Susun RPM, LKPD, asesmen, ATP dan Prota/Prosem dengan bantuan AI. Masuk otomatis dari PDP.' },
       { grup: 'Pembinaan & Mutu', href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'c-ungu', ikon: 'clipboard-check', judul: 'Supervisi',
         desc: admin ? 'Atur jadwal, form dan data supervisi akademik guru.' : 'Lihat jadwal, isi form supervisi, dan jawab wawancara supervisi.' },
+      { grup: 'Pembinaan & Mutu', href: 'kinerja.html', warna: 'c-oranye', ikon: 'award', judul: admin ? 'Kinerja Guru' : 'Kinerja Saya',
+        desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
         desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' }
     ].concat(admin ? [

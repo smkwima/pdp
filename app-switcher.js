@@ -4,7 +4,7 @@
  * "Menu Utama / E-Rapor / Buku Induk / Catatan Pelanggaran / ...").
  *
  *  - Satu tombol "Aplikasi" -> panel berisi SEMUA aplikasi sesuai peran:
- *      Guru  : Menu Utama, E-Rapor, Buku Induk, Nilai PKL, Supervisi, Catatan Pelanggaran
+ *      Guru  : Menu Utama, E-Rapor, Buku Induk, Nilai PKL, Supervisi, Kinerja Saya, Catatan Pelanggaran
  *      Admin : semua milik guru versi admin + Pengaturan Sekolah + Log Aktivitas
  *  - Aplikasi yang sedang dibuka diberi tanda.
  *  - Kepala Sekolah tidak diubah (memakai kepsek-nav.js).
@@ -27,6 +27,7 @@
     { href: 'pkl.html',             judul: 'Nilai PKL',           ikon: 'briefcase-business', warna: 'biru',   desc: 'Pengolahan nilai PKL' },
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi.html',       judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal & form supervisi' },
+    { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Ajukan bukti kinerja ke Kepala Sekolah' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' }
   ];
   var APP_ADMIN = [
@@ -36,6 +37,7 @@
     { href: 'pkl.html',               judul: 'Nilai PKL',           ikon: 'briefcase-business', warna: 'biru',   desc: 'Pembimbing, penguji & rekap' },
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi-admin.html',   judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal, form & data supervisi' },
+    { href: 'kinerja.html',           judul: 'Kinerja Guru',        ikon: 'award',              warna: 'oranye', desc: 'Pantau & beri jempol bukti kinerja' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' },
     { href: 'log-admin.html',         judul: 'Log Aktivitas',       ikon: 'history',            warna: 'slate',  desc: 'Siapa melakukan apa & kapan' }

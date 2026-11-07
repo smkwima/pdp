@@ -25,6 +25,7 @@
     gp: '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>',
     pkl: '<path d="M12 12h.01"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M22 13a18.15 18.15 0 0 1-20 0"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
     sup: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    kin: '<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>',
     pel: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>'
   };
 
@@ -41,6 +42,7 @@
   else if (berkas === 'pkl.html') { kunciAktif = 'pkl'; }
   else if (berkas === 'supervisi-admin.html') { kunciAktif = 'sup'; roleDariBerkas = 'admin'; }
   else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
+  else if (berkas === 'kinerja.html') { kunciAktif = 'kin'; }
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
   else { return; } // halaman lain (login, siswa, dll): tidak dipasang
 
@@ -53,6 +55,7 @@
       { k: 'gp',    label: 'Guru',        href: 'guru-penugasan.html', hanyaKepsek: true },
       { k: 'pkl',   label: 'PKL',         href: 'pkl.html' },
       { k: 'sup',   label: 'Supervisi',   href: admin ? 'supervisi-admin.html' : 'supervisi.html' },
+      { k: 'kin',   label: 'Kinerja',     href: 'kinerja.html' },
       { k: 'pel',   label: 'Pelanggaran', href: 'pelanggaran.html' }
     ];
     return menu.filter(function (it) { return !it.hanyaKepsek || role === 'kepsek'; });

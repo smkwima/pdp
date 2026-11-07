@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinerja Saya — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="app-switcher.js?v=2" defer></script>
+<script src="kepsek-nav.js?v=6"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=3" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<style>
+  .kj-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .kj-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .kj-toolbar .btn-small { display: inline-flex; align-items: center; gap: 6px; }
+  .kj-toolbar .btn-small svg, .kj-toolbar .btn-small i { width: 14px; height: 14px; }
+  .kj-toolbar select, .kj-toolbar input[type="search"] { padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 600 12.5px var(--font-body); background: var(--surface); color: var(--ink); min-width: 150px; }
+
+  .kj-sec { font-family: var(--font-display); font-size: 15px; font-weight: 800; margin: 22px 2px 10px; display: flex; align-items: center; gap: 8px; }
+  .kj-sec small { font-weight: 600; color: var(--ink-soft); font-size: 12px; }
+  .kj-item { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+  .kj-item--ajuan { border-left-color: var(--primary-soft); }
+  .kj-item--ok { border-left-color: var(--success); }
+  .kj-item--rev { border-left-color: #f97316; }
+  .kj-item__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .kj-judul { font-weight: 800; font-size: 14.5px; line-height: 1.35; }
+  .kj-meta { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+  .kj-ket { font-size: 13px; color: var(--ink-soft); margin-top: 8px; white-space: pre-wrap; line-height: 1.5; }
+  .kj-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--surface-tint-strong); color: var(--ink-soft); font-size: 10.5px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .kj-bukti-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .kj-bukti { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--primary-tint); color: var(--primary-dim); font-size: 12px; font-weight: 600; text-decoration: none; max-width: 100%; }
+  .kj-bukti:hover { background: var(--primary-tint-strong); }
+  .kj-bukti svg, .kj-bukti i { width: 13px; height: 13px; flex-shrink: 0; }
+  .kj-bukti span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kj-nobukti { font-size: 12px; color: var(--ink-faint); font-style: italic; }
+  .kj-aksi { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .kj-aksi .btn-small { display: inline-flex; align-items: center; gap: 6px; }
+  .kj-aksi .btn-small svg, .kj-aksi .btn-small i { width: 14px; height: 14px; }
+  .kj-btn-jempol { background: var(--success); border-color: var(--success); color: #fff; box-shadow: 0 4px 10px -3px rgba(5, 150, 105, .5); }
+  .kj-btn-jempol:hover { background: #047857; border-color: #047857; }
+  .kj-st { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+  .kj-st svg, .kj-st i { width: 13px; height: 13px; }
+  .kj-st--draft { background: var(--surface-tint-strong); color: var(--ink-soft); border-color: var(--border); }
+  .kj-st--ajuan { background: var(--primary-tint); color: var(--primary-dim); border-color: var(--primary-tint-strong); }
+  .kj-st--ok { background: var(--success-tint); color: var(--success); border-color: var(--success-border); }
+  .kj-st--rev { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+  .kj-catatan { margin-top: 10px; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
+  .kj-catatan--rev { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+  .kj-catatan--ok { background: var(--success-tint); border: 1px solid var(--success-border); color: #047857; }
+  .kj-hint { font-size: 12px; color: var(--ink-faint); align-self: center; }
+
+  .kj-prog { display: grid; grid-template-columns: 200px 1fr 90px auto; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .kj-prog:last-child { border-bottom: 0; }
+  .kj-prog__n { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .kj-prog__n svg, .kj-prog__n i { width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; }
+  .kj-track { height: 10px; border-radius: 999px; background: var(--surface-tint-strong); overflow: hidden; }
+  .kj-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #34d399, var(--success)); transition: width .5s ease; }
+  .kj-prog__c { font-size: 12px; color: var(--ink-soft); text-align: right; font-variant-numeric: tabular-nums; }
+  .kj-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 6px 20px; margin-bottom: 18px; }
+  .kj-panel--pad { padding: 18px 20px; }
+  .kj-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .kj-step { display: flex; gap: 11px; align-items: flex-start; font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+  .kj-step b { color: var(--ink); display: block; font-size: 13.5px; }
+  .kj-step__n { flex: 0 0 26px; height: 26px; border-radius: 50%; background: var(--primary-tint-strong); color: var(--primary-dim); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .kj-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; }
+  .kj-warn > b { display: block; margin-bottom: 4px; }
+  .kj-mini { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #fed7aa; font-size: 13px; }
+  .kj-mini:first-of-type { border-top: 0; }
+
+  .kj-bar { display: inline-block; width: 90px; height: 8px; border-radius: 999px; background: var(--surface-tint-strong); overflow: hidden; vertical-align: middle; }
+  .kj-bar > i { display: block; height: 100%; background: var(--success); }
+
+  /* Formulir */
+  .kj-modal { max-width: 640px; }
+  .kj-modal .field textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 13px var(--font-body); color: var(--ink); min-height: 74px; resize: vertical; }
+  .kj-modal .field textarea:focus { outline: none; border-color: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-tint-strong); }
+  .kj-modal .field small { display: block; margin-top: 5px; font-size: 11.5px; color: var(--ink-faint); }
+  .kj-blist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .kj-brow { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 12.5px; background: var(--surface-tint); }
+  .kj-brow svg, .kj-brow i { width: 14px; height: 14px; color: var(--primary); flex-shrink: 0; }
+  .kj-brow span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kj-brow button { border: 0; background: none; color: var(--danger); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
+  .kj-linkrow { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 8px; }
+  .kj-linkrow input { padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 13px var(--font-body); min-width: 0; }
+  .kj-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 28px; z-index: 3000; max-width: 92vw; padding: 11px 18px; border-radius: 12px; background: #1f2937; color: #fff; font: 600 13px/1.45 var(--font-body); box-shadow: 0 10px 28px rgba(0, 0, 0, .28); text-align: center; }
+  .kj-toast--ok { background: #047857; }
+
+  .kj-linkin { width: 100%; min-width: 200px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 13px var(--font-body); color: var(--ink); background: var(--surface); }
+  .kj-ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+  .kj-contoh { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+  .kj-cb { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; font-size: 13px; cursor: pointer; }
+  .kj-cb input { margin-top: 3px; }
+  #kjModal .modal-box { max-height: 90vh; overflow-y: auto; }
+
+  @media (max-width: 860px) {
+    .kj-steps { grid-template-columns: 1fr; }
+    .kj-prog { grid-template-columns: 1fr auto; row-gap: 8px; }
+    .kj-prog .kj-track { grid-column: 1 / -1; order: 3; }
+    .kj-linkrow { grid-template-columns: 1fr; }
+    .kj-toast { bottom: 84px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Kinerja Saya</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="award" style="width:13px;height:13px;"></i> <span id="roleLabel">Guru</span></div>
+    <nav class="menu-list" id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title" id="judul">Kinerja Saya</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip"><div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">Guru</div>
+        <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a></div></div>
+    </div>
+    <div class="content" id="content"><div class="panel-note">Memuat…</div></div>
+  </div>
+</div>
+
+<script>
+  var content = document.getElementById('content');
+  var BUCKET = 'bukti-kinerja';
+  var MAKS_BERKAS = 10 * 1024 * 1024; // sama dengan batas bucket di migrasi_kinerja.sql
+
+  var meId = null, meNama = '', meRole = 'guru', pantau = false;
+  var periode = '', taAktif = null;
+  var items = [], guruList = [], tampilan = 'ringkas', tabelSiap = true, galat = '';
+  var filter = { guru: '', kategori: '', status: '', cari: '' };
+  var form = null;
+
+  // ---------- Kamus ----------
+  var KAT = {
+    perangkat:      { judul: 'Perangkat Pembelajaran',        ikon: 'book-open-check' },
+    pelaksanaan:    { judul: 'Pelaksanaan Pembelajaran',      ikon: 'presentation' },
+    penilaian:      { judul: 'Penilaian',                     ikon: 'clipboard-list' },
+    tugas_tambahan: { judul: 'Tugas Tambahan',                ikon: 'briefcase' },
+    administrasi:   { judul: 'Administrasi dan Kedisiplinan', ikon: 'shield-check' },
+    supervisi:      { judul: 'Observasi Pembelajaran (Supervisi)', ikon: 'eye' }
+  };
+  var URUT_KAT = ['perangkat', 'pelaksanaan', 'penilaian', 'tugas_tambahan', 'administrasi', 'supervisi'];
+  var JENIS = { wali_kelas: 'Wali Kelas', kokurikuler: 'Kokurikuler / P5', ekskul: 'Ekstrakurikuler', lainnya: 'Tugas lain (Waka, Kaprog, Kalab, Perpustakaan, OSIS, Koord. PKL, dll.)' };
+  var STATUS = {
+    draft:     { label: 'Belum diajukan',  cls: 'kj-st--draft', ikon: 'file-pen-line' },
+    diajukan:  { label: 'Menunggu dicek',  cls: 'kj-st--ajuan', ikon: 'hourglass' },
+    disetujui: { label: 'Disetujui',       cls: 'kj-st--ok',    ikon: 'thumbs-up' },
+    revisi:    { label: 'Perlu revisi',    cls: 'kj-st--rev',   ikon: 'undo-2' }
+  };
+
+  // Contoh bukti dukung (singkat) per aspek
+  var CONTOH = {
+    perangkat: 'CP, ATP, Modul Ajar/RPM, Prota/Promes, bahan ajar, LKPD, kisi-kisi dan soal dll',
+    pelaksanaan: 'Jurnal mengajar, daftar hadir siswa, dokumentasi kegiatan dll',
+    penilaian: 'Daftar nilai, analisis asesmen, remedial/pengayaan, input nilai e-rapor, deskripsi capaian dll',
+    tugas_tambahan: 'SK/surat tugas, program kerja, absensi, jurnal kegiatan, laporan, notulen, dokumentasi dll',
+    administrasi: 'Rekap kehadiran, kehadiran rapat/workshop/pelatihan, sertifikat pengembangan diri dll',
+    supervisi: 'Lembar hasil supervisi/observasi kelas, catatan observasi, tindak lanjut dll'
+  };
+
+  // ---------- Pembantu ----------
+  function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function tglId(d) {
+    if (!d) return '';
+    var x = new Date(String(d).length <= 10 ? d + 'T00:00:00' : d);
+    return isNaN(x) ? '' : x.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function ikon() { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } }
+  function toast(pesan, ok) {
+    var el = document.createElement('div');
+    el.className = 'kj-toast' + (ok ? ' kj-toast--ok' : '');
+    el.setAttribute('role', 'status');
+    el.textContent = pesan;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, ok ? 2600 : 4800);
+  }
+  function pesanGalat(e) {
+    var m = (e && e.message) ? e.message : String(e);
+    if (/kinerja_butir_kategori_check/i.test(m)) return 'Kategori baru belum aktif. Minta admin menjalankan migrasi_kinerja_v2.sql di Supabase → SQL Editor, lalu muat ulang halaman.';
+    if (/kinerja_butir|kinerja_cek|kinerja_boleh_cek|bukti-kinerja|schema cache|Bucket not found/i.test(m) && !/Hanya Kepala/i.test(m)) {
+      return 'Fitur Kinerja Saya belum aktif. Minta admin menjalankan migrasi_kinerja.sql di Supabase → SQL Editor, lalu muat ulang halaman. (' + m + ')';
+    }
+    return m;
+  }
+  function namaGuru(id) { var g = guruList.find(function (x) { return x.id === id; }); return g ? g.nama : '—'; }
+  function hitung(list) {
+    var h = { total: list.length, draft: 0, diajukan: 0, disetujui: 0, revisi: 0 };
+    list.forEach(function (x) { if (h[x.status] !== undefined) h[x.status]++; });
+    return h;
+  }
+  function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
+  function urlAman(u) { return /^https?:\/\//i.test(String(u || '').trim()); }
+  function namaAman(n) { return String(n || 'berkas').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80); }
+  function acak() { return Math.random().toString(36).slice(2, 8); }
+  function catat(ringkas) { try { if (typeof catatAktivitas === 'function') catatAktivitas('lainnya', 'Kinerja', ringkas); } catch (e) { /* abaikan */ } }
+
+  async function ambilSemua(buat) {
+    var out = [], dari = 0, langkah = 1000;
+    for (;;) {
+      var r = await buat(dari, dari + langkah - 1);
+      if (r.error) throw r.error;
+      out = out.concat(r.data || []);
+      if (!r.data || r.data.length < langkah) break;
+      dari += langkah;
+    }
+    return out;
+  }
+  async function muatData() {
+    try {
+      items = await ambilSemua(function (a, b) {
+        var q = supabaseClient.from('kinerja_butir').select('*').eq('periode', periode);
+        if (!pantau) q = q.eq('guru_id', meId);
+        return q.order('dibuat_pada').range(a, b);
+      });
+      tabelSiap = true; galat = '';
+    } catch (e) { items = []; tabelSiap = false; galat = pesanGalat(e); }
+  }
+  function gabung(baris) {
+    (Array.isArray(baris) ? baris : [baris]).forEach(function (r) {
+      if (!r) return;
+      var i = items.findIndex(function (x) { return x.id === r.id; });
+      if (i >= 0) items[i] = r; else items.push(r);
+    });
+  }
+
+  // ---------- Menu & halaman ----------
+  function menuItem(v, ik, judul, badgeId) {
+    return '<a href="#" class="menu-item" data-view="' + v + '"><i data-lucide="' + ik + '" class="menu-icon"></i><span class="menu-item__title">' + esc(judul) + '</span>' +
+      (badgeId ? '<span class="menu-badge" id="' + badgeId + '" hidden></span>' : '') + '</a>';
+  }
+  function bangunMenu() {
+    var h = '<div class="sidebar__section-label">' + (pantau ? 'Pemantauan' : 'Kinerja Saya') + '</div>' +
+      menuItem('ringkas', 'layout-dashboard', 'Dashboard') +
+      menuItem('bukti', 'clipboard-check', 'Bukti Dukung Kinerja', 'bdgBukti') +
+      '<div class="sidebar__section-label">Lainnya</div>' +
+      '<a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>';
+    document.getElementById('menu').innerHTML = h;
+    ikon();
+  }
+  function perbaruiBadge() {
+    var el = document.getElementById('bdgBukti'); if (!el) return;
+    var n = items.filter(function (x) { return x.status === (pantau ? 'diajukan' : 'revisi'); }).length;
+    el.textContent = n; el.hidden = !n; el.title = pantau ? 'Menunggu dicek' : 'Perlu revisi';
+  }
+  function judulHalaman(v) {
+    if (v === 'ringkas') return pantau ? ['Dashboard', 'Kelengkapan dan status bukti kinerja tiap guru'] : ['Dashboard', 'Ringkasan bukti dukung kinerjamu'];
+    return pantau ? ['Bukti Dukung Kinerja', 'Pilih nama guru, lalu cek bukti yang diajukan dan beri jempol'] : ['Bukti Dukung Kinerja', 'Pilih aspek bukti dukung, lalu isi link dan keterangannya'];
+  }
+  function keHalaman(v) {
+    tampilan = v;
+    document.querySelectorAll('#menu .menu-item[data-view]').forEach(function (x) { x.classList.toggle('menu-item--active', x.dataset.view === v); });
+    var j = judulHalaman(v) || ['Kinerja Saya', ''];
+    document.getElementById('judul').textContent = j[0];
+    document.getElementById('metaHal').textContent = j[1] + ' · ' + periode;
+    tampil();
+    window.scrollTo(0, 0);
+  }
+  function tampil() {
+    if (!tabelSiap) { content.innerHTML = '<div class="panel-note" style="margin-top:0;">' + esc(galat) + '</div>'; return; }
+    if (pantau) { if (tampilan === 'ringkas') renderGuruRingkas(); else renderDaftarPantau(); }
+    else if (tampilan === 'ringkas') renderRingkasGuru();
+    else renderBukti();
+    perbaruiBadge();
+    ikon();
+  }
+
+  // ---------- Bagian kartu ----------
+  function chipStatus(s) { var m = STATUS[s] || STATUS.draft; return '<span class="kj-st ' + m.cls + '"><i data-lucide="' + m.ikon + '"></i>' + m.label + '</span>'; }
+  function buktiHtml(x) {
+    var b = x.bukti || [];
+    if (!b.length) return '<span class="kj-nobukti">Belum ada bukti dilampirkan</span>';
+    return b.map(function (e) {
+      if (e.t === 'file') return '<a class="kj-bukti" href="#" data-file="' + esc(e.p) + '" title="Buka berkas"><i data-lucide="paperclip"></i><span>' + esc(e.n || 'Berkas') + '</span></a>';
+      if (!urlAman(e.u)) return '';
+      return '<a class="kj-bukti" href="' + esc(e.u) + '" target="_blank" rel="noopener noreferrer" title="' + esc(e.u) + '"><i data-lucide="link"></i><span>' + esc(e.n || e.u) + '</span></a>';
+    }).join('');
+  }
+  function metaButir(x, denganGuru) {
+    var p = [];
+    if (denganGuru) p.push('<b>' + esc(namaGuru(x.guru_id)) + '</b>');
+    p.push(esc(KAT[x.kategori].judul));
+    if (x.nama_tugas) p.push(esc(x.nama_tugas));
+    if (x.tanggal) p.push(esc(tglId(x.tanggal)));
+    if (x.status === 'diajukan' && x.diajukan_pada) p.push('diajukan ' + esc(tglId(x.diajukan_pada)));
+    return p.join(' · ');
+  }
+  function catatanHtml(x) {
+    if (x.status === 'revisi' && x.catatan_kepsek) return '<div class="kj-catatan kj-catatan--rev"><b>Catatan Kepala Sekolah:</b> ' + esc(x.catatan_kepsek) + '</div>';
+    if (x.status === 'disetujui') {
+      return '<div class="kj-catatan kj-catatan--ok">👍 Mendapat jempol dari Kepala Sekolah' + (x.dicek_pada ? ' pada ' + esc(tglId(x.dicek_pada)) : '') + (x.catatan_kepsek ? '<br>' + esc(x.catatan_kepsek) : '') + '</div>';
+    }
+    return '';
+  }
+  function kelasKartu(x) { return x.status === 'disetujui' ? ' kj-item--ok' : x.status === 'diajukan' ? ' kj-item--ajuan' : x.status === 'revisi' ? ' kj-item--rev' : ''; }
+  function tombol(act, id, ik, teks, ekstra) {
+    return '<button type="button" class="btn-small ' + (ekstra || '') + '" data-act="' + act + '" data-id="' + id + '"><i data-lucide="' + ik + '"></i>' + teks + '</button>';
+  }
+  // ---------- Tampilan GURU ----------
+  function renderRingkasGuru() {
+    var h = hitung(items);
+    var revisi = items.filter(function (x) { return x.status === 'revisi'; });
+    var html = '';
+    if (revisi.length) {
+      html += '<div class="kj-warn"><b>' + revisi.length + ' butir dikembalikan Kepala Sekolah untuk diperbaiki</b>' +
+        revisi.map(function (x) {
+          return '<div class="kj-mini"><span><b>' + esc(x.judul) + '</b>' + (x.catatan_kepsek ? ' — ' + esc(x.catatan_kepsek) : '') + '</span>' +
+            '<button type="button" class="btn-small" data-act="ke" data-view="bukti">Perbaiki</button></div>';
+        }).join('') + '</div>';
+    }
+    html += '<div class="stat-grid kj-stats">' +
+      statKartu('Total Butir', h.total, 'list') + statKartu('Belum Diajukan', h.draft, 'file-pen-line') +
+      statKartu('Menunggu Dicek', h.diajukan, 'hourglass') + statKartu('Mendapat Jempol', h.disetujui, 'thumbs-up') +
+      statKartu('Perlu Revisi', h.revisi, 'undo-2') + '</div>';
+    html += '<div class="kj-panel">' + URUT_KAT.map(function (k) {
+      var c = hitung(items.filter(function (x) { return x.kategori === k; }));
+      return '<div class="kj-prog"><div class="kj-prog__n"><i data-lucide="' + KAT[k].ikon + '"></i>' + KAT[k].judul + '</div>' +
+        '<div class="kj-track"><div class="kj-fill" style="width:' + pct(c.disetujui, c.total) + '%"></div></div>' +
+        '<div class="kj-prog__c">' + c.disetujui + ' / ' + c.total + ' 👍</div>' +
+        '<button type="button" class="btn-small" data-act="ke" data-view="' + k + '">Buka</button></div>';
+    }).join('') + '</div>';
+    html += '<div class="kj-toolbar"><button type="button" class="btn-small btn-small--primary" data-act="ke" data-view="bukti"><i data-lucide="clipboard-check"></i> Isi Bukti Dukung Kinerja</button></div>';
+    content.innerHTML = html;
+  }
+  function statKartu(label, nilai, ik) {
+    return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + ik + '"></i>' + label + '</div><div class="stat-card__value">' + nilai + '</div></div>';
+  }
+
+  function barisBukti(x, no) {
+    var edit = x.status === 'draft' || x.status === 'revisi';
+    var link = (x.bukti || []).filter(function (b) { return b.t === 'link'; })[0];
+    var berkas = (x.bukti || []).filter(function (b) { return b.t === 'file'; });
+    var sub = x.judul && x.judul !== KAT[x.kategori].judul ? '<div class="kj-contoh">' + esc(x.judul) + '</div>' : '';
+    var c5 = edit ? '<input type="url" class="kj-linkin" data-link="' + x.id + '" placeholder="https://drive.google.com/…" value="' + esc(link ? link.u : '') + '">' + (berkas.length ? '<div class="kj-bukti-row">' + buktiHtml({ bukti: berkas }) + '</div>' : '')
+      : '<div class="kj-bukti-row">' + buktiHtml(x) + '</div>';
+    var stat = '<div style="margin-bottom:6px;">' + chipStatus(x.status) + '</div>' + catatanHtml(x);
+    var c6 = stat + (edit ? '<textarea class="kj-linkin" rows="2" maxlength="500" data-ket="' + x.id + '" placeholder="mis. mapel / keterangan singkat">' + esc(x.keterangan || '') + '</textarea>' : '<div class="kj-ket" style="margin-top:6px;">' + esc(x.keterangan || '—') + '</div>');
+    var aksi = edit ? tombol('simpan', x.id, 'save', 'Simpan') + tombol('ajukan', x.id, 'send', 'Ajukan', 'btn-small--primary') + tombol('hapus', x.id, 'trash-2', 'Hapus', 'btn-small--danger')
+      : x.status === 'diajukan' ? tombol('tarik', x.id, 'undo-2', 'Batalkan Pengajuan') : '';
+    return '<tr><td data-label="No">' + no + '</td><td data-label="Nama"><b>' + esc(meNama) + '</b></td>' +
+      '<td data-label="Aspek"><b>' + esc(KAT[x.kategori].judul) + '</b>' + sub + '</td>' +
+      '<td data-label="Contoh Bukti Dukung"><div class="kj-contoh">' + esc(CONTOH[x.kategori]) + '</div></td>' +
+      '<td data-label="Link">' + c5 + '</td><td data-label="Keterangan">' + c6 + '</td>' +
+      '<td data-label="Aksi"><div class="kj-aksi" style="margin-top:0;">' + aksi + '</div></td></tr>';
+  }
+  function renderBukti() {
+    var siap = items.filter(function (x) { return (x.status === 'draft' || x.status === 'revisi') && (x.bukti || []).length; }).length;
+    var html = '<div class="kj-toolbar"><button type="button" class="btn-small btn-small--primary" data-act="tambah"><i data-lucide="plus"></i> Tambah Bukti Dukung</button>' +
+      '<button type="button" class="btn-small" data-act="ajukan-semua"' + (siap ? '' : ' disabled') + '><i data-lucide="send"></i> Ajukan Semua yang Siap (' + siap + ')</button></div>';
+    if (!items.length) {
+      html += '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">+</div><div class="empty-state__title">Belum ada bukti dukung</div>' +
+        '<div class="empty-state__desc">Klik <b>Tambah Bukti Dukung</b>, pilih aspeknya, lalu isi link dan keterangan pada tabel yang muncul.</div></div>';
+    } else {
+      var urut = items.slice().sort(function (a, b) { return URUT_KAT.indexOf(a.kategori) - URUT_KAT.indexOf(b.kategori); });
+      html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Aspek</th><th>Contoh Bukti Dukung</th><th>Link</th><th>Keterangan</th><th></th></tr></thead><tbody>' +
+        urut.map(function (x, i) { return barisBukti(x, i + 1); }).join('') + '</tbody></table></div>';
+    }
+    content.innerHTML = html;
+  }
+
+  // ---------- Tampilan KEPALA SEKOLAH ----------
+  function renderGuruRingkas() {
+    var h = hitung(items);
+    var html = '<div class="stat-grid">' +
+      statKartu('Guru', guruList.length, 'users') + statKartu('Menunggu Dicek', h.diajukan, 'hourglass') +
+      statKartu('Mendapat Jempol', h.disetujui, 'thumbs-up') + statKartu('Dikembalikan', h.revisi, 'undo-2') + '</div>' +
+      '<div class="kj-toolbar"><input type="search" id="kjCari" placeholder="Cari nama guru…" value="' + esc(filter.cari) + '"></div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Nama Guru</th><th>Butir</th><th>Belum Diajukan</th><th>Menunggu</th><th>Jempol 👍</th><th>Revisi</th><th>Progres</th><th></th></tr></thead><tbody id="kjTbody"></tbody></table></div>' +
+      '<div class="panel-note">Progres = butir yang sudah mendapat jempol dibagi seluruh butir guru pada periode ini.</div>';
+    content.innerHTML = html;
+    isiTabelGuru();
+    document.getElementById('kjCari').addEventListener('input', function (e) { filter.cari = e.target.value; isiTabelGuru(); });
+  }
+  function isiTabelGuru() {
+    var q = filter.cari.trim().toLowerCase();
+    var baris = guruList.filter(function (g) { return !q || String(g.nama || '').toLowerCase().indexOf(q) >= 0; }).map(function (g) {
+      return { g: g, c: hitung(items.filter(function (x) { return x.guru_id === g.id; })) };
+    }).sort(function (a, b) { return (b.c.diajukan - a.c.diajukan) || String(a.g.nama).localeCompare(String(b.g.nama)); });
+    document.getElementById('kjTbody').innerHTML = baris.length ? baris.map(function (r) {
+      var c = r.c;
+      return '<tr><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b></td>' +
+        '<td data-label="Butir">' + (c.total || '<span style="color:var(--ink-faint)">Belum ada</span>') + '</td>' +
+        '<td data-label="Belum Diajukan">' + c.draft + '</td>' +
+        '<td data-label="Menunggu">' + (c.diajukan ? '<span class="kj-st kj-st--ajuan">' + c.diajukan + '</span>' : 0) + '</td>' +
+        '<td data-label="Jempol">' + c.disetujui + '</td>' +
+        '<td data-label="Revisi">' + c.revisi + '</td>' +
+        '<td data-label="Progres"><span class="kj-bar"><i style="width:' + pct(c.disetujui, c.total) + '%"></i></span> ' + pct(c.disetujui, c.total) + '%</td>' +
+        '<td><button type="button" class="btn-small" data-act="lihat-guru" data-id="' + r.g.id + '">Lihat</button></td></tr>';
+    }).join('') : '<tr><td colspan="8">Tidak ada guru yang cocok.</td></tr>';
+  }
+  function opsi(nilai, label, terpilih) { return '<option value="' + esc(nilai) + '"' + (terpilih ? ' selected' : '') + '>' + esc(label) + '</option>'; }
+  function renderDaftarPantau() {
+    if (!filter.guru) { renderPilihGuru(); return; }
+    var g = guruList.filter(function (x) { return x.id === filter.guru; })[0];
+    var urutS = { diajukan: 0, revisi: 1, disetujui: 2 };
+    var list = items.filter(function (x) { return x.guru_id === filter.guru && x.status !== 'draft'; });
+    list.sort(function (a, b) { return (urutS[a.status] - urutS[b.status]) || URUT_KAT.indexOf(a.kategori) - URUT_KAT.indexOf(b.kategori); });
+    var html = '<div class="kj-toolbar"><button type="button" class="btn-small" data-act="kembali-guru"><i data-lucide="arrow-left"></i> Daftar Guru</button>' +
+      '<b>' + esc(g ? g.nama : '—') + '</b><span class="kj-hint">' + list.length + ' bukti diajukan</span></div>';
+    if (!list.length) {
+      html += '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">✓</div><div class="empty-state__title">Belum ada pengajuan</div><div class="empty-state__desc">Guru ini belum mengajukan bukti dukung kinerja.</div></div>';
+    } else {
+      html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Aspek</th><th>Contoh Bukti Dukung</th><th>Link</th><th>Keterangan</th><th></th></tr></thead><tbody>' +
+        list.map(function (x, i) {
+          var aksi = x.status === 'diajukan' ? tombol('jempol', x.id, 'thumbs-up', 'Beri Jempol', 'kj-btn-jempol') + tombol('minta-revisi', x.id, 'undo-2', 'Minta Revisi')
+            : x.status === 'disetujui' ? tombol('cabut', x.id, 'rotate-ccw', 'Cabut Jempol') : '';
+          var sub = x.judul && x.judul !== KAT[x.kategori].judul ? '<div class="kj-contoh">' + esc(x.judul) + '</div>' : '';
+          return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(g ? g.nama : '—') + '</b></td>' +
+            '<td data-label="Aspek"><b>' + esc(KAT[x.kategori].judul) + '</b>' + sub + '</td>' +
+            '<td data-label="Contoh Bukti Dukung"><div class="kj-contoh">' + esc(CONTOH[x.kategori]) + '</div></td>' +
+            '<td data-label="Link"><div class="kj-bukti-row">' + buktiHtml(x) + '</div></td><td data-label="Keterangan"><div style="margin-bottom:6px;">' + chipStatus(x.status) + '</div>' + catatanHtml(x) + '<div class="kj-ket" style="margin-top:6px;">' + esc(x.keterangan || '—') + '</div></td>' +
+            '<td data-label="Aksi"><div class="kj-aksi" style="margin-top:0;">' + aksi + '</div></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    content.innerHTML = html;
+  }
+  function renderPilihGuru() {
+    content.innerHTML = '<div class="kj-toolbar"><input type="search" id="kjCari" placeholder="Cari nama guru…" value="' + esc(filter.cari) + '"></div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama Guru</th><th>Menunggu Dicek</th><th>Jempol 👍</th><th>Revisi</th><th></th></tr></thead><tbody id="kjPilih"></tbody></table></div>' +
+      '<div class="panel-note">Buka nama guru untuk melihat bukti dukung yang diajukan.</div>';
+    function isi() {
+      var q = filter.cari.trim().toLowerCase();
+      var baris = guruList.filter(function (g) { return !q || String(g.nama || '').toLowerCase().indexOf(q) >= 0; }).map(function (g) {
+        return { g: g, c: hitung(items.filter(function (x) { return x.guru_id === g.id && x.status !== 'draft'; })) };
+      }).sort(function (a, b) { return (b.c.diajukan - a.c.diajukan) || String(a.g.nama).localeCompare(String(b.g.nama)); });
+      document.getElementById('kjPilih').innerHTML = baris.length ? baris.map(function (r, i) {
+        return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b></td>' +
+          '<td data-label="Menunggu Dicek">' + (r.c.diajukan ? '<span class="kj-st kj-st--ajuan">' + r.c.diajukan + '</span>' : 0) + '</td>' +
+          '<td data-label="Jempol">' + r.c.disetujui + '</td><td data-label="Revisi">' + r.c.revisi + '</td>' +
+          '<td><button type="button" class="btn-small btn-small--primary" data-act="buka-guru" data-id="' + r.g.id + '">Buka</button></td></tr>';
+      }).join('') : '<tr><td colspan="6">Tidak ada guru yang cocok.</td></tr>';
+    }
+    isi();
+    document.getElementById('kjCari').addEventListener('input', function (e) { filter.cari = e.target.value; isi(); });
+  }
+
+  // ---------- Aksi kepala sekolah ----------
+  async function periksa(id, hasil, catatan) {
+    var r = await supabaseClient.rpc('kinerja_cek', { p_id: id, p_hasil: hasil, p_catatan: catatan || null });
+    if (r.error) throw r.error;
+    gabung(r.data);
+    var x = items.find(function (i) { return i.id === id; });
+    catat((hasil === 'disetujui' ? 'Memberi jempol: ' : hasil === 'revisi' ? 'Meminta revisi: ' : 'Mencabut jempol: ') + (x ? x.judul + ' — ' + namaGuru(x.guru_id) : id));
+  }
+  function bukaCatatanRevisi(id) {
+    var x = items.find(function (i) { return i.id === id; });
+    if (!x) return;
+    var ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = '<div class="modal-box kj-modal" style="max-width:480px;"><div class="modal-box__head"><div class="modal-box__title">Minta Revisi</div><button type="button" class="modal-box__close" data-tutup="1">×</button></div>' +
+      '<div class="modal-box__desc">' + esc(x.judul) + ' — ' + esc(namaGuru(x.guru_id)) + '</div>' +
+      '<div class="field"><label>Catatan untuk guru</label><textarea id="kjCatatan" placeholder="Tulis bagian yang perlu diperbaiki atau dilengkapi…"></textarea></div>' +
+      '<div class="modal-box__actions"><button type="button" class="btn-small" data-tutup="1">Batal</button><button type="button" class="btn-small btn-small--primary" id="kjKirimRevisi">Kembalikan ke Guru</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.getAttribute('data-tutup')) ov.remove(); });
+    document.getElementById('kjCatatan').focus();
+    document.getElementById('kjKirimRevisi').addEventListener('click', async function () {
+      var cat = document.getElementById('kjCatatan').value.trim();
+      if (!cat) { toast('Tulis catatan agar guru tahu apa yang perlu diperbaiki.'); return; }
+      this.disabled = true;
+      try { await periksa(id, 'revisi', cat); ov.remove(); toast('Dikembalikan ke guru.', true); tampil(); }
+      catch (e) { this.disabled = false; toast(pesanGalat(e)); }
+    });
+  }
+
+  // ---------- Aksi guru ----------
+  async function ubahStatus(ids, status) {
+    var r = await supabaseClient.from('kinerja_butir').update({ status: status }).in('id', ids).select();
+    if (r.error) throw r.error;
+    gabung(r.data);
+    return r.data || [];
+  }
+  async function hapusButir(id) {
+    var x = items.find(function (i) { return i.id === id; });
+    if (!x || !confirm('Hapus butir "' + x.judul + '" beserta bukti yang diunggah?')) return;
+    try {
+      var r = await supabaseClient.from('kinerja_butir').delete().eq('id', id).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw new Error('Butir tidak dapat dihapus (mungkin sudah diajukan).');
+      var paths = (x.bukti || []).filter(function (b) { return b.t === 'file'; }).map(function (b) { return b.p; });
+      if (paths.length) { try { await supabaseClient.storage.from(BUCKET).remove(paths); } catch (e) { /* abaikan */ } }
+      items = items.filter(function (i) { return i.id !== id; });
+      toast('Butir dihapus.', true); tampil();
+    } catch (e) { toast(pesanGalat(e)); }
+  }
+  async function simpanLink(id, ajukan) {
+    var x = items.filter(function (i) { return i.id === id; })[0]; if (!x) return;
+    var el = content.querySelector('[data-link="' + id + '"]'), kt = content.querySelector('[data-ket="' + id + '"]'), u = el ? el.value.trim() : '';
+    if (u && !urlAman(u)) { toast('Tautan harus diawali http:// atau https://'); return; }
+    var bukti = (x.bukti || []).filter(function (b) { return b.t === 'file'; }).concat(u ? [{ t: 'link', u: u, n: 'Link bukti kinerja' }] : []);
+    if (ajukan && !bukti.length) { toast('Isi link bukti dulu sebelum mengajukan.'); return; }
+    var r = await supabaseClient.from('kinerja_butir').update({ bukti: bukti, keterangan: (kt && kt.value.trim()) || null, status: ajukan ? 'diajukan' : (x.status === 'revisi' ? 'revisi' : 'draft') }).eq('id', id).select().single();
+    if (r.error) throw r.error;
+    gabung(r.data);
+    if (ajukan) catat('Mengajukan bukti kinerja: ' + KAT[x.kategori].judul);
+    toast(ajukan ? 'Diajukan ke Kepala Sekolah.' : 'Tersimpan.', true); tampil();
+  }
+  function bukaPilih() {
+    var ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = '<div class="modal-box kj-modal"><div class="modal-box__head"><div class="modal-box__title">Tambah Bukti Dukung</div><button type="button" class="modal-box__close" data-tutup="1">×</button></div>' +
+      '<div class="modal-box__desc">Pilih kategori bukti dukung. Tabelnya muncul setelah ditambahkan.</div><div class="form-grid">' +
+      '<div class="field field--full"><label>Kategori bukti dukung</label><select id="pKat">' + URUT_KAT.map(function (k) { return opsi(k, KAT[k].judul, false); }).join('') + '</select></div>' +
+      '<div class="field field--full"><label>Contoh bukti dukung</label><div class="kj-contoh" id="pPrev"></div></div></div>' +
+      '<div class="modal-box__actions"><button type="button" class="btn-small" data-tutup="1">Batal</button><button type="button" class="btn-small btn-small--primary" id="pSimpan">Tambahkan</button></div></div>';
+    document.body.appendChild(ov);
+    var kat = document.getElementById('pKat'), prev = document.getElementById('pPrev');
+    function gambar() { prev.textContent = CONTOH[kat.value]; }
+    gambar(); kat.addEventListener('change', gambar);
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.getAttribute('data-tutup')) ov.remove(); });
+    document.getElementById('pSimpan').addEventListener('click', async function () {
+      this.disabled = true;
+      try {
+        var r = await supabaseClient.from('kinerja_butir').insert({ guru_id: meId, periode: periode, kategori: kat.value, judul: KAT[kat.value].judul, standar: true, status: 'draft', bukti: [] }).select().single();
+        if (r.error) throw r.error;
+        gabung(r.data); ov.remove(); toast('Ditambahkan. Isi link dan keterangannya pada tabel.', true); tampil();
+      } catch (e) { this.disabled = false; toast(pesanGalat(e)); }
+    });
+  }
+
+  // ---------- Buka berkas bukti (tautan bertanda tangan sementara) ----------
+  async function bukaBerkas(path) {
+    var w = window.open('', '_blank');
+    try {
+      var r = await supabaseClient.storage.from(BUCKET).createSignedUrl(path, 3600);
+      if (r.error || !r.data) throw (r.error || new Error('Berkas tidak ditemukan.'));
+      if (w) w.location.href = r.data.signedUrl; else location.href = r.data.signedUrl;
+    } catch (e) { if (w) w.close(); toast(pesanGalat(e)); }
+  }
+
+  // ---------- Satu pendengar klik untuk seluruh konten ----------
+  content.addEventListener('click', async function (e) {
+    var fl = e.target.closest('[data-file]');
+    if (fl) { e.preventDefault(); bukaBerkas(fl.getAttribute('data-file')); return; }
+    var el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
+    try {
+      if (act === 'ke') keHalaman(el.getAttribute('data-view'));
+      else if (act === 'buka-guru') { filter.guru = id; renderDaftarPantau(); ikon(); window.scrollTo(0, 0); }
+      else if (act === 'kembali-guru') { filter.guru = ''; renderDaftarPantau(); ikon(); window.scrollTo(0, 0); }
+      else if (act === 'tambah') bukaPilih();
+      else if (act === 'simpan') { el.disabled = true; await simpanLink(id, false); }
+      else if (act === 'ajukan') { el.disabled = true; await simpanLink(id, true); el.disabled = false; }
+      else if (act === 'ajukan-semua') {
+        var ids = items.filter(function (x) { return (x.status === 'draft' || x.status === 'revisi') && (x.bukti || []).length; }).map(function (x) { return x.id; });
+        if (!ids.length) return;
+        if (!confirm('Ajukan ' + ids.length + ' poin ke Kepala Sekolah? Poin yang diajukan tidak bisa diubah sampai dicek.')) return;
+        await ubahStatus(ids, 'diajukan'); catat('Mengajukan ' + ids.length + ' bukti kinerja');
+        toast(ids.length + ' poin diajukan.', true); tampil();
+      }
+      else if (act === 'tarik') { await ubahStatus([id], 'draft'); toast('Pengajuan dibatalkan. Butir kembali menjadi draf.', true); tampil(); }
+      else if (act === 'hapus') await hapusButir(id);
+      else if (act === 'jempol') { el.disabled = true; await periksa(id, 'disetujui'); toast('Jempol diberikan 👍', true); tampil(); }
+      else if (act === 'minta-revisi') bukaCatatanRevisi(id);
+      else if (act === 'cabut') {
+        if (!confirm('Cabut jempol? Butir kembali ke status menunggu dicek.')) return;
+        await periksa(id, 'diajukan'); toast('Jempol dicabut.', true); tampil();
+      }
+      else if (act === 'lihat-guru') { filter.guru = id; filter.kategori = ''; filter.status = ''; keHalaman('bukti'); }
+    } catch (err) { el.disabled = false; toast(pesanGalat(err)); }
+  });
+
+  document.getElementById('menu').addEventListener('click', function (e) {
+    var a = e.target.closest('.menu-item[data-view]');
+    if (!a) return;
+    e.preventDefault();
+    if (pantau && a.dataset.view === 'bukti') filter.guru = '';
+    keHalaman(a.dataset.view);
+  });
+
+  // ---------- Mulai ----------
+  (async function () {
+    var s = (await supabaseClient.auth.getSession()).data.session;
+    if (!s) { location.href = 'index.html'; return; }
+    meId = s.user.id;
+    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', meId).single();
+    if (p.error || !p.data) { location.href = 'portal.html'; return; }
+    meNama = p.data.nama || s.user.email;
+    meRole = p.data.role;
+    pantau = meRole === 'admin' || meRole === 'kepsek';
+    document.getElementById('userName').textContent = meNama;
+    document.getElementById('userRole').textContent = meRole === 'admin' ? 'Admin' : meRole === 'kepsek' ? 'Kepala Sekolah' : 'Guru';
+    document.getElementById('roleLabel').textContent = pantau ? (meRole === 'kepsek' ? 'Kepala Sekolah' : 'Admin') : 'Guru';
+    if (pantau) document.querySelector('.sidebar__brand-mark').textContent = 'Kinerja Guru';
+
+    try {
+      var ta = await supabaseClient.from('tahun_ajaran').select('id, nama, semester').eq('is_aktif', true).maybeSingle();
+      taAktif = ta && ta.data ? ta.data : null;
+    } catch (e) { taAktif = null; }
+    periode = taAktif ? taAktif.nama + ' · ' + taAktif.semester : 'Tahun berjalan';
+
+    bangunMenu();
+    if (pantau) {
+      try {
+        var g = await supabaseClient.from('profiles').select('id, nama').eq('role', 'guru').order('nama');
+        guruList = g.data || [];
+      } catch (e) { guruList = []; }
+    }
+    await muatData();
+    var adaMenunggu = pantau && items.some(function (x) { return x.status === 'diajukan'; });
+    keHalaman(adaMenunggu ? 'bukti' : 'ringkas');
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+    await supabaseClient.auth.signOut();
+    location.href = 'index.html';
+  });
+  ikon();
+</script>
+</body>
+</html>
