@@ -9,7 +9,7 @@
 //   JadwalKegiatan.pasang({ modul: 'erapor', tampilJika: function () { ... } });
 //
 //   modul      : 'erapor' | 'pkl' | 'bukuinduk' | 'penugasan' | 'supervisi'
-//                | 'pelanggaran' | 'semua'  (kegiatan bermodul 'umum' selalu ikut)
+//                | 'pelanggaran' | 'kinerja' | 'semua'  (kegiatan bermodul 'umum' selalu ikut)
 //   tampilJika : fungsi, true = kotak ditampilkan (mis. hanya saat menu
 //                Dashboard aktif). Kosong = selalu tampil.
 //   peran      : 'admin' | 'guru' | 'siswa' (kosong = dideteksi otomatis)
@@ -30,6 +30,7 @@
     penugasan: 'Guru & Penugasan',
     supervisi: 'Supervisi',
     pelanggaran: 'Catatan Pelanggaran',
+    kinerja: 'Kinerja Guru',
     umum: 'Umum (semua modul)'
   };
   var TZ = 'Asia/Jakarta';

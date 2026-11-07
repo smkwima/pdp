@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=2"></script>
 <script src="app-switcher.js?v=2" defer></script>
 <script src="kepsek-nav.js?v=6"></script>
 <script src="mobile.js?v=1" defer></script>
@@ -128,6 +129,7 @@
 
 <script>
   var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'kinerja', tampilJika: function () { return tampilan === 'ringkas'; } });
   var BUCKET = 'bukti-kinerja';
   var MAKS_BERKAS = 10 * 1024 * 1024; // sama dengan batas bucket di migrasi_kinerja.sql
 
