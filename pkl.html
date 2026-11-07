@@ -1972,7 +1972,7 @@
 
         function baris2(l1, v1, l2, v2) {
           return '<tr><td class="ident-label">' + escapeHtml(l1) + '</td><td class="ident-colon">:</td><td class="ident-value">' + escapeHtml(v1 || '-') + '</td>' +
-            (l2 ? '<td class="ident-label" style="padding-left:24px;">' + escapeHtml(l2) + '</td><td class="ident-colon">:</td><td class="ident-value">' + escapeHtml(v2 || '-') + '</td>' : '<td colspan="3"></td>') +
+            (l2 ? '<td class="ident-label" style="padding-left:24px;">' + escapeHtml(l2) + '</td><td class="ident-colon">:</td><td class="ident-value" style="white-space:nowrap;">' + escapeHtml(v2 || '-') + '</td>' : '<td colspan="3"></td>') +
             '</tr>';
         }
         function baris1(label, value) {
@@ -2010,11 +2010,13 @@
           return '<div class="rapor-cetak rapor-cetak--identitas rapor-cetak--pkl rapor-cetak--f13" id="cetakPkl-' + siswaId + '">' +
             '<div class="rapor-cetak__bar" style="line-height:1.6;">DAFTAR NILAI PESERTA DIDIK MATA PELAJARAN PKL<br>' + escapeHtml(NAMA_SEKOLAH.toUpperCase()) + '<br>TAHUN AJARAN ' + escapeHtml(tahunAktif.nama) + '</div>' +
 
-            '<table class="ident-table ident-table--pkl" style="margin-top:10px;"><colgroup><col style="width:150px"><col style="width:12px"><col style="width:34%"><col style="width:160px"><col style="width:12px"><col></colgroup><tbody>' +
+            '<table class="ident-table ident-table--pkl" style="margin-top:10px;"><colgroup><col style="width:150px"><col style="width:12px"><col style="width:45%"><col style="width:60px"><col style="width:12px"><col></colgroup><tbody>' +
             baris1('Nama Peserta Didik', b.siswa.nama) +
             baris2('NISN', b.siswa.nisn, 'Kelas', b.kelas.nama) +
-            baris2('Tempat PKL', b.nama_dudi, 'Program Keahlian', b.kelas.program_keahlian) +
-            baris2('Nama Instruktur', b.nama_pembimbing_dudi, 'Konsentrasi Keahlian', b.kelas.konsentrasi_keahlian) +
+            baris1('Program Keahlian', b.kelas.program_keahlian) +
+            baris1('Konsentrasi Keahlian', b.kelas.konsentrasi_keahlian) +
+            baris1('Tempat PKL', b.nama_dudi) +
+            baris1('Nama Instruktur', b.nama_pembimbing_dudi) +
             baris1('Tanggal PKL', tanggalPklGabungan) +
             baris1('Nama Pembimbing', nama) +
             '</tbody></table>' +
