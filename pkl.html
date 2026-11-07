@@ -2010,14 +2010,12 @@
           return '<div class="rapor-cetak rapor-cetak--identitas rapor-cetak--pkl rapor-cetak--f13" id="cetakPkl-' + siswaId + '">' +
             '<div class="rapor-cetak__bar" style="line-height:1.6;">DAFTAR NILAI PESERTA DIDIK MATA PELAJARAN PKL<br>' + escapeHtml(NAMA_SEKOLAH.toUpperCase()) + '<br>TAHUN AJARAN ' + escapeHtml(tahunAktif.nama) + '</div>' +
 
-            '<table class="ident-table ident-table--pkl" style="margin-top:10px;"><colgroup><col style="width:130px"><col style="width:10px"><col style="width:125px"><col style="width:112px"><col style="width:10px"><col></colgroup><tbody>' +
+            '<table class="ident-table ident-table--pkl" style="margin-top:10px;"><tbody>' +
             baris1('Nama Peserta Didik', b.siswa.nama) +
-            baris2('Kelas', b.kelas.nama, 'NISN', b.siswa.nisn) +
-            baris2('Program Keahlian', b.kelas.program_keahlian, 'Nama Instruktur', b.nama_pembimbing_dudi) +
-            baris1('Konsentrasi Keahlian', b.kelas.konsentrasi_keahlian) +
-            baris1('Tempat PKL', b.nama_dudi) +
-            baris1('Tanggal PKL', tanggalPklGabungan) +
-            baris1('Nama Pembimbing', nama) +
+            baris2('Tempat PKL', b.nama_dudi, 'NISN', b.siswa.nisn) +
+            baris2('Tanggal PKL', tanggalPklGabungan, 'Kelas', b.kelas.nama) +
+            baris2('Nama Instruktur', b.nama_pembimbing_dudi, 'Program Keahlian', b.kelas.program_keahlian) +
+            baris2('Nama Pembimbing', nama, 'Konsentrasi Keahlian', b.kelas.konsentrasi_keahlian) +
             '</tbody></table>' +
 
             '<table class="rapor-cetak__pkl"><thead><tr><th class="rc-th-pkl-tp">Tujuan Pembelajaran</th><th class="rc-th-pkl-skor tc-center">Skor</th><th>Deskripsi</th></tr></thead><tbody>' +
