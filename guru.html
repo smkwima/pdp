@@ -2935,11 +2935,15 @@
             '<td>' + statusChipHtml(r.is_aktif) + '</td>' +
             '<td><button class="btn-small" data-toggle-id="' + r.id + '">' + (r.is_aktif ? 'Nonaktifkan' : 'Aktifkan') + '</button> ' +
             '<button class="btn-small" data-edit-id="' + r.id + '">Edit</button> ' +
+            '<button class="btn-small" data-preview-id="' + r.id + '">Preview</button> ' +
             '<button class="btn-small btn-small--danger" data-id="' + r.id + '">Hapus</button></td>';
           body.appendChild(tr);
 
           tr.querySelector('[data-edit-id]').addEventListener('click', function () {
             bukaModalTujuan(r);
+          });
+          tr.querySelector('[data-preview-id]').addEventListener('click', function () {
+            bukaPreviewTujuan(r);
           });
         });
         body.querySelectorAll('button[data-toggle-id]').forEach(function (btn) {
@@ -2963,6 +2967,29 @@
       }
 
       var daftarTujuanTerkini = await muatUlangTujuan();
+
+      // ---------- Modal Preview (tampilan di rapor) ----------
+      // Kalimat yang sama persis dengan Capaian Kompetensi di rapor
+      // (lihat susunCapaian): awalan baku + deskripsi TP buatan guru.
+      function bukaPreviewTujuan(tp) {
+        var kalimat = 'Menunjukkan penguasaan yang sangat baik dalam ' + rapikanDeskripsiTp(tp.deskripsi) + '.';
+        var overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML =
+          '<div class="modal-box">' +
+          '<div class="modal-box__head"><div class="modal-box__title">Preview Tujuan Pembelajaran</div>' +
+          '<button type="button" class="modal-box__close" id="pvCloseBtn">×</button></div>' +
+          '<div class="modal-box__desc">Beginilah kalimat capaian yang akan muncul di rapor jika TP ini menjadi nilai terbaik siswa.</div>' +
+          '<div style="margin:12px 0 4px;padding:14px 16px;border-radius:12px;background:var(--surface-tint-strong);border-left:4px solid var(--primary, #2563eb);font-size:14px;line-height:1.6;">' +
+          escapeHtml(kalimat) + '</div>' +
+          '<div class="modal-box__actions"><button type="button" class="btn-small btn-small--primary" id="pvOkBtn">Tutup</button></div>' +
+          '</div>';
+        document.body.appendChild(overlay);
+        function tutup() { overlay.remove(); }
+        document.getElementById('pvCloseBtn').addEventListener('click', tutup);
+        document.getElementById('pvOkBtn').addEventListener('click', tutup);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) tutup(); });
+      }
 
       // ---------- Modal Edit ----------
       function bukaModalTujuan(existing) {
