@@ -58,6 +58,8 @@
   .pt-hero::before { width: 280px; height: 280px; right: -70px; top: -120px; background: radial-gradient(circle, rgba(255,255,255,.22), transparent 70%); }
   .pt-hero::after { width: 200px; height: 200px; right: 160px; bottom: -120px; background: radial-gradient(circle, rgba(147,197,253,.35), transparent 70%); }
   .pt-hero > * { position: relative; z-index: 1; }
+  /* Motif dekoratif kartu sambutan: arsir miring halus + kawung tipis (tone-on-tone). */
+  .pt-hero > .pt-hero__motif { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; background: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%%22 height=%22100%%22%3E%3Cdefs%3E%3Cpattern id=%22a%22 width=%225%22 height=%225%22 patternUnits=%22userSpaceOnUse%22 patternTransform=%22rotate(45)%22%3E%3Cpath d=%22M0 2.5H5%22 stroke=%22%23fff%22 stroke-opacity=%22.07%22 stroke-width=%221%22/%3E%3C/pattern%3E%3Cpattern id=%22k%22 width=%2234%22 height=%2234%22 patternUnits=%22userSpaceOnUse%22%3E%3Cg fill=%22none%22 stroke=%22%23fff%22 stroke-opacity=%22.055%22 stroke-width=%221%22%3E%3Ccircle cx=%2217%22 cy=%2217%22 r=%2211%22/%3E%3Cpath d=%22M0 6a6 6 0 0 0 6-6M28 0a6 6 0 0 0 6 6M34 28a6 6 0 0 0-6 6M6 34a6 6 0 0 0-6-6%22/%3E%3Ccircle cx=%2217%22 cy=%2217%22 r=%224%22/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width=%22100%%22 height=%22100%%22 fill=%22url(%23a)%22/%3E%3Crect width=%22100%%22 height=%22100%%22 fill=%22url(%23k)%22/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat; }
   /* Foto profil besar di kartu sambutan (klik = Edit Profil) */
   .pt-foto { position: relative; flex-shrink: 0; width: 112px; height: 112px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 0 0 4px rgba(255,255,255,.22), 0 10px 24px rgba(15,23,42,.35); transition: box-shadow .15s ease, transform .15s ease; }
   .pt-foto:hover { box-shadow: 0 0 0 4px rgba(255,255,255,.5), 0 12px 28px rgba(15,23,42,.4); transform: translateY(-1px); }
@@ -197,6 +199,7 @@
     <!-- ===== Konten ===== -->
     <main class="pt-content">
       <section class="pt-hero">
+        <span class="pt-hero__motif" aria-hidden="true"></span>
         <button type="button" class="pt-foto" id="ptFotoBtn" title="Edit profil" aria-label="Edit foto & data profil" data-profil-saya="1" style="display:none;">
           <span class="fp-av" id="ptFoto" aria-hidden="true"></span>
           <span class="pt-foto__edit" aria-hidden="true"><i data-lucide="camera"></i></span>
