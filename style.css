@@ -3421,3 +3421,6 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
 .ident-table--pkl .ident-value { overflow-wrap: break-word; word-break: normal; }
 /* Nama panjang: tetap satu baris selama muat; kalau terpaksa, turun baris
    hanya di antar kata (spasi), bukan memotong di tengah kata. */
+
+/* Titik dua dirapatkan ke label (kolom titik dua sempit, tanpa padding kiri). */
+.ident-table--pkl .ident-colon { padding-left: 0; padding-right: 2px; }
