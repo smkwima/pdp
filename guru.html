@@ -2885,12 +2885,15 @@
         '<input type="file" id="fileImportTujuan" accept=".xlsx,.xls" style="display:none;">' +
         '</div>' +
         '<div id="importSummaryTujuan"></div>' +
+        '<div style="background:var(--surface-2,#f1f5f9);border:1px solid var(--line,#e2e8f0);border-radius:10px;padding:10px 14px;margin-bottom:10px;">' +
+        PETUNJUK_KKO_HTML.replace('margin-top:4px;', 'margin-top:0;') +
+        '<div id="tpKkoWarn" style="display:none;font-size:12px;font-weight:600;color:var(--danger);margin-top:6px;"></div>' +
+        '</div>' +
         '<form class="add-form" id="formTujuan">' +
         '<div class="field"><label>Kode</label><input type="text" id="tpKode" placeholder="TP.1"></div>' +
         '<div class="field" style="flex:2;min-width:260px;"><label>Deskripsi</label><input type="text" id="tpDeskripsi" placeholder="mis. menganalisis struktur teks prosedur" style="text-transform:lowercase;" required>' +
         '<div id="tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">0/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter</div>' +
-        '<div id="tpKkoWarn" style="display:none;font-size:11px;font-weight:600;color:var(--danger);margin-top:2px;"></div>' +
-        PETUNJUK_KKO_HTML + '</div>' +
+        '</div>' +
         '<div class="field" style="max-width:100px;"><label>Urutan</label><input type="number" id="tpUrutan" min="0" step="1" placeholder="0"></div>' +
         '<div class="field" style="max-width:150px;"><label>Semester</label><select id="tpSemester">' + opsiSemesterHtml(1) + '</select></div>' +
         '<div class="field" style="max-width:140px;"><label>Status</label><select id="tpStatus">' + opsiStatusHtml(true) + '</select></div>' +
@@ -2945,8 +2948,9 @@
           .order('urutan')
           .order('created_at');
         var rows = listRes.data || [];
-        // Ringkasan TP lama yang masih melebihi batas, di atas tabel.
+        // Ringkasan TP lama yang perlu diperbaiki (terlalu panjang / bukan diawali KKO), di atas tabel.
         var jumlahTerlalu = rows.filter(function (r) { return r.deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP; }).length;
+        var jumlahBukanKko = rows.filter(function (r) { return pesanAwalBukanKko(r.deskripsi); }).length;
         var infoPanjang = document.getElementById('tpPanjangInfo');
         if (!infoPanjang) {
           infoPanjang = document.createElement('div');
@@ -2954,9 +2958,10 @@
           var wrapTp = document.getElementById('tpBody').closest('.table-wrap');
           if (wrapTp) wrapTp.parentNode.insertBefore(infoPanjang, wrapTp);
         }
-        infoPanjang.innerHTML = jumlahTerlalu
-          ? '<div style="color:var(--danger);font-size:12px;font-weight:600;margin:8px 0;">⚠ ' + jumlahTerlalu + ' TP melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter. Klik Edit pada baris bertanda ⚠ untuk mempersingkat.</div>'
-          : '';
+        var infoBaris = [];
+        if (jumlahTerlalu) infoBaris.push('<div style="color:var(--danger);font-size:12px;font-weight:600;margin:8px 0;">⚠ ' + jumlahTerlalu + ' TP melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter. Klik Edit pada baris bertanda ⚠ untuk mempersingkat.</div>');
+        if (jumlahBukanKko) infoBaris.push('<div style="color:#b45309;font-size:12px;font-weight:600;margin:8px 0;">⚠ ' + jumlahBukanKko + ' TP diawali "peserta didik/dapat/mampu". Klik Edit pada baris bertanda ⚠, lalu awali dengan kata kerja operasional (KKO).</div>');
+        infoPanjang.innerHTML = infoBaris.join('');
         var body = document.getElementById('tpBody');
         body.innerHTML = rows.length ? '' : '<tr><td colspan="6">Belum ada Tujuan Pembelajaran. Tambahkan lewat form di atas, atau import dari Excel.</td></tr>';
         rows.forEach(function (r) {
@@ -2965,6 +2970,9 @@
             '<td>Semester ' + r.semester + '</td><td>' + r.urutan + '</td><td>' + escapeHtml(r.kode || '—') + '</td><td>' + escapeHtml(r.deskripsi) +
             (r.deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP
               ? '<div style="color:var(--danger);font-size:11px;font-weight:600;margin-top:2px;">⚠ ' + r.deskripsi.length + ' karakter, melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' — klik Edit untuk mempersingkat</div>'
+              : '') +
+            (pesanAwalBukanKko(r.deskripsi)
+              ? '<div style="color:#b45309;font-size:11px;font-weight:600;margin-top:2px;">⚠ Diawali "peserta didik/dapat/mampu" — klik Edit, awali dengan KKO (mis. "menganalisis …")</div>'
               : '') + '</td>' +
             '<td>' + statusChipHtml(r.is_aktif) + '</td>' +
             '<td><button class="btn-small" data-toggle-id="' + r.id + '">' + (r.is_aktif ? 'Nonaktifkan' : 'Aktifkan') + '</button> ' +
