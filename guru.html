@@ -1630,6 +1630,28 @@
       return bersih;
     }
 
+    // Petunjuk penulisan TP: diawali Kata Kerja Operasional (KKO), BUKAN
+    // "Peserta didik dapat/mampu ...". Di rapor, kalimat otomatis menjadi
+    // "Menunjukkan penguasaan yang sangat baik dalam <TP>", jadi TP yang
+    // diawali KKO (mis. "menganalisis ...") langsung terbaca benar.
+    // Hanya petunjuk/peringatan, tidak memblokir penyimpanan.
+    var PETUNJUK_KKO_HTML =
+      '<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;line-height:1.5;">' +
+      '<b>Petunjuk:</b> awali dengan <b>kata kerja operasional (KKO)</b>, mis. <i>menganalisis, menyusun, menjelaskan, menerapkan, membuat</i> — ' +
+      'bukan &quot;Peserta didik dapat/mampu …&quot;. Contoh: <i>menganalisis struktur teks prosedur dan menyusunnya dengan runtut</i>.' +
+      '</div>';
+    var POLA_AWAL_BUKAN_KKO = /^\s*(peserta\s*didik|siswa|murid|dapat|mampu)\b/i;
+    function pesanAwalBukanKko(teks) {
+      return POLA_AWAL_BUKAN_KKO.test(String(teks || ''))
+        ? '⚠ Hapus kata pembuka ("peserta didik / dapat / mampu"), langsung mulai dengan KKO, mis. "menganalisis …".'
+        : '';
+    }
+    function perbaruiPeringatanKko(inputEl, warnEl) {
+      var pesan = pesanAwalBukanKko(inputEl.value);
+      warnEl.textContent = pesan;
+      warnEl.style.display = pesan ? 'block' : 'none';
+    }
+
     var BOBOT_DEFAULT = { tp: 1, pts: 2, pas: 3 };
 
     async function renderInputNilai(p) {
@@ -2865,8 +2887,10 @@
         '<div id="importSummaryTujuan"></div>' +
         '<form class="add-form" id="formTujuan">' +
         '<div class="field"><label>Kode</label><input type="text" id="tpKode" placeholder="TP.1"></div>' +
-        '<div class="field" style="flex:2;min-width:260px;"><label>Deskripsi</label><input type="text" id="tpDeskripsi" placeholder="Uraian tujuan pembelajaran" style="text-transform:lowercase;" required>' +
-        '<div id="tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">0/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter</div></div>' +
+        '<div class="field" style="flex:2;min-width:260px;"><label>Deskripsi</label><input type="text" id="tpDeskripsi" placeholder="mis. menganalisis struktur teks prosedur" style="text-transform:lowercase;" required>' +
+        '<div id="tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;">0/' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter</div>' +
+        '<div id="tpKkoWarn" style="display:none;font-size:11px;font-weight:600;color:var(--danger);margin-top:2px;"></div>' +
+        PETUNJUK_KKO_HTML + '</div>' +
         '<div class="field" style="max-width:100px;"><label>Urutan</label><input type="number" id="tpUrutan" min="0" step="1" placeholder="0"></div>' +
         '<div class="field" style="max-width:150px;"><label>Semester</label><select id="tpSemester">' + opsiSemesterHtml(1) + '</select></div>' +
         '<div class="field" style="max-width:140px;"><label>Status</label><select id="tpStatus">' + opsiStatusHtml(true) + '</select></div>' +
@@ -2885,6 +2909,7 @@
       document.getElementById('tpDeskripsi').addEventListener('input', function (e) {
         e.target.value = e.target.value.toLowerCase();
         perbaruiCounterTpDeskripsi(e.target);
+        perbaruiPeringatanKko(e.target, document.getElementById('tpKkoWarn'));
       });
 
       document.getElementById('formTujuan').addEventListener('submit', async function (e) {
@@ -3015,7 +3040,9 @@
           '<div class="field"><label>Semester</label><select id="f_tpSemester">' + opsiSemesterHtml(existing.semester) + '</select></div>' +
           '<div class="field"><label>Status</label><select id="f_tpStatus">' + opsiStatusHtml(existing.is_aktif) + '</select></div>' +
           '<div class="field" style="grid-column:1 / -1;"><label>Deskripsi</label><input type="text" id="f_tpDeskripsi" value="' + escapeHtml(existing.deskripsi) + '" style="text-transform:lowercase;" required>' +
-          '<div id="f_tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;"></div></div>' +
+          '<div id="f_tpDeskripsiCounter" style="font-size:11px;color:var(--ink-soft);margin-top:2px;"></div>' +
+          '<div id="f_tpKkoWarn" style="display:none;font-size:11px;font-weight:600;color:var(--danger);margin-top:2px;"></div>' +
+          PETUNJUK_KKO_HTML + '</div>' +
           '</div>' +
           '<div class="modal-box__actions">' +
           '<button type="button" class="btn-small" id="modalCancelBtn">Batal</button>' +
@@ -3041,8 +3068,10 @@
         document.getElementById('f_tpDeskripsi').addEventListener('input', function (e) {
           e.target.value = e.target.value.toLowerCase();
           perbaruiCounterFTpDeskripsi(e.target);
+          perbaruiPeringatanKko(e.target, document.getElementById('f_tpKkoWarn'));
         });
         perbaruiCounterFTpDeskripsi(document.getElementById('f_tpDeskripsi'));
+        perbaruiPeringatanKko(document.getElementById('f_tpDeskripsi'), document.getElementById('f_tpKkoWarn'));
 
         document.getElementById('formModalTujuan').addEventListener('submit', async function (e) {
           e.preventDefault();
@@ -3117,6 +3146,7 @@
           });
 
           var ditambah = 0, diperbarui = 0, dilewati = 0;
+          var barisBukanKko = [];
           var pesan = [];
 
           for (var i = 0; i < rows.length; i++) {
@@ -3144,6 +3174,8 @@
               continue;
             }
 
+            if (pesanAwalBukanKko(deskripsi)) barisBukanKko.push(i + 2);
+
             var payload = {
               guru_id: user.id,
               mapel_id: mapel.id,
@@ -3168,6 +3200,9 @@
           }
 
           var ringkasan = ditambah + ' TP ditambahkan, ' + diperbarui + ' TP diperbarui, ' + dilewati + ' baris dilewati.';
+          if (barisBukanKko.length) {
+            pesan.push('Catatan: baris ' + barisBukanKko.join(', ') + ' diawali "peserta didik/dapat/mampu". Sebaiknya awali TP dengan kata kerja operasional (KKO), mis. "menganalisis …". Perbaiki lewat tombol Edit.');
+          }
           document.getElementById('importSummaryTujuan').innerHTML =
             '<div class="import-summary"><strong>Hasil import:</strong> ' + escapeHtml(ringkasan) +
             (pesan.length ? '\n\n' + escapeHtml(pesan.join('\n')) : '') + '</div>';
