@@ -3295,7 +3295,9 @@
       '<div class="field"><label>Semester</label><select id="tpFSemester"><option value="">Semua Semester</option>' +
       [1, 2, 3, 4, 5, 6].map(function (n) { return '<option value="' + n + '">Semester ' + n + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label>Status</label><select id="tpFStatus"><option value="">Semua Status</option><option value="aktif">Aktif</option><option value="nonaktif">Tidak Aktif</option></select></div>' +
+      '<div class="field"><label>Panjang</label><select id="tpFPanjang"><option value="">Semua</option><option value="lebih">Melebihi 250 karakter</option></select></div>' +
       '</form>' +
+      '<div id="tpPanjangInfoAdmin"></div>' +
       '<div class="toolbar">' +
       '<button class="btn-small btn-small--danger" id="btnHapusTerpilihTp" disabled>🗑 Hapus Terpilih (<span id="tpTerpilihCount">0</span>)</button>' +
       '</div>' +
@@ -3314,8 +3316,16 @@
       var fTahun = document.getElementById('tpFTahun').value;
       var fSemester = document.getElementById('tpFSemester').value;
       var fStatus = document.getElementById('tpFStatus').value;
+      var fPanjang = document.getElementById('tpFPanjang').value;
+      var BATAS_TP = 250;
+
+      var jumlahLebih = semuaBaris.filter(function (r) { return String(r.deskripsi || '').length > BATAS_TP; }).length;
+      document.getElementById('tpPanjangInfoAdmin').innerHTML = jumlahLebih
+        ? '<div style="color:var(--danger);font-size:12px;font-weight:600;margin:8px 0;">⚠ ' + jumlahLebih + ' TP melebihi ' + BATAS_TP + ' karakter (umumnya data lama). Pilih filter "Melebihi 250 karakter" untuk melihat daftarnya dan minta guru yang bersangkutan mempersingkat lewat Edit.</div>'
+        : '';
 
       var rows = semuaBaris.filter(function (r) {
+        if (fPanjang === 'lebih' && String(r.deskripsi || '').length <= BATAS_TP) return false;
         if (fGuru && r.guru_id !== fGuru) return false;
         if (fMapel && r.mapel_id !== fMapel) return false;
         if (fTahun && r.tahun_ajaran_id !== fTahun) return false;
@@ -3337,7 +3347,8 @@
           '<td>Semester ' + r.semester + '</td>' +
           '<td>' + escapeHtml(r.urutan) + '</td>' +
           '<td>' + escapeHtml(r.kode || '—') + '</td>' +
-          '<td>' + escapeHtml(r.deskripsi) + '</td>' +
+          '<td>' + escapeHtml(r.deskripsi) +
+            (String(r.deskripsi || '').length > BATAS_TP ? '<div style="color:var(--danger);font-size:11px;font-weight:600;margin-top:2px;">⚠ ' + r.deskripsi.length + ' karakter, melebihi ' + BATAS_TP + '</div>' : '') + '</td>' +
           '<td>' + (r.is_aktif ? '<span class="chip chip--aktif">Aktif</span>' : '<span class="chip chip--muted">Tidak Aktif</span>') + '</td>' +
           '<td><button class="btn-small btn-small--danger" data-id="' + r.id + '">Hapus</button></td>';
         body.appendChild(tr);
@@ -3366,7 +3377,7 @@
       });
     }
 
-    ['tpFGuru', 'tpFMapel', 'tpFTahun', 'tpFSemester', 'tpFStatus'].forEach(function (id) {
+    ['tpFGuru', 'tpFMapel', 'tpFTahun', 'tpFSemester', 'tpFStatus', 'tpFPanjang'].forEach(function (id) {
       document.getElementById(id).addEventListener('change', gambarTabelTp);
     });
 

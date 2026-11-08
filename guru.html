@@ -1609,22 +1609,19 @@
     // Deskripsi TP sering diakhiri titik; dilepas dulu supaya kalimat
     // gabungannya tidak jadi "... , dan B.. ".
     //
-    // Safety net panjang teks: form Tambah/Edit TP sudah dibatasi
-    // maxlength di HTML, TAPI data lama (sebelum batas ini ada) atau
-    // hasil import Excel tetap bisa berisi teks yang sangat panjang/
-    // berulang-ulang. Kalau dibiarkan apa adanya, 1 baris tabel Nilai
-    // di rapor cetak bisa jadi lebih tinggi dari 1 halaman kertas,
-    // sehingga tampilannya rusak saat baris itu terpotong ke halaman
-    // berikutnya. Maka di sini deskripsi DIPOTONG ke panjang wajar
-    // sebelum dipakai menyusun kalimat Capaian Kompetensi, apa pun
-    // sumbernya (input manual maupun import Excel).
-    // BATAS_PANJANG_DESKRIPSI_TP = batas INPUT baru (form + import Excel):
-    // lebih dari ini ditolak dengan peringatan, TIDAK dipotong diam-diam.
-    // BATAS_TAMPIL_DESKRIPSI_TP = safety net saat menyusun rapor, sengaja
-    // dibiarkan 300 supaya TP lama (251–300 karakter) tidak tiba-tiba
-    // terpotong di rapor.
+    // Batas panjang deskripsi TP: BATAS_PANJANG_DESKRIPSI_TP = 250 karakter.
+    // Ditegakkan di form Tambah/Edit, import Excel, DAN di database
+    // (trigger tp_batas_deskripsi, lihat migrasi_batas_tp_250.sql). Lebih dari
+    // itu ditolak dengan peringatan, TIDAK dipotong diam-diam.
+    //
+    // Saat menyusun rapor, deskripsi TIDAK lagi dipotong di 300 (dulu
+    // menimbulkan batas ganda: input 250, tampil 300). TP lama yang masih
+    // >250 ditandai di daftar TP guru dan di menu admin supaya diperbaiki.
+    // BATAS_TAMPIL_DESKRIPSI_TP hanya pengaman untuk teks yang jauh
+    // melampaui wajar (mis. data rusak/berulang) agar 1 baris tabel Nilai
+    // tidak lebih tinggi dari 1 halaman kertas.
     var BATAS_PANJANG_DESKRIPSI_TP = 250;
-    var BATAS_TAMPIL_DESKRIPSI_TP = 300;
+    var BATAS_TAMPIL_DESKRIPSI_TP = 1000;
     function rapikanDeskripsiTp(teks) {
       var bersih = String(teks || '').trim().replace(/[.;,\s]+$/, '');
       if (bersih.length > BATAS_TAMPIL_DESKRIPSI_TP) {
@@ -2923,6 +2920,18 @@
           .order('urutan')
           .order('created_at');
         var rows = listRes.data || [];
+        // Ringkasan TP lama yang masih melebihi batas, di atas tabel.
+        var jumlahTerlalu = rows.filter(function (r) { return r.deskripsi.length > BATAS_PANJANG_DESKRIPSI_TP; }).length;
+        var infoPanjang = document.getElementById('tpPanjangInfo');
+        if (!infoPanjang) {
+          infoPanjang = document.createElement('div');
+          infoPanjang.id = 'tpPanjangInfo';
+          var wrapTp = document.getElementById('tpBody').closest('.table-wrap');
+          if (wrapTp) wrapTp.parentNode.insertBefore(infoPanjang, wrapTp);
+        }
+        infoPanjang.innerHTML = jumlahTerlalu
+          ? '<div style="color:var(--danger);font-size:12px;font-weight:600;margin:8px 0;">⚠ ' + jumlahTerlalu + ' TP melebihi ' + BATAS_PANJANG_DESKRIPSI_TP + ' karakter. Klik Edit pada baris bertanda ⚠ untuk mempersingkat.</div>'
+          : '';
         var body = document.getElementById('tpBody');
         body.innerHTML = rows.length ? '' : '<tr><td colspan="6">Belum ada Tujuan Pembelajaran. Tambahkan lewat form di atas, atau import dari Excel.</td></tr>';
         rows.forEach(function (r) {
