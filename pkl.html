@@ -16,13 +16,15 @@
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=3" defer></script>
-<script src="kepsek-readonly.js?v=9"></script>
+<script src="kepsek-readonly.js?v=10"></script>
 <script src="kepsek-nav.js?v=6"></script>
+<script src="pengingat-kepsek.js?v=2"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
 <script src="bottomnav.js?v=4" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
+<script src="pengingat-guru.js?v=2" defer></script>
 </head>
 <body>
 
@@ -1018,6 +1020,25 @@
           document.head.appendChild(st);
         }
 
+        var riwayatPg = {};
+
+        // Pesan pengingat per guru: rincian langkah yang belum selesai.
+        function pesanPend(g) {
+          var a = g.siswa.filter(function (x) { return x.idn; }).length, b = g.siswa.filter(function (x) { return x.nd; }).length, c = g.siswa.filter(function (x) { return x.ct; }).length;
+          return 'Progres Nilai PKL sebagai Pendamping baru ' + g.pct + '% untuk ' + g.n + ' siswa:\n• Identitas DUDI ' + a + '/' + g.n + '\n• Nilai DUDI ' + b + '/' + g.n + '\n• Catatan PKL ' + c + '/' + g.n;
+        }
+        function pesanUji(g) {
+          return 'Nilai Penguji PKL baru terisi ' + g.siswa.filter(function (x) { return x.np; }).length + '/' + g.n + ' siswa. Mohon dilengkapi.';
+        }
+        function ingatTombol(jenis, i, g) {
+          if (!window.Pengingat || g.pct >= 100) return '';
+          return ' ' + Pengingat.tombolHtml('data-ingat="' + jenis + '" data-idx="' + i + '"', 'Ingatkan');
+        }
+        function ingatLabel(g) {
+          var t = window.Pengingat ? Pengingat.labelRiwayat(riwayatPg[g.id]) : '';
+          return t ? '<span class="pk-diingat">' + escapeHtml(t) + '</span>' : '';
+        }
+
         function kosong(v) { return v === null || v === undefined || v === ''; }
         function tpLengkap(r) { return !!r && !kosong(r.tp1) && !kosong(r.tp2) && !kosong(r.tp3) && !kosong(r.tp4); }
         function tpTerisi(r) { return !!r && [r.tp1, r.tp2, r.tp3, r.tp4].filter(function (v) { return !kosong(v); }).length; }
@@ -1053,7 +1074,7 @@
           var pend = {}, uji = {};
           (pbRes.data || []).forEach(function (r) {
             if (!r.siswa || !r.guru) return;
-            var g = pend[r.guru_id] || (pend[r.guru_id] = { guru: r.guru.nama, siswa: [] });
+            var g = pend[r.guru_id] || (pend[r.guru_id] = { id: r.guru_id, guru: r.guru.nama, siswa: [] });
             var n = nilai[r.siswa_id] || {};
             var idn = !kosong(r.nama_dudi) && !kosong(r.tanggal_mulai) && !kosong(r.tanggal_selesai);
             var nd = tpLengkap(n.dudi);
@@ -1062,7 +1083,7 @@
           });
           (pgRes.data || []).forEach(function (r) {
             if (!r.siswa || !r.guru) return;
-            var g = uji[r.guru_id] || (uji[r.guru_id] = { guru: r.guru.nama, siswa: [] });
+            var g = uji[r.guru_id] || (uji[r.guru_id] = { id: r.guru_id, guru: r.guru.nama, siswa: [] });
             var n = nilai[r.siswa_id] || {};
             g.siswa.push({ nama: r.siswa.nama, kelas: r.kelas ? r.kelas.nama : '', np: tpLengkap(n.penguji), tp: tpTerisi(n.penguji) || 0, selesai: tpLengkap(n.penguji) ? 1 : 0 });
           });
@@ -1077,6 +1098,7 @@
             });
           }
           dataPg = { pend: hitung(pend, 3), uji: hitung(uji, 1) };
+          riwayatPg = window.Pengingat ? await Pengingat.riwayat('pkl') : {};
           return true;
         }
 
@@ -1113,6 +1135,8 @@
             '<option value="nama"' + (urutPg === 'nama' ? ' selected' : '') + '>Nama guru (A–Z)</option>' +
             '<option value="terendah"' + (urutPg === 'terendah' ? ' selected' : '') + '>Progres terendah dulu</option></select></div>' +
             '<button type="button" class="btn-small" id="btnExportProgresGuru">⬇ Unduh Progres (Excel)</button>' +
+            (window.Pengingat && (P.concat(U).some(function (g) { return g.pct < 100; }))
+              ? Pengingat.tombolHtml('data-ingat="semua"', 'Ingatkan semua yang belum selesai (' + P.concat(U).filter(function (g) { return g.pct < 100; }).length + ')') : '') +
             '</div>';
 
           // --- Pendamping ---
@@ -1126,10 +1150,10 @@
               var c = g.siswa.filter(function (x) { return x.ct; }).length;
               var k = statusDari(g.pct);
               dataExportPg.push({ 'Peran': 'Pendamping', 'Nama Guru': g.guru, 'Jumlah Siswa': g.n, 'Identitas DUDI': a + '/' + g.n, 'Nilai DUDI': b + '/' + g.n, 'Catatan PKL': c + '/' + g.n, 'Nilai Penguji': '', 'Progres (%)': g.pct, 'Status': labelStatus(k) });
-              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong></td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
+              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong>' + ingatLabel(g) + '</td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
                 '<td class="pg-langkah">Identitas <b>' + a + '/' + g.n + '</b> · Nilai DUDI <b>' + b + '/' + g.n + '</b> · Catatan <b>' + c + '/' + g.n + '</b></td>' +
                 '<td><span class="pg-status pg-status--' + k + '">' + labelStatus(k) + '</span></td>' +
-                '<td><button type="button" class="pg-btn-rinci" data-pg="p' + i + '">Rincian siswa</button></td></tr>' +
+                '<td><button type="button" class="pg-btn-rinci" data-pg="p' + i + '">Rincian siswa</button>' + ingatTombol('p', i, g) + '</td></tr>' +
                 '<tr class="pg-rinci" id="pgR_p' + i + '" hidden><td colspan="7"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Identitas</th><th>Nilai DUDI</th><th>Catatan</th></tr></thead><tbody>' +
                 g.siswa.map(function (x) {
                   return '<tr><td class="s">' + escapeHtml(x.nama) + '</td><td class="s">' + escapeHtml(x.kelas) + '</td><td class="s">' + cek(x.idn) + '</td><td class="s">' + cek(x.nd) + (x.tp && !x.nd ? ' <small>(' + x.tp + '/4 TP)</small>' : '') + '</td><td class="s">' + cek(x.ct) + '</td></tr>';
@@ -1147,10 +1171,10 @@
               var d = g.siswa.filter(function (x) { return x.np; }).length;
               var k = statusDari(g.pct);
               dataExportPg.push({ 'Peran': 'Penguji', 'Nama Guru': g.guru, 'Jumlah Siswa': g.n, 'Identitas DUDI': '', 'Nilai DUDI': '', 'Catatan PKL': '', 'Nilai Penguji': d + '/' + g.n, 'Progres (%)': g.pct, 'Status': labelStatus(k) });
-              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong></td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
+              html += '<tr><td>' + (i + 1) + '</td><td><strong>' + escapeHtml(g.guru) + '</strong>' + ingatLabel(g) + '</td><td class="tc-center">' + g.n + '</td><td>' + bar(g.pct) + '</td>' +
                 '<td class="pg-langkah">Nilai Penguji <b>' + d + '/' + g.n + '</b></td>' +
                 '<td><span class="pg-status pg-status--' + k + '">' + labelStatus(k) + '</span></td>' +
-                '<td><button type="button" class="pg-btn-rinci" data-pg="u' + i + '">Rincian siswa</button></td></tr>' +
+                '<td><button type="button" class="pg-btn-rinci" data-pg="u' + i + '">Rincian siswa</button>' + ingatTombol('u', i, g) + '</td></tr>' +
                 '<tr class="pg-rinci" id="pgR_u' + i + '" hidden><td colspan="7"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Nilai Penguji</th></tr></thead><tbody>' +
                 g.siswa.map(function (x) {
                   return '<tr><td class="s">' + escapeHtml(x.nama) + '</td><td class="s">' + escapeHtml(x.kelas) + '</td><td class="s">' + cek(x.np) + (x.tp && !x.np ? ' <small>(' + x.tp + '/4 TP)</small>' : '') + '</td></tr>';
@@ -1160,6 +1184,30 @@
           }
 
           pane.innerHTML = html;
+          if (window.lucide) lucide.createIcons();
+
+          // Tombol Ingatkan (satu handler; onclick menimpa yang lama saat digambar ulang)
+          pane.onclick = function (e) {
+            var b = e.target.closest ? e.target.closest('[data-ingat]') : null;
+            if (!b || !window.Pengingat) return;
+            var jenis = b.getAttribute('data-ingat'), idx = Number(b.getAttribute('data-idx'));
+            var opsi = { modul: 'pkl', tautan: 'pkl.html', judul: 'Nilai PKL belum lengkap', penerima: [] };
+            function dari(g, peran) { return { id: g.id, nama: g.guru, pesan: peran === 'p' ? pesanPend(g) : pesanUji(g) }; }
+            if (jenis === 'p') { opsi.judul = 'Nilai PKL (Pendamping) belum lengkap'; opsi.penerima = [dari(P[idx], 'p')]; }
+            else if (jenis === 'u') { opsi.judul = 'Nilai PKL (Penguji) belum lengkap'; opsi.penerima = [dari(U[idx], 'u')]; }
+            else if (jenis === 'semua') {
+              // Satu guru bisa menjadi pendamping sekaligus penguji: gabungkan jadi satu pengingat.
+              var peta = {}, urut = [];
+              P.filter(function (g) { return g.pct < 100; }).forEach(function (g) { peta[g.id] = { id: g.id, nama: g.guru, bagian: [pesanPend(g)] }; urut.push(g.id); });
+              U.filter(function (g) { return g.pct < 100; }).forEach(function (g) {
+                if (!peta[g.id]) { peta[g.id] = { id: g.id, nama: g.guru, bagian: [] }; urut.push(g.id); }
+                peta[g.id].bagian.push(pesanUji(g));
+              });
+              opsi.penerima = urut.map(function (id) { return { id: id, nama: peta[id].nama, pesan: peta[id].bagian.join('\n\n') }; });
+            }
+            e.preventDefault();
+            Pengingat.buka(opsi);
+          };
 
           pane.querySelectorAll('.pg-btn-rinci').forEach(function (btn) {
             btn.addEventListener('click', function () {

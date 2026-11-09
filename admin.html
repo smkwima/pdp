@@ -19,8 +19,9 @@
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=3" defer></script>
-<script src="kepsek-readonly.js?v=9"></script>
+<script src="kepsek-readonly.js?v=10"></script>
 <script src="kepsek-nav.js?v=6"></script>
+<script src="pengingat-kepsek.js?v=2"></script>
 <script src="bukuinduk-fields.js?v=1"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
@@ -281,6 +282,48 @@
       '</div>';
   }
 
+  // ---------- Pengingat ke guru (dari Kepala Sekolah / admin) ----------
+  // Tombol "Ingatkan" di dashboard mengirim notifikasi ke lonceng guru (pengingat-kepsek.js).
+  var ingatCtx = null; // diisi tiap kali dashboard dirender
+  function pesanProgresGuru(g) {
+    var kurang = g.items.filter(function (r) { return r.total > 0 && r.filled < r.total; })
+      .sort(function (a, b) { return pctOf(a.filled, a.total) - pctOf(b.filled, b.total) || a.mapel.localeCompare(b.mapel); });
+    var baris = kurang.slice(0, 8).map(function (r) { return '• ' + r.mapel + ' — ' + r.kelas + ': ' + r.filled + '/' + r.total + ' siswa'; });
+    if (kurang.length > 8) baris.push('• dan ' + (kurang.length - 8) + ' mapel-kelas lainnya');
+    return 'Nilai rapor ' + ingatCtx.periode + ' baru terisi ' + pctOf(g.filled, g.total) + '%. Mohon dilengkapi:\n' + baris.join('\n');
+  }
+  function tandaiLabelDiingat(ids) {
+    ids.forEach(function (id) {
+      var el = content.querySelector('.dx-guru[data-gid="' + id + '"] .pk-diingat');
+      if (el) el.textContent = 'Diingatkan baru saja · belum dibaca';
+    });
+  }
+  content.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-ingat]') : null;
+    if (!b || !ingatCtx || !window.Pengingat) return;
+    e.preventDefault(); e.stopPropagation(); // tombol ada di dalam <summary>: jangan ikut membuka/menutup rincian
+    var jenis = b.getAttribute('data-ingat'), id = b.getAttribute('data-id'), idx = Number(b.getAttribute('data-idx'));
+    var opsi = { modul: 'erapor', tautan: 'guru.html', judul: 'Nilai rapor belum lengkap', penerima: [] };
+    if (jenis === 'guru') {
+      var g = ingatCtx.guruMap[id];
+      if (g) opsi.penerima = [{ id: g.id, nama: g.nama, pesan: pesanProgresGuru(g) }];
+    } else if (jenis === 'baris') {
+      var r = ingatCtx.perhatian[idx];
+      if (r) opsi.penerima = [{ id: r.guruId, nama: r.guruNama, pesan: 'Nilai rapor ' + ingatCtx.periode + ' untuk ' + r.mapel + ' — ' + r.kelas + ' baru terisi ' + r.filled + ' dari ' + r.total + ' siswa. Mohon dilengkapi.' }];
+    } else if (jenis === 'wali') {
+      var w = ingatCtx.wali[idx];
+      if (w) {
+        opsi.judul = 'Presensi & catatan wali kelas belum lengkap';
+        opsi.penerima = [{ id: w.guruId, nama: w.guruNama, pesan: 'Kelas ' + w.kelas + ': presensi baru terisi ' + w.presensi + '/' + w.total + ' siswa dan catatan wali kelas ' + w.catatan + '/' + w.total + ' siswa. Mohon dilengkapi.' }];
+      }
+    } else if (jenis === 'semua') {
+      opsi.penerima = ingatCtx.guruList.filter(function (g) { return !(g.total > 0 && g.filled === g.total); })
+        .map(function (g) { return { id: g.id, nama: g.nama, pesan: pesanProgresGuru(g) }; });
+    }
+    opsi.onSelesai = function () { tandaiLabelDiingat(opsi.penerima.map(function (p) { return p.id; })); };
+    Pengingat.buka(opsi);
+  });
+
   async function renderDashboard() {
     content.innerHTML = '<div class="panel-head"><div><div class="panel-head__title">Dashboard</div>' +
       '<div class="panel-head__desc">Memuat progres pengisian nilai guru...</div></div></div>';
@@ -332,6 +375,8 @@
       nilaiMap[r.mapel_id + '|' + r.siswa_id] = true;
     });
 
+    var riwayatIngat = window.Pengingat ? await Pengingat.riwayat('erapor') : {};
+
     // ---------- Progres per penugasan ----------
     var rows = penugasan.map(function (p) {
       var siswaIds = kelasSiswaMap[p.kelas.id] || [];
@@ -346,7 +391,7 @@
     var guruMap = {};
     var kelasMap = {};
     rows.forEach(function (r) {
-      var g = guruMap[r.guruId] || (guruMap[r.guruId] = { nama: r.guruNama, filled: 0, total: 0, items: [] });
+      var g = guruMap[r.guruId] || (guruMap[r.guruId] = { id: r.guruId, nama: r.guruNama, filled: 0, total: 0, items: [] });
       g.filled += r.filled; g.total += r.total; g.items.push(r);
       var k = kelasMap[r.kelasId] || (kelasMap[r.kelasId] = { nama: r.kelas, filled: 0, total: 0, mapel: 0 });
       k.filled += r.filled; k.total += r.total; k.mapel += 1;
@@ -369,6 +414,7 @@
       .eq('tahun_ajaran_id', tahunAktif.id);
     var waliKelas = waliRes.data || [];
     var waliHtml = '';
+    var ingatWali = [];
     if (waliKelas.length > 0) {
       var rekapRows = null;
       try {
@@ -394,7 +440,10 @@
         }
         return '<div class="dx-wali__card"><div class="dx-wali__kelas">' + escapeHtml(w.kelas.nama) + '</div>' +
           '<div class="dx-wali__nama">' + escapeHtml(w.guru.nama) + '</div>' +
-          baris('Presensi', x.presensi) + baris('Catatan', x.catatan) + '</div>';
+          baris('Presensi', x.presensi) + baris('Catatan', x.catatan) +
+          (window.Pengingat && rekapRows !== null && total > 0 && (x.presensi < total || x.catatan < total)
+            ? '<div style="margin-top:10px;">' + Pengingat.tombolHtml('data-ingat="wali" data-idx="' + (ingatWali.push({ guruId: w.guru.id, guruNama: w.guru.nama, kelas: w.kelas.nama, presensi: x.presensi, catatan: x.catatan, total: total }) - 1) + '"', 'Ingatkan wali kelas') + '</div>'
+            : '') + '</div>';
       }).join('');
 
       waliHtml = '<section class="dx-section"><div class="dx-card__head"><h3 class="dx-card__title"><i data-lucide="calendar-check"></i>Wali kelas: presensi &amp; catatan</h3>' +
@@ -410,9 +459,10 @@
 
     var perhatianHtml = perhatian.length === 0
       ? '<div class="dx-allgood"><i data-lucide="circle-check"></i>Semua penugasan sudah terisi penuh. Tidak ada yang perlu dikejar.</div>'
-      : '<ul class="dx-list">' + perhatian.map(function (r) {
+      : '<ul class="dx-list">' + perhatian.map(function (r, i) {
           var p = pctOf(r.filled, r.total);
-          return '<li class="dx-item"><div class="dx-item__name">' + escapeHtml(r.guruNama) + '</div>' +
+          return '<li class="dx-item"><div class="dx-item__name">' + escapeHtml(r.guruNama) +
+            (window.Pengingat ? ' <span style="margin-left:8px;">' + Pengingat.tombolHtml('data-ingat="baris" data-idx="' + i + '"', 'Ingatkan') + '</span>' : '') + '</div>' +
             '<div class="dx-item__meta">' + escapeHtml(r.mapel) + ' · ' + escapeHtml(r.kelas) + '</div>' +
             '<div class="dx-item__prog">' + dxBar(r.filled, r.total) + '<span class="dx-fig">' + r.filled + '/' + r.total + ' siswa · ' + p + '%</span></div></li>';
         }).join('') + '</ul>';
@@ -435,11 +485,13 @@
             '<div class="dx-sub__kelas">' + escapeHtml(r.kelas) + '</div>' +
             '<div class="dx-guru__prog">' + dxBar(r.filled, r.total) + '<span class="dx-fig">' + r.filled + '/' + r.total + '</span></div></div>';
         }).join('');
-      return '<details class="dx-guru" data-nama="' + escapeHtml(g.nama.toLowerCase()) + '" data-selesai="' + (selesai ? '1' : '0') + '">' +
+      var infoIngat = window.Pengingat ? Pengingat.labelRiwayat(riwayatIngat[g.id]) : '';
+      return '<details class="dx-guru" data-gid="' + escapeHtml(g.id) + '" data-nama="' + escapeHtml(g.nama.toLowerCase()) + '" data-selesai="' + (selesai ? '1' : '0') + '">' +
         '<summary><span class="dx-avatar" aria-hidden="true">' + escapeHtml(dxInisial(g.nama)) + '</span>' +
-        '<span class="dx-guru__name">' + escapeHtml(g.nama) + '<small>' + g.items.length + ' mapel-kelas</small></span>' +
+        '<span class="dx-guru__name">' + escapeHtml(g.nama) + '<small>' + g.items.length + ' mapel-kelas</small>' + (infoIngat ? '<small class="pk-diingat">' + escapeHtml(infoIngat) + '</small>' : '') + '</span>' +
         '<span class="dx-guru__prog">' + dxBar(g.filled, g.total) + '<span class="dx-fig">' + p + '%</span></span>' +
         '<span class="dx-chip dx-chip--' + DX_STATUS_CHIP[status] + '">' + DX_STATUS_LABEL[status] + '</span>' +
+        '<span class="dx-guru__ingat">' + (window.Pengingat && !selesai ? Pengingat.tombolHtml('data-ingat="guru" data-id="' + escapeHtml(g.id) + '"', 'Ingatkan') : '') + '</span>' +
         '<i data-lucide="chevron-right" class="dx-guru__chev"></i></summary>' +
         '<div class="dx-guru__body">' + items + '</div></details>';
     }).join('');
@@ -478,6 +530,8 @@
       dxFact('briefcase', rows.length, 'penugasan mapel-kelas') +
       '</div></section>';
 
+    ingatCtx = { guruMap: guruMap, guruList: guruList, perhatian: perhatian, wali: ingatWali, periode: 'Tahun Ajaran ' + tahunAktif.nama + ' Semester ' + tahunAktif.semester };
+
     content.innerHTML =
       '<div class="panel-head"><div><div class="panel-head__title">Dashboard</div>' +
       '<div class="panel-head__desc">Pantau progres guru mengisi nilai rapor — siapa yang sudah selesai dan siapa yang perlu diingatkan.</div></div></div>' +
@@ -497,6 +551,8 @@
       '<button type="button" class="dx-tab" data-filter="semua" aria-pressed="true">Semua (' + guruList.length + ')</button>' +
       '<button type="button" class="dx-tab" data-filter="belum" aria-pressed="false">Belum selesai (' + guruList.filter(function (g) { return !(g.total > 0 && g.filled === g.total); }).length + ')</button>' +
       '<button type="button" class="dx-tab" data-filter="selesai" aria-pressed="false">Selesai (' + guruList.filter(function (g) { return g.total > 0 && g.filled === g.total; }).length + ')</button></div>' +
+      (window.Pengingat && guruList.some(function (g) { return !(g.total > 0 && g.filled === g.total); })
+        ? Pengingat.tombolHtml('data-ingat="semua"', 'Ingatkan semua yang belum selesai (' + guruList.filter(function (g) { return !(g.total > 0 && g.filled === g.total); }).length + ')') : '') +
       '<button type="button" class="dx-toggle" id="dxToggleAll">Buka semua</button></div>' +
       '<div class="dx-gurus" id="dxGurus">' + guruHtml + '<div class="dx-empty" id="dxKosong" hidden>Tidak ada guru yang cocok dengan filter ini.</div></div></section>';
 

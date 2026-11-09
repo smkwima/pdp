@@ -12,9 +12,11 @@
 <script src="jadwal-kegiatan.js?v=2"></script>
 <script src="app-switcher.js?v=3" defer></script>
 <script src="kepsek-nav.js?v=6"></script>
+<script src="pengingat-kepsek.js?v=2"></script>
 <script src="mobile.js?v=1" defer></script>
 <script src="bottomnav.js?v=4" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
+<script src="pengingat-guru.js?v=2" defer></script>
 <style>
   .kj-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
   .kj-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
@@ -393,7 +395,8 @@
         '<td data-label="Jempol">' + c.disetujui + '</td>' +
         '<td data-label="Revisi">' + c.revisi + '</td>' +
         '<td data-label="Progres"><span class="kj-bar"><i style="width:' + pct(c.disetujui, c.total) + '%"></i></span> ' + pct(c.disetujui, c.total) + '%</td>' +
-        '<td><button type="button" class="btn-small" data-act="lihat-guru" data-id="' + r.g.id + '">Lihat</button></td></tr>';
+        '<td><button type="button" class="btn-small" data-act="lihat-guru" data-id="' + r.g.id + '">Lihat</button>' +
+        (window.Pengingat && (c.total === 0 || c.draft > 0 || c.revisi > 0) ? ' ' + Pengingat.tombolHtml('data-act="ingatkan" data-id="' + r.g.id + '"', 'Ingatkan') : '') + '</td></tr>';
     }).join('') : '<tr><td colspan="8">Tidak ada guru yang cocok.</td></tr>';
   }
   function opsi(nilai, label, terpilih) { return '<option value="' + esc(nilai) + '"' + (terpilih ? ' selected' : '') + '>' + esc(label) + '</option>'; }
@@ -536,6 +539,21 @@
     } catch (e) { if (w) w.close(); toast(pesanGalat(e)); }
   }
 
+  // ---------- Pengingat ke guru: bukti kinerja belum lengkap ----------
+  function ingatkanGuru(id) {
+    var g = guruList.filter(function (x) { return x.id === id; })[0];
+    if (!g || !window.Pengingat) return;
+    var c = hitung(items.filter(function (x) { return x.guru_id === id; }));
+    var baris = [];
+    if (c.total === 0) baris.push('Belum ada butir bukti dukung kinerja yang disiapkan.');
+    if (c.draft > 0) baris.push('• ' + c.draft + ' butir belum diajukan');
+    if (c.revisi > 0) baris.push('• ' + c.revisi + ' butir dikembalikan dan perlu direvisi');
+    Pengingat.buka({
+      modul: 'kinerja', tautan: 'kinerja.html', judul: 'Bukti dukung kinerja belum lengkap',
+      penerima: [{ id: g.id, nama: g.nama, pesan: 'Periode ' + periode + ':\n' + baris.join('\n') }]
+    });
+  }
+
   // ---------- Satu pendengar klik untuk seluruh konten ----------
   content.addEventListener('click', async function (e) {
     var fl = e.target.closest('[data-file]');
@@ -547,6 +565,7 @@
       if (act === 'ke') keHalaman(el.getAttribute('data-view'));
       else if (act === 'buka-guru') { filter.guru = id; renderDaftarPantau(); ikon(); window.scrollTo(0, 0); }
       else if (act === 'kembali-guru') { filter.guru = ''; renderDaftarPantau(); ikon(); window.scrollTo(0, 0); }
+      else if (act === 'ingatkan') ingatkanGuru(id);
       else if (act === 'tambah') bukaPilih();
       else if (act === 'simpan') { el.disabled = true; await simpanLink(id, false); }
       else if (act === 'ajukan') { el.disabled = true; await simpanLink(id, true); el.disabled = false; }

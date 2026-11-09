@@ -129,6 +129,8 @@
     for (var i = 0; i < daftar.length; i++) {
       var el = daftar[i];
       if (el.hasAttribute('data-kepsek-hidden') || el.id === 'logoutBtn') continue;
+      // Pengingat ke guru (pengingat-kepsek.js) bukan perubahan data guru/nilai: tetap boleh untuk kepala sekolah.
+      if (el.hasAttribute('data-kepsek-ok') || (el.closest && el.closest('[data-kepsek-ok]'))) continue;
       // Edit profil SENDIRI (foto + data diri) tetap boleh: avatar/tautan "Edit Profil" & jendelanya.
       if (el.hasAttribute('data-profil-saya') || (el.closest && el.closest('.fp-ov'))) continue;
       var teks = ((el.innerText || el.value || '') + '').trim();

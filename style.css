@@ -3090,7 +3090,7 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
 .dx-gurus { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
 .dx-guru { border-top: 1px solid var(--border); }
 .dx-guru:first-child { border-top: 0; }
-.dx-guru > summary { display: grid; grid-template-columns: 36px minmax(0, 1.4fr) minmax(140px, 1fr) 96px 18px; gap: 14px; align-items: center; padding: 12px 18px; cursor: pointer; list-style: none; }
+.dx-guru > summary { display: grid; grid-template-columns: 36px minmax(0, 1.4fr) minmax(140px, 1fr) 96px 104px 18px; gap: 14px; align-items: center; padding: 12px 18px; cursor: pointer; list-style: none; }
 .dx-guru > summary::-webkit-details-marker { display: none; }
 .dx-guru > summary:hover { background: var(--surface-tint); }
 .dx-guru > summary:focus-visible { outline: 2px solid var(--primary-soft); outline-offset: -2px; }
@@ -3132,6 +3132,8 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
   .dx-guru > summary { grid-template-columns: 36px minmax(0, 1fr) 18px; row-gap: 8px; }
   .dx-guru > summary .dx-guru__prog { grid-column: 2 / 3; grid-row: 2; }
   .dx-guru > summary .dx-chip { display: none; }
+  .dx-guru > summary .dx-guru__ingat { grid-column: 2 / 3; grid-row: 3; justify-self: start; }
+  .dx-guru > summary .dx-guru__ingat:empty { display: none; }
   .dx-guru__body { padding-left: 18px; }
   .dx-sub { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
   .dx-sub .dx-guru__prog { grid-column: 1 / -1; }
@@ -3424,3 +3426,7 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
 
 /* Titik dua dirapatkan ke label (kolom titik dua sempit, tanpa padding kiri). */
 .ident-table--pkl .ident-colon { padding-left: 0; padding-right: 2px; }
+
+/* Pengingat ke guru */
+.dx-guru__ingat { display: flex; justify-content: flex-end; }
+.dx-guru__name .pk-diingat { margin-top: 2px; }
