@@ -144,3 +144,29 @@ exception
   when duplicate_object then null;
   when undefined_object then null;
 end $$;
+
+-- 7) HAPUS pengingat (khusus ADMIN). Dipakai menu "Pengingat" di panel admin.
+--    p_ids null = hapus SEMUA pengingat; kalau diisi = hanya id tersebut.
+--    Kepala sekolah tidak bisa menghapus (hanya admin).
+create or replace function public.hapus_pengingat(p_ids uuid[] default null)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_n integer;
+begin
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin') then
+    raise exception 'Hanya admin yang dapat menghapus pengingat.' using errcode = '42501';
+  end if;
+  delete from public.pengingat_guru where p_ids is null or id = any (p_ids);
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+revoke all on function public.hapus_pengingat(uuid[]) from public, anon;
+grant execute on function public.hapus_pengingat(uuid[]) to authenticated;
+
+-- Agar penghapusan ikut terkirim lewat realtime (lonceng guru langsung bersih).
+alter table public.pengingat_guru replica identity full;

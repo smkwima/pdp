@@ -162,7 +162,7 @@
   // Menu yang disembunyikan = menu pengaturan/penginputan/administrasi (kepsek hanya memantau).
   var MENU_SEMBUNYI = {
     'admin.html': {
-      view: ['guru', 'penugasan', 'mapel', 'waliKelas', 'mapelTingkat', 'urutanLeger', 'kokurikuler', 'ekskul', 'tujuanPembelajaran', 'terbitRapor', 'tarikBukuInduk'],
+      view: ['guru', 'penugasan', 'mapel', 'waliKelas', 'mapelTingkat', 'urutanLeger', 'kokurikuler', 'ekskul', 'tujuanPembelajaran', 'terbitRapor', 'tarikBukuInduk', 'pengingat'],
       href: ['pengaturan-admin.html', 'log-admin.html']
     },
     'bukuinduk-admin.html': { view: ['pengajuan', 'sinkron', 'excel'], href: [] },
