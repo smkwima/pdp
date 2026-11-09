@@ -36,6 +36,7 @@
       <a href="#tahunAjaran" class="menu-item" data-view="tahunAjaran"><i data-lucide="calendar-clock" class="menu-icon"></i><span class="menu-item__title">Tahun Ajaran</span></a>
       <a href="#slideshowLogin" class="menu-item" data-view="slideshowLogin"><i data-lucide="images" class="menu-icon"></i><span class="menu-item__title">Slideshow Login</span></a>
       <a href="#jadwalKegiatan" class="menu-item" data-view="jadwalKegiatan"><i data-lucide="timer" class="menu-icon"></i><span class="menu-item__title">Jadwal Kegiatan</span></a>
+      <a href="#pengingat" class="menu-item" data-view="pengingat"><i data-lucide="bell" class="menu-icon"></i><span class="menu-item__title">Pengingat ke Guru</span></a>
     </nav>
 
     <div class="sidebar__footer">
@@ -1010,7 +1011,93 @@
     });
   }
 
-  var views = { profilSekolah: renderProfilSekolah, tahunAjaran: renderTahunAjaran, slideshowLogin: renderSlideshowLogin, jadwalKegiatan: function () { return renderJadwalKegiatan(); } };
+  // ================= PENGINGAT KE GURU (kelola & hapus) =================
+  // Admin melihat semua pengingat yang pernah dikirim kepala sekolah/admin,
+  // lalu dapat menghapus yang dipilih atau SEMUA sekaligus (fungsi hapus_pengingat).
+  var NAMA_MODUL_PENGINGAT = { erapor: 'E-Rapor', kinerja: 'Kinerja', pkl: 'Nilai PKL', supervisi: 'Supervisi', bukuinduk: 'Buku Induk', umum: 'Umum' };
+  async function renderPengingatAdmin() {
+    content.innerHTML = '<div class="panel-head"><div><div class="panel-head__title">Pengingat ke Guru</div>' +
+      '<div class="panel-head__desc">Semua pengingat yang sudah dikirim dari dashboard. Hapus yang dipilih, atau hapus semuanya sekaligus; pengingat yang dihapus juga hilang dari lonceng guru.</div></div></div>' +
+      '<div class="panel-note" id="pgaNote">Memuat...</div>';
+    var r = await supabaseClient.from('pengingat_guru')
+      .select('id, modul, judul, pesan, pengirim_nama, dibuat_pada, dibaca_pada, guru:guru_id(nama)')
+      .order('dibuat_pada', { ascending: false }).limit(1000);
+    if (r.error) {
+      document.getElementById('pgaNote').innerHTML = 'Fitur pengingat belum aktif. Jalankan <b>migrasi_pengingat.sql</b> di Supabase (SQL Editor). (' + escapeHtml(r.error.message) + ')';
+      return;
+    }
+    var semua = r.data || [];
+    var filterModul = '', filterBaca = '';
+
+    function waktu(iso) {
+      try { return new Date(iso).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(/\./g, ':'); } catch (e) { return ''; }
+    }
+    function tampil() {
+      return semua.filter(function (x) {
+        return (!filterModul || x.modul === filterModul) && (!filterBaca || (filterBaca === 'baca' ? !!x.dibaca_pada : !x.dibaca_pada));
+      });
+    }
+    function gambar() {
+      var list = tampil();
+      var belum = semua.filter(function (x) { return !x.dibaca_pada; }).length;
+      var opsiModul = '<option value="">Semua modul</option>' + Object.keys(NAMA_MODUL_PENGINGAT).map(function (k) {
+        return '<option value="' + k + '"' + (filterModul === k ? ' selected' : '') + '>' + NAMA_MODUL_PENGINGAT[k] + '</option>';
+      }).join('');
+      content.innerHTML = '<div class="panel-head"><div><div class="panel-head__title">Pengingat ke Guru</div>' +
+        '<div class="panel-head__desc">Semua pengingat yang sudah dikirim dari dashboard. Hapus yang dipilih, atau hapus semuanya sekaligus; pengingat yang dihapus juga hilang dari lonceng guru.</div></div></div>' +
+        '<div class="toolbar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;">' +
+        '<select id="pgaModul" aria-label="Filter modul">' + opsiModul + '</select>' +
+        '<select id="pgaBaca" aria-label="Filter status baca"><option value="">Semua status</option><option value="belum"' + (filterBaca === 'belum' ? ' selected' : '') + '>Belum dibaca</option><option value="baca"' + (filterBaca === 'baca' ? ' selected' : '') + '>Sudah dibaca</option></select>' +
+        '<span style="font-size:12.5px;color:var(--ink-soft);">' + semua.length + ' pengingat · ' + belum + ' belum dibaca</span>' +
+        '<span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="btn-small btn-small--danger" id="pgaHapusPilih" disabled>Hapus yang dipilih</button>' +
+        '<button type="button" class="btn-small btn-small--danger" id="pgaHapusSemua"' + (semua.length ? '' : ' disabled') + '>Hapus semua (' + semua.length + ')</button></span></div>' +
+        (list.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th style="width:36px;"><input type="checkbox" id="pgaPilihSemua" aria-label="Pilih semua yang tampil"></th>' +
+          '<th>Guru</th><th>Modul</th><th>Judul &amp; pesan</th><th>Dikirim</th><th>Status</th></tr></thead><tbody>' +
+          list.map(function (x) {
+            return '<tr><td data-label=""><input type="checkbox" class="pga-cek" value="' + escapeHtml(x.id) + '" aria-label="Pilih"></td>' +
+              '<td data-label="Guru"><b>' + escapeHtml(x.guru ? x.guru.nama : '—') + '</b></td>' +
+              '<td data-label="Modul">' + escapeHtml(NAMA_MODUL_PENGINGAT[x.modul] || x.modul) + '</td>' +
+              '<td data-label="Judul &amp; pesan"><b>' + escapeHtml(x.judul) + '</b>' + (x.pesan ? '<div style="font-size:12px;color:var(--ink-soft);white-space:pre-line;max-width:420px;">' + escapeHtml(x.pesan.length > 220 ? x.pesan.slice(0, 220) + '…' : x.pesan) + '</div>' : '') + '</td>' +
+              '<td data-label="Dikirim">' + escapeHtml(waktu(x.dibuat_pada)) + '<div style="font-size:12px;color:var(--ink-soft);">oleh ' + escapeHtml(x.pengirim_nama || '—') + '</div></td>' +
+              '<td data-label="Status"><span class="chip ' + (x.dibaca_pada ? 'chip--aktif' : 'chip--muted') + '">' + (x.dibaca_pada ? 'Sudah dibaca' : 'Belum dibaca') + '</span></td></tr>';
+          }).join('') + '</tbody></table></div>'
+          : '<div class="empty-state"><div class="empty-state__mark">🔔</div><div class="empty-state__title">' + (semua.length ? 'Tidak ada pengingat yang cocok dengan filter' : 'Belum ada pengingat') + '</div></div>');
+      lucide.createIcons();
+
+      var cek = function () { return Array.prototype.slice.call(content.querySelectorAll('.pga-cek:checked')).map(function (c) { return c.value; }); };
+      var btnPilih = document.getElementById('pgaHapusPilih');
+      function segarkan() { var n = cek().length; btnPilih.disabled = n === 0; btnPilih.textContent = n ? 'Hapus yang dipilih (' + n + ')' : 'Hapus yang dipilih'; }
+      content.querySelectorAll('.pga-cek').forEach(function (c) { c.addEventListener('change', segarkan); });
+      var ps = document.getElementById('pgaPilihSemua');
+      if (ps) ps.addEventListener('change', function () { content.querySelectorAll('.pga-cek').forEach(function (c) { c.checked = ps.checked; }); segarkan(); });
+      document.getElementById('pgaModul').addEventListener('change', function () { filterModul = this.value; gambar(); });
+      document.getElementById('pgaBaca').addEventListener('change', function () { filterBaca = this.value; gambar(); });
+
+      async function hapus(ids, pesan) {
+        if (!confirm(pesan)) return;
+        var h = await supabaseClient.rpc('hapus_pengingat', { p_ids: ids });
+        if (h.error) {
+          alert(/hapus_pengingat|does not exist|schema cache/i.test(h.error.message || '')
+            ? 'Fungsi hapus belum ada di database. Jalankan ulang migrasi_pengingat.sql di Supabase SQL Editor.'
+            : 'Gagal menghapus: ' + h.error.message);
+          return;
+        }
+        if (ids === null) semua = []; else semua = semua.filter(function (x) { return ids.indexOf(x.id) < 0; });
+        gambar();
+      }
+      btnPilih.addEventListener('click', function () {
+        var ids = cek();
+        if (ids.length) hapus(ids, 'Hapus ' + ids.length + ' pengingat yang dipilih? Pengingat juga hilang dari lonceng guru dan tidak bisa dikembalikan.');
+      });
+      document.getElementById('pgaHapusSemua').addEventListener('click', function () {
+        hapus(null, 'Hapus SEMUA ' + semua.length + ' pengingat (semua modul, termasuk yang belum dibaca guru)? Tindakan ini tidak bisa dibatalkan.');
+      });
+    }
+    gambar();
+  }
+
+  var views = { profilSekolah: renderProfilSekolah, tahunAjaran: renderTahunAjaran, slideshowLogin: renderSlideshowLogin, jadwalKegiatan: function () { return renderJadwalKegiatan(); }, pengingat: renderPengingatAdmin };
 
   function bukaView(nama) {
     if (!views[nama]) nama = 'profilSekolah';
