@@ -14,6 +14,12 @@ Tampil di **Beranda (`portal.html`)** hanya untuk akun Kepala Sekolah, di bagian
   filter modul dan status, pesan yang bisa dibuka, dan tombol **Ingatkan lagi** pada yang belum dibaca.
   Yang belum dibaca lebih dari 3 hari ditandai merah. Pengingat belum dibaca dengan modul + judul sama diperbarui (tidak ditumpuk).
 
+- **Kirim ke grup WhatsApp** (panel paling bawah): tombol *Ingatkan lewat WhatsApp* menyusun ringkasan teks siap kirim
+  (format tebal WhatsApp): ringkasan progres per modul + daftar guru dan yang perlu dilengkapi. Bisa memilih
+  menyertakan nama guru atau hanya jumlah, menambah batas waktu, dan mengedit teks. **Salin pesan**, lalu tempel
+  dan kirim sendiri ke grup. Di HP ada juga tombol *Bagikan…* (langsung ke aplikasi WhatsApp). Tidak ada yang
+  dikirim otomatis dan tidak mengubah data apa pun.
+
 ## Tampilan HP
 - Tabel "Perlu ditindaklanjuti" berubah menjadi kartu per guru (tanpa geser samping); bagian yang sudah lengkap disembunyikan.
 - Tombol Ingatkan diperbesar agar mudah diketuk, filter riwayat selebar layar, dan kolom catatan di dialog tidak

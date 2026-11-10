@@ -9,6 +9,9 @@
  *   - Panel "Riwayat Pengingat": semua pengingat yang pernah dikirim, status
  *     dibaca / belum dibaca, filter modul & status, dan tombol "Ingatkan lagi".
  *
+ *   - Panel paling bawah "Kirim ke grup WhatsApp": menyusun ringkasan teks
+ *     (bisa diedit) untuk disalin / dibagikan; Kepala Sekolah mengirim manual ke grup.
+ *
  * Hanya MEMBACA data (kepsek punya hak SELECT). Tiap modul dimuat terpisah:
  * kalau satu gagal, kartu lain tetap tampil.
  *
@@ -104,6 +107,10 @@
       '.dk-rw details div{white-space:pre-line;font-size:12.5px;line-height:1.5;margin-top:4px;padding:8px 10px;border:1px dashed var(--border,#d1d5db);border-radius:10px;background:rgba(0,0,0,.025);}' +
       '.dk-st{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}' +
       '.dk-st--ok{background:#dcfce7;color:#166534;}.dk-st--wait{background:#fef3c7;color:#92400e;}.dk-st--old{background:#fee2e2;color:#991b1b;}' +
+      '.dk-chk{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;cursor:pointer;}' +
+      '.dk-chk input{width:18px;height:18px;flex:none;}' +
+      '.dk-wa-ta{min-height:260px;font-size:13px;line-height:1.5;font-family:ui-monospace,Menlo,Consolas,monospace;}' +
+      '.dk-wa-btn{background:#16a34a !important;border-color:#16a34a !important;}' +
       '.dk-err{font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;margin-top:12px;}' +
       '@media (max-width:980px){.dk-cards{grid-template-columns:repeat(2,minmax(0,1fr));}}' +
       '@media (max-width:520px){.dk-cards{gap:10px;}.dk-card{padding:13px;}.dk-card__n{font-size:24px;}.dk-card__h{font-size:11px;}.dk-card__s{font-size:12px;}}' +
@@ -132,6 +139,8 @@
         '.dk-rw>div:nth-child(1),.dk-rw>div:nth-child(2){grid-column:1 / -1;}' +
         '.dk-ring{padding:10px 14px;}' +
         '.dk-more{min-height:44px;}' +
+        '.dk-panel__h .dk-sp .dk-wa-btn{width:100%;min-height:42px;}' +
+        '.dk-wa-ta{min-height:220px;}' +
       '}';
     document.head.appendChild(st);
   }
@@ -409,6 +418,8 @@
   function onKlik(e) {
     var more = e.target.closest ? e.target.closest('#dkMore') : null;
     if (more) { semuaDitampilkan = !semuaDitampilkan; renderTabel(); return; }
+    var wa = e.target.closest ? e.target.closest('#dkWaBtn') : null;
+    if (wa) { e.preventDefault(); bukaDialogWa(); return; }
     var rm = e.target.closest ? e.target.closest('#dkRMore') : null;
     if (rm) { R.tampil += 15; renderRiwayat(); return; }
     var ul = e.target.closest ? e.target.closest('[data-dk-ulang]') : null;
@@ -514,6 +525,143 @@
     });
   }
 
+
+  // ---------- ringkasan untuk grup WhatsApp ----------
+  var NAMA_HARI_FMT = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+
+  function susunWa(sertakanNama, batas) {
+    var tgl = '';
+    try { tgl = new Date().toLocaleDateString('id-ID', NAMA_HARI_FMT); } catch (e) { tgl = tglLokal(new Date()); }
+    var L = [];
+    L.push('*PENGINGAT DARI KEPALA SEKOLAH*');
+    L.push('SMK Widya Mandala Tambak');
+    L.push(tgl + (D.ta ? ' · TA ' + D.ta.nama + ' ' + D.ta.semester : ''));
+    L.push('');
+    L.push('Yth. Bapak/Ibu Guru, berikut perkembangan pengisian data yang masih perlu dilengkapi:');
+    L.push('');
+    L.push('*Ringkasan*');
+    if (D.erapor && D.erapor.total > 0) L.push('• Nilai E-Rapor: ' + pct(D.erapor.filled, D.erapor.total) + '% terisi (' + (D.erapor.guruTotal - D.erapor.guruSelesai) + ' guru belum selesai)');
+    if (D.kinerja && D.kinerja.total > 0) L.push('• Bukti Kinerja: ' + pct(D.kinerja.disetujui, D.kinerja.total) + '% disetujui');
+    if (D.pkl && D.pkl.langkahTotal > 0) L.push('• Nilai PKL: ' + pct(D.pkl.langkahSelesai, D.pkl.langkahTotal) + '% lengkap');
+
+    var baris = D.guru.map(function (g) { return { g: g, m: masalahGuru(g.id) }; }).filter(function (x) { return x.m.jumlah > 0; });
+    baris.sort(function (a, b) { return b.m.jumlah - a.m.jumlah || a.g.nama.localeCompare(b.g.nama, 'id'); });
+
+    if (!baris.length) {
+      L.push('');
+      L.push('Seluruh data sudah lengkap. Terima kasih atas kerja samanya 🙏');
+      return L.join('\n');
+    }
+
+    var nE = 0, nK = 0, nP = 0;
+    baris.forEach(function (x) { if (x.m.erapor) nE++; if (x.m.kinerja) nK++; if (x.m.pend || x.m.uji) nP++; });
+    L.push('');
+    L.push('*Yang perlu dilengkapi* (' + baris.length + ' guru)');
+    if (sertakanNama) {
+      baris.forEach(function (x, i) {
+        L.push('');
+        L.push((i + 1) + '. *' + x.g.nama + '*');
+        var m = x.m;
+        if (m.erapor) {
+          var kr = m.erapor.kurang.slice().sort(function (a, b) { return pct(a.filled, a.total) - pct(b.filled, b.total); });
+          var ds = kr.slice(0, 3).map(function (r) { return r.mapel + ' ' + r.kelas + ' (' + r.filled + '/' + r.total + ')'; }).join('; ');
+          L.push('   • E-Rapor ' + pct(m.erapor.filled, m.erapor.total) + '%' + (ds ? ': ' + ds + (kr.length > 3 ? ', dll.' : '') : ''));
+        }
+        if (m.kinerja) {
+          if (m.kinerja.total === 0) L.push('   • Kinerja: belum ada butir bukti');
+          else {
+            var b = [];
+            if (m.kinerja.draft > 0) b.push(m.kinerja.draft + ' butir belum diajukan');
+            if (m.kinerja.revisi > 0) b.push(m.kinerja.revisi + ' butir direvisi');
+            L.push('   • Kinerja: ' + b.join(', '));
+          }
+        }
+        if (m.pend) L.push('   • Nilai PKL (Pendamping) ' + m.pend.pct + '%');
+        if (m.uji) L.push('   • Nilai PKL (Penguji) ' + m.uji.pct + '%');
+      });
+    } else {
+      if (nE) L.push('• Nilai E-Rapor: ' + nE + ' guru');
+      if (nK) L.push('• Bukti Kinerja: ' + nK + ' guru');
+      if (nP) L.push('• Nilai PKL: ' + nP + ' guru');
+      L.push('(Rincian per guru dapat dilihat di aplikasi.)');
+    }
+    L.push('');
+    if (batas && batas.trim()) { L.push('Batas waktu: *' + batas.trim() + '*'); }
+    L.push('Mohon segera dilengkapi. Terima kasih 🙏');
+    return L.join('\n');
+  }
+
+  function salinTeks(teks) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(teks).then(function () { return true; }, function () { return salinLama(teks); });
+    }
+    return Promise.resolve(salinLama(teks));
+  }
+  function salinLama(teks) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = teks; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, teks.length);
+      var ok = document.execCommand('copy'); ta.remove(); return !!ok;
+    } catch (e) { return false; }
+  }
+
+  function toastDk(teks) {
+    var el = document.createElement('div');
+    el.className = 'pk-toast'; el.setAttribute('role', 'status'); el.textContent = teks;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3200);
+  }
+
+  function renderWa() {
+    var el = document.getElementById('dkWa');
+    if (!el) return;
+    el.innerHTML = '<div class="dk-panel"><div class="dk-panel__h"><b>Kirim ke grup WhatsApp</b>' +
+      '<span class="dk-hint">Susun ringkasan, salin, lalu kirim sendiri ke grup guru</span>' +
+      '<span class="dk-sp"><button type="button" class="pk-btn pk-btn--p dk-wa-btn" id="dkWaBtn">Ingatkan lewat WhatsApp</button></span></div></div>';
+  }
+
+  function bukaDialogWa() {
+    var ov = document.createElement('div');
+    ov.className = 'pk-ov';
+    var bisaBagi = typeof navigator.share === 'function';
+    ov.innerHTML =
+      '<div class="pk-box" role="dialog" aria-modal="true" aria-labelledby="dkWaJudul">' +
+      '<div class="pk-h"><span aria-hidden="true">💬</span><b id="dkWaJudul">Ringkasan untuk grup WhatsApp</b><button type="button" class="pk-x" aria-label="Tutup" data-wa-tutup>&times;</button></div>' +
+      '<div class="pk-b">' +
+      '<label class="dk-chk"><input type="checkbox" id="dkWaNama" checked> Sertakan nama guru dan rincian per guru</label>' +
+      '<div><label class="pk-l" for="dkWaBatas">Batas waktu <small>(opsional)</small></label><input class="pk-in" id="dkWaBatas" maxlength="60" placeholder="Mis. Jumat, 14 November 2026"></div>' +
+      '<div><label class="pk-l" for="dkWaTeks">Pesan <small>(boleh diubah sebelum disalin)</small></label><textarea class="pk-ta dk-wa-ta" id="dkWaTeks"></textarea></div>' +
+      '<div class="pk-note">Mengubah pilihan atau batas waktu menyusun ulang pesan dan menimpa perubahan manual Anda.</div>' +
+      '</div>' +
+      '<div class="pk-f"><button type="button" class="pk-btn" data-wa-tutup>Tutup</button>' +
+      (bisaBagi ? '<button type="button" class="pk-btn" id="dkWaBagi">Bagikan…</button>' : '') +
+      '<button type="button" class="pk-btn pk-btn--p" id="dkWaSalin">Salin pesan</button></div></div>';
+    document.body.appendChild(ov);
+
+    var tekstEl = ov.querySelector('#dkWaTeks'), namaEl = ov.querySelector('#dkWaNama'), batasEl = ov.querySelector('#dkWaBatas'), salinEl = ov.querySelector('#dkWaSalin');
+    function susun() { tekstEl.value = susunWa(namaEl.checked, batasEl.value); }
+    susun();
+    namaEl.addEventListener('change', susun);
+    batasEl.addEventListener('input', susun);
+
+    function tutup() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) { if (e.key === 'Escape') tutup(); }
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) tutup(); });
+    ov.querySelectorAll('[data-wa-tutup]').forEach(function (b) { b.addEventListener('click', tutup); });
+
+    salinEl.addEventListener('click', async function () {
+      var ok = await salinTeks(tekstEl.value);
+      if (ok) { salinEl.textContent = 'Tersalin ✓'; toastDk('Pesan tersalin. Tempel di grup WhatsApp.'); setTimeout(function () { salinEl.textContent = 'Salin pesan'; }, 2500); }
+      else { tekstEl.focus(); tekstEl.select(); toastDk('Tidak bisa menyalin otomatis. Teks sudah dipilih, tekan Salin manual.'); }
+    });
+    var bagiEl = ov.querySelector('#dkWaBagi');
+    if (bagiEl) bagiEl.addEventListener('click', function () {
+      navigator.share({ text: tekstEl.value }).catch(function () { /* dibatalkan */ });
+    });
+  }
+
   // ---------- titik masuk ----------
   async function muat(ta, el) {
     if (!el) return;
@@ -528,7 +676,7 @@
       kartu('dkKinerja', 'award', 'Kinerja Guru', 'kinerja.html') +
       kartu('dkPkl', 'briefcase-business', 'Nilai PKL', 'pkl.html') +
       kartu('dkSupervisi', 'clipboard-check', 'Supervisi', 'supervisi-admin.html') +
-      '</div><div id="dkGalat"></div><div id="dkTabel"></div><div id="dkRiwayat"></div>';
+      '</div><div id="dkGalat"></div><div id="dkTabel"></div><div id="dkRiwayat"></div><div id="dkWa"></div>';
     if (window.lucide) lucide.createIcons();
     el.addEventListener('click', onKlik);
     el.addEventListener('change', onUbah);
@@ -556,6 +704,7 @@
     }
     if (D.guru.length) renderTabel();
     renderRiwayat();
+    renderWa();
     if (window.lucide) lucide.createIcons();
   }
 
