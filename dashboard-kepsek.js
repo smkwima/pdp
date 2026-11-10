@@ -104,10 +104,35 @@
       '.dk-rw details div{white-space:pre-line;font-size:12.5px;line-height:1.5;margin-top:4px;padding:8px 10px;border:1px dashed var(--border,#d1d5db);border-radius:10px;background:rgba(0,0,0,.025);}' +
       '.dk-st{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}' +
       '.dk-st--ok{background:#dcfce7;color:#166534;}.dk-st--wait{background:#fef3c7;color:#92400e;}.dk-st--old{background:#fee2e2;color:#991b1b;}' +
-      '@media (max-width:700px){.dk-rw{grid-template-columns:1fr;gap:6px;}}' +
       '.dk-err{font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;margin-top:12px;}' +
       '@media (max-width:980px){.dk-cards{grid-template-columns:repeat(2,minmax(0,1fr));}}' +
-      '@media (max-width:520px){.dk-cards{gap:10px;}.dk-card{padding:13px;}.dk-card__n{font-size:24px;}}';
+      '@media (max-width:520px){.dk-cards{gap:10px;}.dk-card{padding:13px;}.dk-card__n{font-size:24px;}.dk-card__h{font-size:11px;}.dk-card__s{font-size:12px;}}' +
+      /* HP: tabel jadi kartu per guru (tanpa geser samping), tombol cukup besar untuk jari */
+      '@media (max-width:700px){' +
+        '.dk-panel{border-radius:14px;}' +
+        '.dk-panel__h{padding:12px 14px;}' +
+        '.dk-panel__h .dk-sp{margin-left:0;width:100%;display:flex;gap:8px;}' +
+        '.dk-panel__h .dk-sp>*{flex:1 1 0;min-width:0;}' +
+        '.dk-sel{width:100%;min-height:40px;font-size:14px;}' +
+        '.dk-panel .pk-btn-ingat{min-height:38px;justify-content:center;font-size:13px !important;padding:8px 12px !important;}' +
+        '.dk-panel__h .dk-sp .pk-btn-ingat{width:100%;}' +
+        '.dk-wrap{overflow:visible;}' +
+        '.dk-tbl,.dk-tbl tbody{display:block;width:100%;}' +
+        '.dk-tbl thead{display:none;}' +
+        '.dk-tbl tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;padding:13px 14px;border-top:1px solid var(--border,#e2e8f0);}' +
+        '.dk-tbl tr:first-child{border-top:0;}' +
+        '.dk-tbl td{display:block;padding:0;border:0;min-width:0;}' +
+        '.dk-tbl td:nth-child(1){grid-column:1;grid-row:1;}' +
+        '.dk-tbl td:nth-child(5){grid-column:2;grid-row:1;}' +
+        '.dk-tbl td:nth-child(2),.dk-tbl td:nth-child(3),.dk-tbl td:nth-child(4){grid-column:1 / -1;}' +
+        '.dk-tbl td.dk-na{display:none;}' +
+        '.dk-tbl td[data-label]::before{content:attr(data-label);display:block;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft,#64748b);margin-bottom:3px;}' +
+        '.dk-cell{min-width:0;}' +
+        '.dk-rw{grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:12px 14px;}' +
+        '.dk-rw>div:nth-child(1),.dk-rw>div:nth-child(2){grid-column:1 / -1;}' +
+        '.dk-ring{padding:10px 14px;}' +
+        '.dk-more{min-height:44px;}' +
+      '}';
     document.head.appendChild(st);
   }
 
@@ -360,8 +385,10 @@
         if (D.pkl && D.pkl.pend[x.g.id]) p.push('Pendamping ' + D.pkl.pend[x.g.id].pct + '%');
         if (D.pkl && D.pkl.uji[x.g.id]) p.push('Penguji ' + D.pkl.uji[x.g.id].pct + '%');
         var cP = p.length ? '<div class="dk-cell"><small style="font-size:12.5px;color:inherit;">' + esc(p.join(' · ')) + '</small></div>' : '<span class="dk-mut">—</span>';
+        // Di HP sel kosong ("—") dan yang sudah lengkap disembunyikan (kelas dk-na); di desktop tetap tampil.
+        function td(label, isi, lengkap) { return '<td data-label="' + label + '"' + (lengkap || isi.indexOf('dk-mut') >= 0 ? ' class="dk-na"' : '') + '>' + isi + '</td>'; }
         return '<tr data-dk-guru="' + esc(x.g.id) + '"><td><span class="dk-nama">' + esc(x.g.nama) + '</span><span class="pk-diingat" data-dk-label></span></td>' +
-          '<td>' + cE + '</td><td>' + cK + '</td><td>' + cP + '</td>' +
+          td('E-Rapor', cE, !m.erapor) + td('Kinerja', cK, !m.kinerja) + td('Nilai PKL', cP, !m.pend && !m.uji) +
           '<td>' + (window.Pengingat ? Pengingat.tombolHtml('data-dk-ingat="' + esc(x.g.id) + '"', 'Ingatkan') : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
       (baris.length > BATAS_BARIS ? '<button type="button" class="dk-more" id="dkMore">' + (semuaDitampilkan ? 'Tampilkan lebih sedikit' : 'Tampilkan semua ' + baris.length + ' guru') + '</button>' : '') +

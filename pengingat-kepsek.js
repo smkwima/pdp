@@ -182,7 +182,9 @@
     document.addEventListener('keydown', onKey);
     ov.addEventListener('mousedown', function (e) { if (e.target === ov) tutup(); });
     ov.querySelectorAll('[data-pk-tutup]').forEach(function (b) { b.addEventListener('click', tutup); });
-    setTimeout(function () { catEl.focus(); }, 30);
+    // Di HP/layar sentuh jangan fokus otomatis: keyboard akan langsung menutupi dialog.
+    var sentuh = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (!sentuh) setTimeout(function () { catEl.focus(); }, 30);
 
     function tampilGalat(teks) { errEl.textContent = teks; errEl.style.display = 'block'; }
 

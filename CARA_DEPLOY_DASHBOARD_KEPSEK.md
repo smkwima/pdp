@@ -14,6 +14,11 @@ Tampil di **Beranda (`portal.html`)** hanya untuk akun Kepala Sekolah, di bagian
   filter modul dan status, pesan yang bisa dibuka, dan tombol **Ingatkan lagi** pada yang belum dibaca.
   Yang belum dibaca lebih dari 3 hari ditandai merah. Pengingat belum dibaca dengan modul + judul sama diperbarui (tidak ditumpuk).
 
+## Tampilan HP
+- Tabel "Perlu ditindaklanjuti" berubah menjadi kartu per guru (tanpa geser samping); bagian yang sudah lengkap disembunyikan.
+- Tombol Ingatkan diperbesar agar mudah diketuk, filter riwayat selebar layar, dan kolom catatan di dialog tidak
+  langsung memunculkan keyboard.
+
 ## Cara pasang
 1. Unggah `dashboard-kepsek.js`, `portal.html`, dan `pengingat-kepsek.js` (versi terbaru).
 2. Tidak ada migrasi database baru. Pastikan `migrasi_pengingat.sql` sudah dijalankan (untuk tombol Ingatkan).
