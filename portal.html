@@ -11,6 +11,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="rpp-launcher.js"></script>
+<script src="pengingat-kepsek.js?v=3"></script>
+<script src="dashboard-kepsek.js?v=2"></script>
 <script src="bottomnav.js?v=4" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
@@ -214,6 +216,9 @@
       </section>
 
       <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec" id="secDk" style="display:none;">Pantauan Progres Guru</div>
+      <div id="dkWadah"></div>
 
       <div class="pt-sec">Modul Aplikasi</div>
       <div class="pt-mods" id="grid"></div>
@@ -526,6 +531,11 @@
     // (lihat sambutan-guru.js). Admin tidak mendapat pop up ini.
     if (!admin && !kepsek && window.SambutanGuru) SambutanGuru.tampilkanJikaBaruLogin(pr.data.nama);
 
+    // Dashboard ringkasan satu layar khusus Kepala Sekolah (dashboard-kepsek.js); dimuat paralel.
+    if (kepsek && window.DashboardKepsek) {
+      document.getElementById('secDk').style.display = '';
+      DashboardKepsek.muat(ta, document.getElementById('dkWadah'));
+    }
     if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else await muatGuru(ta, user.id);
   })();
 

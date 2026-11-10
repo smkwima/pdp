@@ -1,11 +1,13 @@
 -- =====================================================================
 -- PENGINGAT DARI KEPALA SEKOLAH -> NOTIFIKASI GURU
--- Kepala Sekolah (atau admin) menekan tombol "Ingatkan" di dashboard
+-- HANYA Kepala Sekolah yang menekan tombol "Ingatkan" di dashboard
 -- progres guru; pengingat muncul di lonceng notifikasi guru.
+-- Admin TIDAK dapat mengirim (admin hanya melihat & menghapus lewat menu
+-- "Pengingat ke Guru" di Pengaturan).
 -- Aman dijalankan berulang.
 --
 -- Cara kerja:
---   * Kepsek/admin MENGIRIM lewat fungsi  pengingat_kirim(...)
+--   * Kepsek MENGIRIM lewat fungsi  pengingat_kirim(...)
 --     (kepsek hanya punya hak baca di tabel lain, jadi memakai fungsi
 --      security definer yang memeriksa role).
 --   * Guru MEMBACA pengingatnya sendiri (RLS) dan menandai dibaca lewat
@@ -15,8 +17,22 @@
 --     bila tombol ditekan berkali-kali.
 -- =====================================================================
 
--- 1) Pembantu peran: siapa yang boleh mengirim pengingat
+-- 1) Pembantu peran: siapa yang boleh mengirim pengingat (HANYA kepala sekolah)
 create or replace function public.pengingat_boleh_kirim()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'kepsek'
+  );
+$$;
+
+-- Pembantu: admin boleh MELIHAT daftar pengingat (menu kelola), tapi tidak mengirim.
+create or replace function public.pengingat_boleh_lihat_semua()
 returns boolean
 language sql
 stable
@@ -28,6 +44,7 @@ as $$
     where p.id = auth.uid() and p.role in ('kepsek', 'admin')
   );
 $$;
+grant execute on function public.pengingat_boleh_lihat_semua() to authenticated;
 
 -- 2) Tabel pengingat
 create table if not exists public.pengingat_guru (
@@ -47,14 +64,14 @@ create table if not exists public.pengingat_guru (
 create index if not exists pengingat_guru_guru_idx  on public.pengingat_guru (guru_id, dibaca_pada, dibuat_pada desc);
 create index if not exists pengingat_guru_modul_idx on public.pengingat_guru (modul, dibuat_pada desc);
 
--- 3) RLS: guru melihat miliknya; kepsek/admin melihat semua (untuk "terakhir diingatkan").
+-- 3) RLS: guru melihat miliknya; kepsek/admin melihat semua (untuk "terakhir diingatkan" & kelola).
 --    Tidak ada policy insert/update/delete: semua penulisan lewat fungsi di bawah.
 alter table public.pengingat_guru enable row level security;
 
 drop policy if exists pengingat_guru_select on public.pengingat_guru;
 create policy pengingat_guru_select on public.pengingat_guru
   for select to authenticated
-  using (guru_id = auth.uid() or public.pengingat_boleh_kirim());
+  using (guru_id = auth.uid() or public.pengingat_boleh_lihat_semua());
 
 -- 4) Kirim pengingat (satu penerima per panggilan agar pesan bisa personal).
 create or replace function public.pengingat_kirim(
@@ -77,7 +94,7 @@ declare
   v_modul  text := coalesce(nullif(btrim(p_modul), ''), 'umum');
 begin
   if not public.pengingat_boleh_kirim() then
-    raise exception 'Hanya Kepala Sekolah atau admin yang dapat mengirim pengingat.' using errcode = '42501';
+    raise exception 'Hanya Kepala Sekolah yang dapat mengirim pengingat.' using errcode = '42501';
   end if;
   if v_judul = '' then
     raise exception 'Judul pengingat wajib diisi.' using errcode = '22023';
