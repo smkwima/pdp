@@ -1,6 +1,6 @@
 /* pengingat-kepsek.js
  * -----------------------------------------------------------------
- * PENGIRIM PENGINGAT untuk Kepala Sekolah (dan admin). Dipakai di
+ * PENGIRIM PENGINGAT khusus Kepala Sekolah (admin tidak bisa). Dipakai di
  * dashboard progres guru: tombol "Ingatkan" membuka dialog, lalu
  * pengingat muncul di lonceng notifikasi guru (pengingat-guru.js).
  *
@@ -18,7 +18,8 @@
  *   Pengingat.waktuRelatif(iso)  -> 'x jam lalu'
  *
  * Penulisan ke database lewat fungsi pengingat_kirim (migrasi_pengingat.sql)
- * yang memeriksa role di sisi server. Elemen dialog diberi data-kepsek-ok
+ * yang memeriksa role (hanya kepsek) di sisi server. Di tampilan, tombol
+ * "Ingatkan" disembunyikan untuk selain kepala sekolah. Elemen dialog diberi data-kepsek-ok
  * supaya tidak ikut disembunyikan kepsek-readonly.js.
  * -----------------------------------------------------------------
  */
@@ -27,6 +28,31 @@
   if (window.Pengingat) return;
 
   var MAKS_CHIP = 6;
+
+  // ---------- hanya Kepala Sekolah ----------
+  // Petunjuk role (dibagi dengan kepsek-nav.js / kepsek-readonly.js) agar tombol
+  // langsung benar saat halaman dibuka; lalu diverifikasi ke database.
+  var HINT = 'kepsek_hint';
+  var adalahKepsekSekarang = false;
+  try { adalahKepsekSekarang = localStorage.getItem(HINT) === '1'; } catch (e) { /* abaikan */ }
+
+  function setKelasKepsek(ya) {
+    adalahKepsekSekarang = !!ya;
+    if (document.body) document.body.classList.toggle('pk-kepsek', !!ya);
+  }
+  function pasangKelasAwal() { setKelasKepsek(adalahKepsekSekarang); }
+
+  async function cekRole() {
+    try {
+      var ses = await supabaseClient.auth.getSession();
+      var user = ses && ses.data && ses.data.session && ses.data.session.user;
+      if (!user) { setKelasKepsek(false); return; }
+      var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      var ya = !!(pr && pr.data && pr.data.role === 'kepsek');
+      setKelasKepsek(ya);
+      try { if (ya) localStorage.setItem(HINT, '1'); else localStorage.removeItem(HINT); } catch (e) { /* abaikan */ }
+    } catch (e) { /* biarkan sesuai petunjuk terakhir */ }
+  }
 
   function esc(s) {
     return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
@@ -92,7 +118,9 @@
       '.pk-btn:disabled{opacity:.6;cursor:default;}' +
       '.pk-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:300;background:#14532d;color:#fff;padding:10px 16px;border-radius:10px;' +
       'font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90vw;text-align:center;}' +
-      '.pk-btn-ingat{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px !important;padding:4px 9px !important;line-height:1.2;}' +
+      '.pk-btn-ingat{display:none !important;}' +
+      'body.pk-kepsek .pk-btn-ingat{display:inline-flex !important;}' +
+      '.pk-btn-ingat{align-items:center;gap:4px;white-space:nowrap;font-size:12px !important;padding:4px 9px !important;line-height:1.2;}' +
       '.pk-btn-ingat i,.pk-btn-ingat svg{display:inline-block;width:12px !important;height:12px !important;flex:none;stroke-width:2.2;}' +
       '.pk-diingat{display:block;font-size:11.5px;font-weight:500;color:var(--ink-soft,#6b7280);margin-top:2px;}';
     document.head.appendChild(st);
@@ -115,6 +143,7 @@
   // ---------- dialog ----------
   function buka(opsi) {
     opsi = opsi || {};
+    if (!adalahKepsekSekarang) { toast('Pengingat hanya dapat dikirim oleh Kepala Sekolah.'); return; }
     var penerima = (opsi.penerima || []).filter(function (p) { return p && p.id; });
     if (!penerima.length) { toast('Tidak ada guru yang perlu diingatkan.'); return; }
     pasangGaya();
@@ -196,6 +225,9 @@
 
   // Pasang gaya sejak awal supaya ikon tombol sudah kecil sebelum dialog pernah dibuka.
   if (document.head) pasangGaya(); else document.addEventListener('DOMContentLoaded', pasangGaya);
+
+  if (document.body) { pasangKelasAwal(); cekRole(); }
+  else document.addEventListener('DOMContentLoaded', function () { pasangKelasAwal(); cekRole(); });
 
   window.Pengingat = { buka: buka, riwayat: riwayat, labelRiwayat: labelRiwayat, waktuRelatif: waktuRelatif, tombolHtml: tombolHtml };
 })();

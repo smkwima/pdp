@@ -1,5 +1,8 @@
 # Pengingat dari Kepala Sekolah → Notifikasi Guru
 
+> Hanya akun **Kepala Sekolah** yang dapat mengirim pengingat. Admin hanya dapat melihat dan menghapus
+> pengingat lewat Pengaturan → *Pengingat ke Guru*. Jalankan ulang `migrasi_pengingat.sql` setelah pembaruan ini.
+
 ## Cara pasang
 1. Buka **Supabase → SQL Editor**, jalankan isi `migrasi_pengingat.sql` (aman diulang).
 2. Opsional tapi disarankan: pastikan **Database → Replication** mengaktifkan tabel `pengingat_guru`
@@ -8,7 +11,7 @@
    `admin.html`, `kinerja.html`, `style.css`, serta halaman guru yang kini memuat `pengingat-guru.js`).
 
 ## Cara pakai
-- **Kepala Sekolah / admin**: Dashboard E-Rapor → tombol **Ingatkan** di
+- **Kepala Sekolah** (khusus; admin tidak bisa mengirim): Dashboard E-Rapor → tombol **Ingatkan** di
   *Perlu perhatian*, di tiap guru, di kartu wali kelas, atau **Ingatkan semua yang belum selesai**.
   Di *Kinerja Guru* → tombol Ingatkan pada tabel ringkasan guru.
   Rincian progres terisi otomatis; kepsek bisa menambah catatan.
@@ -17,5 +20,5 @@
 
 ## Catatan
 - Pengingat yang belum dibaca dengan modul + judul sama **diperbarui**, bukan ditumpuk.
-- Penulisan hanya lewat fungsi `pengingat_kirim` (cek role kepsek/admin di server).
+- Penulisan hanya lewat fungsi `pengingat_kirim` (server hanya mengizinkan role kepsek).
 - Untuk menambah modul lain (PKL, Supervisi): panggil `Pengingat.buka({ modul, judul, tautan, penerima })`.
