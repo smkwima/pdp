@@ -1,7 +1,7 @@
 /* bottomnav.js
  * -----------------------------------------------------------------
  * Menu aplikasi (Menu Utama, Buku Induk, E-Rapor, PKL, Supervisi,
- * Pelanggaran) tampil sebagai BAR BAWAH di layar HP: hanya 3 tombol = 2 aplikasi yang
+ * Pelanggaran, Ijin & Dinas Luar) tampil sebagai BAR BAWAH di layar HP: hanya 3 tombol = 2 aplikasi yang
  * paling sering dibuka + tombol "Semua Aplikasi" (panel berisi seluruh aplikasi) (<= 860px, sama
  * dengan breakpoint laci menu di mobile.js). Di desktop tidak ada
  * perubahan sama sekali.
@@ -36,6 +36,7 @@
   IKON.log = '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>';
 
   IKON.rekap = '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>';
+  IKON.ijin = '<path d="M4.18 4.18A2 2 0 0 0 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 1.82-1.18"/><path d="M21 15.5V6a2 2 0 0 0-2-2H9.5"/><path d="M16 2v4"/><path d="M3 10h7"/><path d="M21 10h-5.5"/><path d="m2 2 20 20"/><path d="M8 2v4"/>';
   IKON.semua = IKON.menu;
   IKON.menu = '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
 
@@ -55,6 +56,7 @@
   else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
   else if (berkas === 'kinerja.html') { kunciAktif = 'kin'; }
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
+  else if (berkas === 'ijin.html') { kunciAktif = 'ijin'; }
   else { return; } // halaman lain (login, siswa, dll): tidak dipasang
 
   // Daftar lengkap aplikasi per peran. "bar" = boleh jadi 1 dari 2 tombol aplikasi di bar bawah;
@@ -71,6 +73,7 @@
       { k: 'sup',   label: 'Supervisi',   judul: 'Supervisi',           href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'ungu' },
       { k: 'kin',   label: 'Kinerja',     judul: admin ? 'Kinerja Guru' : 'Kinerja Saya', href: 'kinerja.html', warna: 'oranye' },
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
+      { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
       { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true },
       { k: 'log',   label: 'Log',         judul: 'Log Aktivitas',       href: 'log-admin.html', warna: 'slate', sheetSaja: true, hanyaAdmin: true }
@@ -130,7 +133,7 @@
         /* panel "Semua Aplikasi" (lembar dari bawah) */
         '.bnav-sheet.is-open{display:block;position:fixed;inset:0;z-index:70;}' +
         '.bnav-sheet__bg{position:absolute;inset:0;background:rgba(15,23,42,.45);}' +
-        '.bnav-sheet__box{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;background:var(--surface,#fff);' +
+        '.bnav-sheet__box{position:absolute;left:0;right:0;bottom:0;max-height:82vh;max-height:82dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--surface,#fff);' +
           'border-radius:18px 18px 0 0;padding:14px 14px calc(16px + env(safe-area-inset-bottom,0px));' +
           'box-shadow:0 -12px 32px -10px rgba(15,23,42,.35);animation:bnavUp .16s ease-out;}' +
         '@keyframes bnavUp{from{transform:translateY(24px);opacity:.6;}to{transform:none;opacity:1;}}' +
