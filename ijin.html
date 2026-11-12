@@ -408,6 +408,7 @@
         catatAktivitas('lainnya', 'Ijin & Dinas Luar', 'Menyetujui ' + out.jumlah + ' pengajuan ijin sekaligus');
         await muatData();
         toast(out.jumlah + ' pengajuan disetujui.', true);
+        try { window.dispatchEvent(new Event('ijin-diproses')); } catch (e) { /* abaikan */ }
       } catch (err) { toast(err.message || String(err)); }
       sibuk = false; tampil();
     });
@@ -424,6 +425,7 @@
       });
       catatAktivitas('lainnya', 'Ijin & Dinas Luar', (aksi === 'setujui' ? 'Menyetujui' : 'Menolak') + ' pengajuan ijin');
       toast(aksi === 'setujui' ? 'Pengajuan disetujui dan tercatat di Rekap Absen.' : 'Pengajuan ditolak.', true);
+      try { window.dispatchEvent(new Event('ijin-diproses')); } catch (e) { /* abaikan */ }
     } catch (err) { toast(err.message || String(err)); }
     sibuk = false; tampil();
   }

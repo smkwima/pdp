@@ -44,3 +44,9 @@ Upload ulang semua halaman pdp (angka versi `app-switcher.js` dan `bottomnav.js`
 - Admin juga bisa **Batalkan** persetujuan yang sudah diberikan (jadi Ditolak) atau menyetujui ulang pengajuan yang ditolak.
 - Rekap Absen (`index.html` repo rekap-presensi) **tidak perlu diubah**: policy database kini hanya mengizinkan baca baris berstatus *disetujui*.
 - Urutan deploy: SQL → Edge Function `ijin-absen` → upload `ijin.html`.
+
+## Notifikasi untuk admin
+- Skrip `ijin-notif.js` (khusus admin) menampilkan **lencana angka** pada setiap tautan Ijin & Dinas Luar (kartu Menu Utama, sidebar, panel Aplikasi, menu bawah HP) dan **pesan di pojok layar** saat ada pengajuan baru yang menunggu. Diperbarui tiap 90 detik dan saat tab dibuka kembali.
+- Pesan muncul sekali per sesi; muncul lagi hanya bila jumlah pengajuan menunggu bertambah.
+- Tidak perlu SQL tambahan. Perlu: deploy ulang Edge Function `ijin-absen` (ada aksi baru `hitung`), lalu upload `ijin-notif.js` dan semua halaman yang ikut berubah (satu baris `<script src="ijin-notif.js?v=1" defer>` ditambahkan di halaman yang memuat `app-switcher.js` / `bottomnav.js`).
+- Guru tidak melihat apa pun dari skrip ini; guru memantau statusnya di Riwayat Saya.

@@ -11,6 +11,7 @@
 //   hapus        : { id } -> milik sendiri (selama belum disetujui); admin boleh menghapus siapa pun
 //   setujui      : { id } -> ADMIN saja
 //   tolak        : { id, catatan? } -> ADMIN saja
+//   hitung       : { } -> ADMIN saja; jumlah pengajuan 'menunggu' (untuk notifikasi, maks 200)
 //   setujui_semua: { ids? } -> ADMIN saja; menyetujui semua yang masih 'menunggu'
 //                  (bila ids diisi, hanya yang ada di daftar itu)
 //
@@ -202,6 +203,15 @@ Deno.serve(async (req: Request) => {
       const del = await rekap(`/absen_ijin?id=eq.${id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
       if (!del.ok) return galatRekap(del);
       return json({ success: true }, 200);
+    }
+
+    // ================= HITUNG (NOTIFIKASI ADMIN) =================
+    if (aksi === "hitung") {
+      if (prof.role !== "admin") return json({ error: "Hanya admin." }, 403);
+      const r = await rekap(`/absen_ijin?select=nama,jenis,created_at&status=eq.menunggu&order=created_at.desc&limit=200`);
+      if (!r.ok) return galatRekap(r);
+      const baris = Array.isArray(r.data) ? r.data as { nama: string; jenis: string; created_at: string }[] : [];
+      return json({ success: true, jumlah: baris.length, terbaru: baris[0] || null }, 200);
     }
 
     // ================= PERSETUJUAN (ADMIN) =================
