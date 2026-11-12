@@ -5,9 +5,16 @@
 // tabel absen_ijin (lihat rekap_ijin.sql).
 //
 // Aksi (body JSON, field "aksi"):
-//   simpan : { jenis, tanggal_mulai, tanggal_selesai, deskripsi }  -> semua guru/staf/admin
-//   daftar : { }  -> milik sendiri; admin & kepsek melihat semua
-//   hapus  : { id } -> milik sendiri; admin boleh menghapus milik siapa pun
+//   simpan       : { jenis, tanggal_mulai, tanggal_selesai, deskripsi }  -> semua guru/staf/admin
+//                  (status awal 'menunggu'; pengajuan admin sendiri langsung 'disetujui')
+//   daftar       : { }  -> milik sendiri; admin & kepsek melihat semua
+//   hapus        : { id } -> milik sendiri (selama belum disetujui); admin boleh menghapus siapa pun
+//   setujui      : { id } -> ADMIN saja
+//   tolak        : { id, catatan? } -> ADMIN saja
+//   setujui_semua: { ids? } -> ADMIN saja; menyetujui semua yang masih 'menunggu'
+//                  (bila ids diisi, hanya yang ada di daftar itu)
+//
+// Rekap Absen hanya membaca pengajuan berstatus 'disetujui' (lihat rekap_ijin_persetujuan.sql).
 //
 // Keamanan:
 //   - Pemanggil diverifikasi lewat JWT pdp; nama & kode mesin diambil dari
@@ -39,6 +46,9 @@ const MAKS_HARI = 90;          // satu pengajuan paling lama 90 hari
 const MAKS_MUNDUR_HARI = 120;  // boleh mengisi ijin yang sudah lewat sampai 120 hari
 const MAKS_MAJU_HARI = 365;
 const MAKS_DESKRIPSI = 500;
+const MAKS_CATATAN = 200;
+const MAKS_MASSAL = 500;
+const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 function tglValid(s: unknown): s is string {
   if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -102,6 +112,9 @@ Deno.serve(async (req: Request) => {
       return { ok: r.ok, status: r.status, data: j, text: tx };
     };
     const galatRekap = (r: { status: number; text: string }) => {
+      if (/42703|column .*(status|diproses|catatan_admin)/i.test(r.text)) {
+        return json({ error: "Kolom persetujuan belum ada di database Rekap Absen. Minta admin menjalankan rekap_ijin_persetujuan.sql di project Rekap Absen." }, 500);
+      }
       if (r.status === 404 || /PGRST205|42P01|schema cache|does not exist/i.test(r.text)) {
         return json({ error: "Tabel absen_ijin belum ada di database Rekap Absen. Minta admin menjalankan rekap_ijin.sql di project Rekap Absen." }, 500);
       }
@@ -139,19 +152,23 @@ Deno.serve(async (req: Request) => {
       // Tolak kalau bertabrakan dengan pengajuan lain milik orang yang sama
       const tabrak = await rekap(
         `/absen_ijin?select=id,jenis,tanggal_mulai,tanggal_selesai&pdp_user_id=eq.${uid}` +
-        `&tanggal_mulai=lte.${selesai}&tanggal_selesai=gte.${mulai}&limit=1`);
+        `&tanggal_mulai=lte.${selesai}&tanggal_selesai=gte.${mulai}&status=neq.ditolak&limit=1`);
       if (!tabrak.ok) return galatRekap(tabrak);
       if (Array.isArray(tabrak.data) && tabrak.data.length) {
         const t = tabrak.data[0] as { tanggal_mulai: string; tanggal_selesai: string };
         return json({ error: `Sudah ada pengajuan ijin yang bertabrakan (${t.tanggal_mulai} s.d. ${t.tanggal_selesai}). Hapus dulu pengajuan itu bila ingin menggantinya.` }, 409);
       }
 
+      // Pengajuan admin sendiri langsung disetujui; selain itu menunggu persetujuan admin.
+      const langsung = prof.role === "admin";
       const ins = await rekap("/absen_ijin", {
         method: "POST",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({
           pdp_user_id: uid, kode_mesin: kode, nama: prof.nama || callerData.user.email || "—",
           jenis, tanggal_mulai: mulai, tanggal_selesai: selesai, deskripsi,
+          status: langsung ? "disetujui" : "menunggu",
+          ...(langsung ? { diproses_oleh: uid, diproses_nama: prof.nama || "Admin", diproses_at: new Date().toISOString() } : {}),
         }),
       });
       if (!ins.ok) return galatRekap(ins);
@@ -161,7 +178,7 @@ Deno.serve(async (req: Request) => {
 
     // ================= DAFTAR =================
     if (aksi === "daftar") {
-      const kolom = "id,pdp_user_id,kode_mesin,nama,jenis,tanggal_mulai,tanggal_selesai,deskripsi,created_at";
+      const kolom = "id,pdp_user_id,kode_mesin,nama,jenis,tanggal_mulai,tanggal_selesai,deskripsi,created_at,status,diproses_nama,diproses_at,catatan_admin";
       const saring = pimpinan ? "" : `&pdp_user_id=eq.${uid}`;
       const r = await rekap(`/absen_ijin?select=${kolom}${saring}&order=tanggal_mulai.desc,created_at.desc&limit=500`);
       if (!r.ok) return galatRekap(r);
@@ -172,16 +189,56 @@ Deno.serve(async (req: Request) => {
     if (aksi === "hapus") {
       const id = String(body.id || "");
       if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ error: "ID pengajuan tidak valid." }, 400);
-      const cari = await rekap(`/absen_ijin?select=id,pdp_user_id&id=eq.${id}&limit=1`);
+      const cari = await rekap(`/absen_ijin?select=id,pdp_user_id,status&id=eq.${id}&limit=1`);
       if (!cari.ok) return galatRekap(cari);
-      const baris = Array.isArray(cari.data) ? cari.data[0] as { pdp_user_id: string } : null;
+      const baris = Array.isArray(cari.data) ? cari.data[0] as { pdp_user_id: string; status: string } : null;
       if (!baris) return json({ error: "Pengajuan tidak ditemukan (mungkin sudah dihapus)." }, 404);
       if (baris.pdp_user_id !== uid && prof.role !== "admin") {
         return json({ error: "Kamu hanya bisa menghapus pengajuan milikmu sendiri." }, 403);
       }
+      if (prof.role !== "admin" && baris.status === "disetujui") {
+        return json({ error: "Pengajuan yang sudah disetujui admin tidak bisa dihapus sendiri. Hubungi admin bila perlu dibatalkan." }, 403);
+      }
       const del = await rekap(`/absen_ijin?id=eq.${id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
       if (!del.ok) return galatRekap(del);
       return json({ success: true }, 200);
+    }
+
+    // ================= PERSETUJUAN (ADMIN) =================
+    if (aksi === "setujui" || aksi === "tolak" || aksi === "setujui_semua") {
+      if (prof.role !== "admin") return json({ error: "Hanya admin yang bisa menyetujui atau menolak pengajuan." }, 403);
+      const sekarang = new Date().toISOString();
+      const namaAdmin = prof.nama || "Admin";
+
+      if (aksi === "setujui_semua") {
+        let saringId = "";
+        if (Array.isArray(body.ids)) {
+          const ids = (body.ids as unknown[]).map(String);
+          if (!ids.length) return json({ success: true, jumlah: 0 }, 200);
+          if (ids.length > MAKS_MASSAL || ids.some((x) => !UUID_RE.test(x))) return json({ error: "Daftar ID tidak valid." }, 400);
+          saringId = `&id=in.(${ids.join(",")})`;
+        }
+        const up = await rekap(`/absen_ijin?status=eq.menunggu${saringId}&select=id`, {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ status: "disetujui", diproses_oleh: uid, diproses_nama: namaAdmin, diproses_at: sekarang, catatan_admin: null }),
+        });
+        if (!up.ok) return galatRekap(up);
+        return json({ success: true, jumlah: Array.isArray(up.data) ? up.data.length : 0 }, 200);
+      }
+
+      const id = String(body.id || "");
+      if (!UUID_RE.test(id)) return json({ error: "ID pengajuan tidak valid." }, 400);
+      const setuju = aksi === "setujui";
+      const catatan = setuju ? null : (String(body.catatan ?? "").trim().slice(0, MAKS_CATATAN) || null);
+      const up = await rekap(`/absen_ijin?id=eq.${id}&select=id,status`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ status: setuju ? "disetujui" : "ditolak", diproses_oleh: uid, diproses_nama: namaAdmin, diproses_at: sekarang, catatan_admin: catatan }),
+      });
+      if (!up.ok) return galatRekap(up);
+      if (!Array.isArray(up.data) || !up.data.length) return json({ error: "Pengajuan tidak ditemukan (mungkin sudah dihapus)." }, 404);
+      return json({ success: true, status: setuju ? "disetujui" : "ditolak", diproses_nama: namaAdmin, diproses_at: sekarang, catatan_admin: catatan }, 200);
     }
 
     return json({ error: "Aksi tidak dikenal." }, 400);

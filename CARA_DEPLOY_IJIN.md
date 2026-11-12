@@ -7,6 +7,7 @@ Urutan (jangan dibalik):
 
 1. **Project Rekap Absen** → SQL Editor → jalankan `rekap_ijin.sql`
    (membuat tabel `absen_ijin`; halaman rekap hanya boleh membaca, kolom deskripsi tidak bisa dibaca publik).
+   Lalu jalankan **`rekap_ijin_persetujuan.sql`** (menambah kolom status persetujuan; pengajuan lama otomatis dianggap *disetujui*).
 2. **Project pdp** → deploy Edge Function baru:
    `supabase functions deploy ijin-absen`
    (atau Dashboard → Edge Functions → buat `ijin-absen`, isi dengan `supabase/functions/ijin-absen/index.ts`).
@@ -26,8 +27,8 @@ Tanpa kode mesin, pengajuan ditolak dengan pesan yang jelas.
 - Setelah guru mengirim pengajuan, klik **Muat dari database** di Rekap Absen untuk menarik data terbaru.
 
 ## Hak akses
-- Guru/staf: ajukan, lihat dan hapus pengajuan sendiri.
-- Admin: melihat semua pengajuan, bisa menghapus siapa pun. Kepala sekolah: hanya melihat.
+- Guru/staf: ajukan, lihat progres, dan batalkan/hapus pengajuan sendiri **selama belum disetujui**.
+- Admin: melihat semua pengajuan, **menyetujui / menolak satu per satu atau "Setujui semua"**, bisa menghapus siapa pun. Pengajuan admin sendiri langsung disetujui. Kepala sekolah: hanya melihat.
 - Aturan: satu pengajuan maksimal 90 hari; boleh mengisi mundur sampai 120 hari; pengajuan yang tanggalnya bertabrakan ditolak.
 
 ## Rekap Absen dibuka lewat pdp
@@ -35,3 +36,11 @@ Menu **Rekap Absen Fingerprint** (khusus admin) ada di Menu Utama, di panel "Apl
 Isinya link ke https://wima15.github.io/rekap-presensi/ (terbuka di tab baru).
 Upload `rekap-absen-fingerprint.html` versi baru ke repo GitHub `rekap-presensi` (sebagai `index.html`) agar fitur ijin tampil.
 Upload ulang semua halaman pdp (angka versi `app-switcher.js` dan `bottomnav.js` naik ke v=5).
+
+## Persetujuan admin
+- Pengajuan baru berstatus **Menunggu persetujuan** dan **belum** memengaruhi Rekap Absen.
+- Progres yang dilihat guru: Diajukan → Menunggu admin → Disetujui / Ditolak (lengkap dengan nama admin, waktu, dan alasan bila ditolak).
+- Admin: menu **Persetujuan Ijin** (ada angka jumlah yang menunggu). Tombol **Setujui** / **Tolak** per baris, dan **Setujui semua** (hanya yang menunggu dan sesuai filter bulan/jenis/nama yang sedang aktif).
+- Admin juga bisa **Batalkan** persetujuan yang sudah diberikan (jadi Ditolak) atau menyetujui ulang pengajuan yang ditolak.
+- Rekap Absen (`index.html` repo rekap-presensi) **tidak perlu diubah**: policy database kini hanya mengizinkan baca baris berstatus *disetujui*.
+- Urutan deploy: SQL → Edge Function `ijin-absen` → upload `ijin.html`.
