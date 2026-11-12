@@ -15,11 +15,11 @@
 <script src="unsaved-guard.js?v=1"></script>
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=3" defer></script>
+<script src="app-switcher.js?v=5" defer></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=4" defer></script>
+<script src="bottomnav.js?v=5" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <style>
   .gpa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:22px;}
@@ -1215,11 +1215,12 @@
   var GURU_EXPORT_COLUMNS = [
     { key: 'nama', header: 'Nama Guru' },
     { key: 'email', header: 'Email' },
-    { key: 'role', header: 'Role' }
+    { key: 'role', header: 'Role' },
+    { key: 'kode_mesin', header: 'Kode Mesin' }
   ];
 
   // Dipanggil dari form tambah satu-satu maupun import Excel (baris per baris).
-  async function buatAkunGuru(nama, email, password, role) {
+  async function buatAkunGuru(nama, email, password, role, kodeMesin) {
     var sessionRes = await supabaseClient.auth.getSession();
     var token = sessionRes.data && sessionRes.data.session ? sessionRes.data.session.access_token : null;
     if (!token) { window.location.href = 'index.html'; return { ok: false, error: 'Sesi login habis.' }; }
@@ -1231,7 +1232,7 @@
         'Authorization': 'Bearer ' + token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ nama: nama, email: email, password: password, role: role })
+      body: JSON.stringify({ nama: nama, email: email, password: password, role: role, kode_mesin: kodeMesin || '' })
     });
     var out = await resp.json().catch(function () { return {}; });
     if (!resp.ok) return { ok: false, error: out.error || ('HTTP ' + resp.status) };
@@ -1240,7 +1241,7 @@
 
   // Dipanggil dari modal Edit di menu "Guru". password boleh dikosongkan
   // (string kosong) kalau admin tidak ingin menggantinya.
-  async function perbaruiAkunGuru(userId, nama, email, password, role) {
+  async function perbaruiAkunGuru(userId, nama, email, password, role, kodeMesin) {
     var sessionRes = await supabaseClient.auth.getSession();
     var token = sessionRes.data && sessionRes.data.session ? sessionRes.data.session.access_token : null;
     if (!token) { window.location.href = 'index.html'; return { ok: false, error: 'Sesi login habis.' }; }
@@ -1252,7 +1253,7 @@
         'Authorization': 'Bearer ' + token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ action: 'update', user_id: userId, nama: nama, email: email, password: password, role: role })
+      body: JSON.stringify({ action: 'update', user_id: userId, nama: nama, email: email, password: password, role: role, kode_mesin: kodeMesin || '' })
     });
     var out = await resp.json().catch(function () { return {}; });
     if (!resp.ok) return { ok: false, error: out.error || ('HTTP ' + resp.status) };
@@ -1282,11 +1283,13 @@
   }
 
   async function renderGuru() {
-    var guruRes = await supabaseClient.from('profiles').select('id, nama, email, role, foto_path, nip, nuptk, tempat_lahir, tanggal_lahir, no_hp, pendidikan_terakhir').eq('role', 'guru').order('nama');
+    var guruRes = await supabaseClient.from('profiles').select('id, nama, email, role, kode_mesin, foto_path, nip, nuptk, tempat_lahir, tanggal_lahir, no_hp, pendidikan_terakhir').in('role', ['guru', 'staf']).order('nama');
+    // Migrasi staf/kode mesin belum dijalankan -> kolom kode_mesin belum ada & role staf belum valid.
+    if (guruRes.error) guruRes = await supabaseClient.from('profiles').select('id, nama, email, role, foto_path, nip, nuptk, tempat_lahir, tanggal_lahir, no_hp, pendidikan_terakhir').eq('role', 'guru').order('nama');
     // Migrasi profil belum dijalankan -> kolom data diri belum ada: ulangi hanya dengan foto_path.
-    if (guruRes.error) guruRes = await supabaseClient.from('profiles').select('id, nama, email, role, foto_path').eq('role', 'guru').order('nama');
+    if (guruRes.error) guruRes = await supabaseClient.from('profiles').select('id, nama, email, role, foto_path').in('role', ['guru', 'staf']).order('nama');
     // Migrasi foto belum dijalankan -> kolom foto_path belum ada: ulangi tanpa kolom itu.
-    if (guruRes.error) guruRes = await supabaseClient.from('profiles').select('id, nama, email, role').eq('role', 'guru').order('nama');
+    if (guruRes.error) guruRes = await supabaseClient.from('profiles').select('id, nama, email, role').in('role', ['guru', 'staf']).order('nama');
     var guruList = guruRes.data || [];
 
     content.innerHTML =
@@ -1297,6 +1300,7 @@
       '<button class="btn-small" id="btnExportGuru">⬇ Unduh Data (Excel)</button>' +
       '<button class="btn-small" id="btnTemplateGuru">⬇ Unduh Template Excel</button>' +
       '<button class="btn-small" id="btnImportGuru">⬆ Import dari Excel</button>' +
+      '<button class="btn-small" id="btnSyncRekap" title="Kirim kode mesin guru & staf ke aplikasi Rekap Absen">⟳ Sinkron ke Rekap Absen</button>' +
       '<input type="file" id="fileImportGuru" accept=".xlsx,.xls" style="display:none;">' +
       '<button class="btn-small btn-small--danger" id="btnHapusTerpilihGuru" disabled>🗑 Hapus Terpilih (<span id="gTerpilihCount">0</span>)</button>' +
       '</div>' +
@@ -1306,7 +1310,8 @@
       '<div class="field"><label>Nama Guru</label><input type="text" id="gNama" placeholder="Nama lengkap" required></div>' +
       '<div class="field"><label>Email (untuk login)</label><input type="email" id="gEmail" placeholder="guru@sekolah.sch.id" required></div>' +
       '<div class="field"><label>Password</label><input type="text" id="gPassword" placeholder="Minimal 6 karakter" minlength="6" required></div>' +
-      '<div class="field"><label>Role</label><select id="gRole"><option value="guru">Guru</option><option value="admin">Admin</option></select></div>' +
+      '<div class="field"><label>Role</label><select id="gRole"><option value="guru">Guru</option><option value="staf">Staf</option><option value="admin">Admin</option></select></div>' +
+      '<div class="field"><label>Kode Mesin (opsional)</label><input type="text" id="gKode" inputmode="numeric" maxlength="9" placeholder="No. ID fingerprint"></div>' +
       '<button type="submit" class="btn-small btn-small--primary">+ Tambah Akun</button>' +
       '</form>' +
       '<div id="guruFormMsg"></div>' +
@@ -1326,6 +1331,7 @@
       var email = document.getElementById('gEmail').value.trim();
       var password = document.getElementById('gPassword').value;
       var role = document.getElementById('gRole').value;
+      var kodeMesin = document.getElementById('gKode').value.trim();
       if (!nama || !email || !password) return;
 
       var submitBtn = e.target.querySelector('button[type="submit"]');
@@ -1333,7 +1339,7 @@
       submitBtn.textContent = 'Menyimpan...';
 
       try {
-        var hasil = await buatAkunGuru(nama, email, password, role);
+        var hasil = await buatAkunGuru(nama, email, password, role, kodeMesin);
         if (!hasil.ok) {
           msgBox.innerHTML = '<div class="panel-note" style="color:#b42318;">Gagal menambah akun: ' + escapeHtml(hasil.error) + '</div>';
           return;
@@ -1364,8 +1370,8 @@
 
     // ---------- Unduh Template ----------
     document.getElementById('btnTemplateGuru').addEventListener('click', function () {
-      var headers = ['Nama Guru', 'Email', 'Password', 'Role'];
-      var contoh = { 'Nama Guru': 'Siti Aminah, S.Pd', 'Email': 'siti.aminah@sekolah.sch.id', 'Password': 'guru12345', 'Role': 'guru' };
+      var headers = ['Nama Guru', 'Email', 'Password', 'Role', 'Kode Mesin'];
+      var contoh = { 'Nama Guru': 'Siti Aminah, S.Pd', 'Email': 'siti.aminah@sekolah.sch.id', 'Password': 'guru12345', 'Role': 'guru', 'Kode Mesin': '12' };
       var ws = autoFitKolom(XLSX.utils.json_to_sheet([contoh], { header: headers }));
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Template Guru');
@@ -1405,7 +1411,8 @@
           var email = String(row['Email'] || '').trim().toLowerCase();
           var password = String(row['Password'] || '').trim();
           var role = String(row['Role'] || 'guru').trim().toLowerCase();
-          if (role !== 'admin' && role !== 'guru') role = 'guru';
+          if (role !== 'admin' && role !== 'guru' && role !== 'staf') role = 'guru';
+          var kodeMesin = String(row['Kode Mesin'] || '').trim();
 
           if (!nama || !email || !password) {
             dilewati++;
@@ -1423,7 +1430,7 @@
             continue;
           }
 
-          var hasil = await buatAkunGuru(nama, email, password, role);
+          var hasil = await buatAkunGuru(nama, email, password, role, kodeMesin);
           if (!hasil.ok) {
             dilewati++;
             pesan.push('Baris ' + (i + 2) + ' (' + email + '): gagal — ' + hasil.error);
@@ -1446,6 +1453,35 @@
         if (refreshedSummary) refreshedSummary.innerHTML = ringkasanHtml;
       };
       reader.readAsArrayBuffer(file);
+    });
+
+    // ---------- Sinkron kode mesin ke Rekap Absen (lewat Edge Function; kunci rahasia ada di server) ----------
+    document.getElementById('btnSyncRekap').addEventListener('click', async function () {
+      var btn = this, box = document.getElementById('guruFormMsg');
+      btn.disabled = true; btn.textContent = 'Menyinkronkan...'; box.innerHTML = '';
+      try {
+        var sesi = await supabaseClient.auth.getSession();
+        var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
+        if (!token) { window.location.href = 'index.html'; return; }
+        var resp = await fetch(SUPABASE_URL + '/functions/v1/sync-kode-mesin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+          body: '{}'
+        });
+        var out = await resp.json().catch(function () { return {}; });
+        if (!resp.ok || !out.success) {
+          box.innerHTML = '<div class="panel-note" style="color:#b42318;">Gagal sinkron: ' + escapeHtml(out.error || ('HTTP ' + resp.status)) + '</div>';
+          return;
+        }
+        box.innerHTML = '<div class="panel-note">' + out.terkirim + ' guru/staf berkode mesin terkirim ke Rekap Absen.' +
+          (out.tanpa_kode ? ' ' + out.tanpa_kode + ' akun belum punya kode mesin' +
+            (out.nama_tanpa_kode && out.nama_tanpa_kode.length ? ' (' + escapeHtml(out.nama_tanpa_kode.join(', ')) + (out.tanpa_kode > out.nama_tanpa_kode.length ? ', ...' : '') + ')' : '') + '.' : '') +
+          '</div>';
+      } catch (err) {
+        box.innerHTML = '<div class="panel-note" style="color:#b42318;">Gagal terhubung ke server: ' + escapeHtml(err.message || err) + '</div>';
+      } finally {
+        btn.disabled = false; btn.textContent = '⟳ Sinkron ke Rekap Absen';
+      }
     });
 
     var guruBody = document.getElementById('guruBody');
@@ -1486,7 +1522,9 @@
       var tugasMengajar = mengajarMap[g.id] || [];
       var isWali = !!waliMap[g.id];
 
-      var statusChip = isWali
+      var statusChip = g.role === 'staf'
+        ? '<span class="chip chip--muted">Staf</span>'
+        : isWali
         ? '<span class="chip chip--aktif">Wali Kelas ' + escapeHtml(waliMap[g.id]) + '</span>'
         : (tugasMengajar.length
           ? '<span class="chip chip--muted">Guru Mapel</span>'
@@ -1498,13 +1536,13 @@
 
       return '<tr><td><input type="checkbox" class="gRowChk" value="' + g.id + '"></td>' +
         '<td><span class="fp-av" style="width:36px;height:36px;font-size:13px;" data-fp-id="' + g.id + '" data-fp-nama="' + escapeHtml(g.nama) + '"' + (g.foto_path ? ' data-fp-path="' + escapeHtml(g.foto_path) + '"' : '') + '></span></td>' +
-        '<td>' + escapeHtml(g.nama) + '</td><td>' + statusChip + '</td><td>' + tugasHtml + '</td>' +
+        '<td>' + escapeHtml(g.nama) + '</td><td>' + (g.kode_mesin ? escapeHtml(g.kode_mesin) : '<span style="color:var(--ink-soft);">—</span>') + '</td><td>' + statusChip + '</td><td>' + tugasHtml + '</td>' +
         '<td><button class="btn-small" data-foto-id="' + g.id + '" title="Foto & data diri guru">Profil</button> <button class="btn-small" data-edit-id="' + g.id + '">Edit</button> ' +
         '<button class="btn-small btn-small--danger" data-del-id="' + g.id + '">Hapus</button></td></tr>';
     }).join('');
 
     guruBody.innerHTML =
-      '<div class="table-wrap"><table class="data-table"><thead><tr><th style="width:32px;"><input type="checkbox" id="gSelectAll"></th><th style="width:52px;">Foto</th><th>Nama Guru</th><th>Status</th><th>Mengajar (Mapel — Kelas)</th><th></th></tr></thead>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th style="width:32px;"><input type="checkbox" id="gSelectAll"></th><th style="width:52px;">Foto</th><th>Nama Guru</th><th>Kode Mesin</th><th>Status</th><th>Mengajar (Mapel — Kelas)</th><th></th></tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody></table></div>' +
       '<div class="panel-note">"Wali Kelas" berarti guru tersebut, selain mengajar mapel, juga ditugaskan mengelola rekap nilai & presensi kelas yang bersangkutan. Satu guru hanya bisa menjadi wali 1 kelas per tahun ajaran. Menghapus akun guru juga akan ikut menghapus penugasan mengajar, status wali kelas, dan riwayat lain yang terhubung ke akun tersebut.</div>';
 
@@ -1596,8 +1634,10 @@
         '<div class="field"><label>Password Baru</label><input type="text" id="f_gPassword" placeholder="Kosongkan kalau tidak diganti" minlength="6"></div>' +
         '<div class="field"><label>Role</label><select id="f_gRole">' +
         '<option value="guru"' + (existing.role === 'guru' ? ' selected' : '') + '>Guru</option>' +
+        '<option value="staf"' + (existing.role === 'staf' ? ' selected' : '') + '>Staf</option>' +
         '<option value="admin"' + (existing.role === 'admin' ? ' selected' : '') + '>Admin</option>' +
         '</select></div>' +
+        '<div class="field"><label>Kode Mesin</label><input type="text" id="f_gKode" inputmode="numeric" maxlength="9" placeholder="No. ID fingerprint (kosong = tidak ada)" value="' + escapeHtml(existing.kode_mesin || '') + '"></div>' +
         '</div>' +
         '<div id="modalGuruMsg"></div>' +
         '<div class="modal-box__actions">' +
@@ -1622,6 +1662,7 @@
         var email = document.getElementById('f_gEmail').value.trim();
         var password = document.getElementById('f_gPassword').value;
         var role = document.getElementById('f_gRole').value;
+        var kodeMesin = document.getElementById('f_gKode').value.trim();
         if (!nama || !email) return;
         if (password && password.length < 6) {
           msgBox.innerHTML = '<div class="panel-note" style="color:#b42318;">Password baru minimal 6 karakter.</div>';
@@ -1633,7 +1674,7 @@
         submitBtn.textContent = 'Menyimpan...';
 
         try {
-          var hasil = await perbaruiAkunGuru(existing.id, nama, email, password, role);
+          var hasil = await perbaruiAkunGuru(existing.id, nama, email, password, role, kodeMesin);
           if (!hasil.ok) {
             msgBox.innerHTML = '<div class="panel-note" style="color:#b42318;">Gagal menyimpan: ' + escapeHtml(hasil.error) + '</div>';
             return;

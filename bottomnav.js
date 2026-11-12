@@ -35,6 +35,7 @@
   IKON.set = '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>';
   IKON.log = '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>';
 
+  IKON.rekap = '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>';
   IKON.semua = IKON.menu;
   IKON.menu = '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
 
@@ -71,6 +72,7 @@
       { k: 'kin',   label: 'Kinerja',     judul: admin ? 'Kinerja Guru' : 'Kinerja Saya', href: 'kinerja.html', warna: 'oranye' },
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
+      { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true },
       { k: 'log',   label: 'Log',         judul: 'Log Aktivitas',       href: 'log-admin.html', warna: 'slate', sheetSaja: true, hanyaAdmin: true }
     ];
     return menu.filter(function (it) {
@@ -165,7 +167,7 @@
   }
 
   function ikonSvg(k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + IKON[k] + '</svg>'; }
-  function atributSso(it) { return it.sso ? ' data-sso="rpp"' : ''; }
+  function atributSso(it) { return (it.sso ? ' data-sso="rpp"' : '') + (it.luar ? ' target="_blank" rel="noopener"' : ''); }
 
   // ---------- render ----------
   var rolePakai = 'guru';

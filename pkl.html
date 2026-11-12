@@ -15,14 +15,14 @@
 <script src="unsaved-guard.js?v=1"></script>
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=3" defer></script>
+<script src="app-switcher.js?v=5" defer></script>
 <script src="kepsek-readonly.js?v=12"></script>
 <script src="kepsek-nav.js?v=6"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=4" defer></script>
+<script src="bottomnav.js?v=5" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
 </head>
@@ -2637,6 +2637,7 @@
     var profileResult = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
     // Tanpa profil guru/admin (mis. akun siswa) -> keluar dari halaman ini.
     if (profileResult.error || !profileResult.data) { window.location.href = 'portal.html'; return; }
+    if (profileResult.data.role === 'staf') { window.location.href = 'portal.html'; return; }
     nama = profileResult.data.nama || user.email;
     var kepsek = profileResult.data.role === 'kepsek';
     var admin = profileResult.data.role === 'admin' || kepsek; // kepsek: tampilan admin, hanya lihat

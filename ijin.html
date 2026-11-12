@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ijin &amp; Dinas Luar — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="app-switcher.js?v=5" defer></script>
+<script src="mobile.js?v=1" defer></script>
+<style>
+  .ij-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 22px 24px; margin-bottom: 18px; }
+  .ij-card--form { max-width: 720px; }
+  .ij-card h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 16px; font-weight: 800; }
+  .ij-card > p { margin: 0 0 18px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+
+  /* Pilihan jenis ijin: tiga kartu besar */
+  .ij-jenis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .ij-jenis input { position: absolute; opacity: 0; pointer-events: none; }
+  .ij-jenis label { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 14px 8px; border: 1.5px solid var(--border-strong); border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink-soft); background: var(--surface); transition: border-color .15s, background .15s, color .15s; }
+  .ij-jenis label svg, .ij-jenis label i { width: 22px; height: 22px; }
+  .ij-jenis label small { font-weight: 500; font-size: 11px; color: var(--ink-faint); line-height: 1.3; }
+  .ij-jenis label:hover { border-color: var(--primary-soft); }
+  .ij-jenis input:focus-visible + label { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .ij-jenis input:checked + label { border-color: var(--primary); background: var(--primary-tint); color: var(--primary-dim); }
+  .ij-jenis input[value="sakit"]:checked + label { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
+  .ij-jenis input[value="ijin"]:checked + label { border-color: #d97706; background: #fffbeb; color: #b45309; }
+  .ij-jenis input[value="dinas_luar"]:checked + label { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+
+  .ij-tgl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .ij-card .field input[type="date"], .ij-card .field textarea, .ij-card .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 14px var(--font-body); color: var(--ink); background: var(--surface); }
+  .ij-card .field textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+  .ij-card .field input:focus, .ij-card .field textarea:focus, .ij-card .field select:focus { outline: none; border-color: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-tint-strong); }
+  .ij-hint { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; font-size: 11.5px; color: var(--ink-faint); }
+  .ij-lama { margin: -4px 0 16px; font-size: 12.5px; color: var(--primary-dim); font-weight: 700; min-height: 18px; }
+  .ij-msg { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+  .ij-msg--err { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+  .ij-msg--ok { background: var(--success-tint); border: 1px solid var(--success-border); color: #047857; }
+
+  .ij-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .ij-toolbar input, .ij-toolbar select { padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 600 12.5px var(--font-body); background: var(--surface); color: var(--ink); }
+  .ij-toolbar input[type="search"] { min-width: 190px; }
+  .ij-toolbar .sp { flex: 1; }
+  .ij-count { font-size: 12px; color: var(--ink-soft); }
+
+  .ij-b { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+  .ij-b--sakit { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+  .ij-b--ijin { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+  .ij-b--dinas_luar { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  .ij-ket { max-width: 360px; white-space: pre-wrap; line-height: 1.45; color: var(--ink-soft); }
+  .ij-nama small { display: block; color: var(--ink-faint); font-size: 11px; }
+  .ij-kosong { padding: 34px 16px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+  .ij-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 28px; z-index: 3000; max-width: 92vw; padding: 11px 18px; border-radius: 12px; background: #1f2937; color: #fff; font: 600 13px/1.45 var(--font-body); box-shadow: 0 10px 28px rgba(0,0,0,.28); }
+  .ij-toast--ok { background: #047857; }
+
+  @media (max-width: 860px) {
+    .ij-tgl { grid-template-columns: 1fr; }
+    .ij-card { padding: 18px 16px; }
+    .ij-toast { bottom: 84px; }
+  }
+  @media (max-width: 460px) { .ij-jenis label small { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Ijin &amp; Dinas Luar</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="calendar-off" style="width:13px;height:13px;"></i> <span id="roleLabel">Guru</span></div>
+    <nav class="menu-list" id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title" id="judul">Ajukan Ijin</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip"><div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">Guru</div>
+        <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a></div></div>
+    </div>
+    <div class="content" id="content"><div class="panel-note">Memuat…</div></div>
+  </div>
+</div>
+
+<script>
+  var content = document.getElementById('content');
+  var meNama = '', meRole = 'guru', pimpinan = false, bolehHapusSemua = false;
+  var data = [], tampilan = 'ajukan', galat = '';
+  var filter = { bulan: '', jenis: '', cari: '' };
+
+  var JENIS = {
+    sakit:      { label: 'Sakit',      ikon: 'thermometer',    desc: 'Tidak masuk karena sakit' },
+    ijin:       { label: 'Ijin',       ikon: 'file-pen-line',  desc: 'Keperluan pribadi / keluarga' },
+    dinas_luar: { label: 'Dinas Luar', ikon: 'briefcase',      desc: 'Tugas dari sekolah di luar' }
+  };
+  var BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  var MAKS_DESKRIPSI = 500;
+
+  // ---------- Pembantu ----------
+  function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ikon() { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } }
+  function toast(pesan, ok) {
+    var el = document.createElement('div');
+    el.className = 'ij-toast' + (ok ? ' ij-toast--ok' : '');
+    el.setAttribute('role', 'status');
+    el.textContent = pesan;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, ok ? 2600 : 5200);
+  }
+  function hariIniLokal() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function msHari(s) { return Date.parse(s + 'T00:00:00Z'); }
+  function lamaHari(a, b) { return Math.round((msHari(b) - msHari(a)) / 86400000) + 1; }
+  function tglId(s) {
+    if (!s) return '';
+    var d = new Date(s + 'T00:00:00');
+    return isNaN(d) ? s : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function rentang(a, b) { return a === b ? tglId(a) : tglId(a) + ' – ' + tglId(b); }
+  function waktuId(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  // jumlah hari pengajuan yang jatuh di bulan 'YYYY-MM'
+  function hariDiBulan(x, bulan) {
+    var p = bulan.split('-'), y = +p[0], m = +p[1];
+    var awal = bulan + '-01';
+    var akhir = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+    var a = x.tanggal_mulai > awal ? x.tanggal_mulai : awal;
+    var b = x.tanggal_selesai < akhir ? x.tanggal_selesai : akhir;
+    return b < a ? 0 : lamaHari(a, b);
+  }
+  function badge(j) { var m = JENIS[j] || { label: j, ikon: 'circle' }; return '<span class="ij-b ij-b--' + esc(j) + '"><i data-lucide="' + m.ikon + '" style="width:12px;height:12px;"></i>' + esc(m.label) + '</span>'; }
+
+  async function panggil(aksi, isi) {
+    var sesi = await supabaseClient.auth.getSession();
+    var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
+    if (!token) { location.href = 'index.html'; throw new Error('Sesi habis.'); }
+    var resp;
+    try {
+      resp = await fetch(SUPABASE_URL + '/functions/v1/ijin-absen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify(Object.assign({ aksi: aksi }, isi || {}))
+      });
+    } catch (e) { throw new Error('Tidak bisa terhubung ke server. Periksa koneksi internet.'); }
+    var out = await resp.json().catch(function () { return {}; });
+    if (resp.status === 404 && !out.error) throw new Error('Fitur Ijin belum diaktifkan. Minta admin men-deploy Edge Function ijin-absen (lihat CARA_DEPLOY_IJIN.md).');
+    if (!resp.ok || !out.success) throw new Error(out.error || ('HTTP ' + resp.status));
+    return out;
+  }
+
+  async function muatData() {
+    try {
+      var out = await panggil('daftar');
+      data = out.data || []; galat = '';
+    } catch (e) { data = []; galat = e.message || String(e); }
+  }
+
+  // ---------- Menu & halaman ----------
+  function menuItem(v, ik, teks) {
+    return '<a href="#" class="menu-item" data-view="' + v + '"><i data-lucide="' + ik + '" class="menu-icon"></i><span class="menu-item__title">' + teks + '</span></a>';
+  }
+  function bangunMenu() {
+    var h = '<div class="sidebar__section-label">' + (pimpinan ? 'Pemantauan' : 'Ijin & Dinas Luar') + '</div>' +
+      (pimpinan ? menuItem('semua', 'list-checks', 'Semua Pengajuan')
+                : menuItem('ajukan', 'square-pen', 'Ajukan Ijin') + menuItem('riwayat', 'history', 'Riwayat Saya')) +
+      '<div class="sidebar__section-label">Lainnya</div>' +
+      '<a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>';
+    document.getElementById('menu').innerHTML = h;
+    ikon();
+  }
+  function judulHalaman(v) {
+    if (v === 'ajukan') return ['Ajukan Ijin', 'Pilih jenis, isi tanggal dan deskripsi. Hasilnya otomatis masuk ke Rekap Absen'];
+    if (v === 'riwayat') return ['Riwayat Saya', 'Daftar pengajuan ijin yang sudah kamu kirim'];
+    return ['Semua Pengajuan', 'Pengajuan ijin, sakit dan dinas luar seluruh guru & staf'];
+  }
+  function keHalaman(v) {
+    tampilan = v;
+    document.querySelectorAll('#menu .menu-item[data-view]').forEach(function (x) { x.classList.toggle('menu-item--active', x.dataset.view === v); });
+    var j = judulHalaman(v);
+    document.getElementById('judul').textContent = j[0];
+    document.getElementById('metaHal').textContent = j[1];
+    tampil();
+    window.scrollTo(0, 0);
+  }
+  function tampil() {
+    if (tampilan === 'ajukan') renderForm();
+    else if (tampilan === 'riwayat') renderRiwayat();
+    else renderSemua();
+    ikon();
+  }
+  function catatanGalat() {
+    return galat ? '<div class="ij-msg ij-msg--err" style="margin:0 0 16px;">' + esc(galat) + '</div>' : '';
+  }
+
+  // ---------- Formulir ----------
+  function statBulanIni() {
+    var bln = hariIniLokal().slice(0, 7), t = { sakit: 0, ijin: 0, dinas_luar: 0 };
+    data.forEach(function (x) { if (t[x.jenis] !== undefined) t[x.jenis] += hariDiBulan(x, bln); });
+    var p = bln.split('-');
+    var ket = 'hari kalender · ' + BLN[+p[1] - 1] + ' ' + p[0];
+    return '<div class="stat-grid" style="max-width:720px;">' + ['sakit', 'ijin', 'dinas_luar'].map(function (j) {
+      return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + JENIS[j].ikon + '"></i>' + JENIS[j].label + '</div>' +
+        '<div class="stat-card__value">' + t[j] + '</div><div class="stat-card__sub">' + ket + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderForm() {
+    var hari = hariIniLokal();
+    content.innerHTML = catatanGalat() + statBulanIni() +
+      '<div class="ij-card ij-card--form"><h3>Formulir pengajuan</h3>' +
+      '<p>Pengajuan langsung tercatat di Rekap Absen: pada tanggal yang kamu pilih, jika tidak ada scan fingerprint, statusnya menjadi <b>Sakit / Ijin / Dinas Luar</b> dan tidak dihitung <i>Tidak hadir</i>.</p>' +
+      '<div class="ij-jenis" role="radiogroup" aria-label="Jenis ijin">' +
+      ['sakit', 'ijin', 'dinas_luar'].map(function (j, i) {
+        return '<div><input type="radio" name="jenis" id="jn_' + j + '" value="' + j + '"' + (i === 0 ? ' checked' : '') + '>' +
+          '<label for="jn_' + j + '"><i data-lucide="' + JENIS[j].ikon + '"></i>' + JENIS[j].label + '<small>' + JENIS[j].desc + '</small></label></div>';
+      }).join('') + '</div>' +
+      '<div class="ij-tgl"><div class="field"><label for="tglMulai">Tanggal mulai</label><input type="date" id="tglMulai" value="' + hari + '"></div>' +
+      '<div class="field"><label for="tglSelesai">Tanggal selesai</label><input type="date" id="tglSelesai" value="' + hari + '"></div></div>' +
+      '<div class="ij-lama" id="lamaTxt"></div>' +
+      '<div class="field"><label for="deskripsi">Deskripsi</label><textarea id="deskripsi" maxlength="' + MAKS_DESKRIPSI + '" placeholder="Contoh: demam dan istirahat sesuai anjuran dokter / menghadiri acara keluarga / mengikuti workshop di Dinas Pendidikan"></textarea>' +
+      '<div class="ij-hint"><span>Satu pengajuan untuk satu rentang tanggal. Untuk satu hari, biarkan tanggal selesai sama.</span><span id="cacah">0/' + MAKS_DESKRIPSI + '</span></div></div>' +
+      '<button type="button" class="btn-primary" id="btnKirim" style="width:auto;padding:11px 26px;">Kirim pengajuan</button>' +
+      '<div id="formMsg"></div></div>';
+    var mulai = document.getElementById('tglMulai'), selesai = document.getElementById('tglSelesai'), des = document.getElementById('deskripsi');
+    function hitungLama() {
+      var el = document.getElementById('lamaTxt');
+      if (!mulai.value || !selesai.value) { el.textContent = ''; return; }
+      if (selesai.value < mulai.value) { el.textContent = 'Tanggal selesai tidak boleh sebelum tanggal mulai.'; el.style.color = '#b91c1c'; return; }
+      el.style.color = '';
+      var n = lamaHari(mulai.value, selesai.value);
+      el.textContent = 'Lama: ' + n + ' hari kalender' + (n > 1 ? ' (akhir pekan & hari libur otomatis diabaikan oleh Rekap Absen)' : '');
+    }
+    mulai.addEventListener('change', function () { if (!selesai.value || selesai.value < mulai.value) selesai.value = mulai.value; hitungLama(); });
+    selesai.addEventListener('change', hitungLama);
+    des.addEventListener('input', function () { document.getElementById('cacah').textContent = des.value.length + '/' + MAKS_DESKRIPSI; });
+    document.getElementById('btnKirim').addEventListener('click', kirim);
+    hitungLama();
+  }
+
+  async function kirim() {
+    var btn = document.getElementById('btnKirim'), msg = document.getElementById('formMsg');
+    var jenis = (document.querySelector('input[name="jenis"]:checked') || {}).value;
+    var mulai = document.getElementById('tglMulai').value, selesai = document.getElementById('tglSelesai').value;
+    var des = document.getElementById('deskripsi').value.trim();
+    function gagal(t) { msg.innerHTML = '<div class="ij-msg ij-msg--err" role="alert">' + esc(t) + '</div>'; }
+    msg.innerHTML = '';
+    if (!jenis) return gagal('Pilih jenis ijin.');
+    if (!mulai || !selesai) return gagal('Isi tanggal mulai dan tanggal selesai.');
+    if (selesai < mulai) return gagal('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+    if (!des) return gagal('Deskripsi wajib diisi.');
+    btn.disabled = true; btn.textContent = 'Mengirim…';
+    try {
+      await panggil('simpan', { jenis: jenis, tanggal_mulai: mulai, tanggal_selesai: selesai, deskripsi: des });
+      catatAktivitas('lainnya', 'Ijin & Dinas Luar', 'Mengajukan ' + JENIS[jenis].label + ' ' + rentang(mulai, selesai));
+      toast('Pengajuan terkirim dan masuk ke Rekap Absen.', true);
+      await muatData();
+      keHalaman('riwayat');
+    } catch (e) {
+      gagal(e.message || String(e));
+      btn.disabled = false; btn.textContent = 'Kirim pengajuan';
+    }
+  }
+
+  // ---------- Daftar ----------
+  function tabel(rows, semua) {
+    if (!rows.length) return '<div class="ij-kosong">Belum ada pengajuan.</div>';
+    return '<div class="table-wrap"><table class="data-table"><thead><tr>' +
+      (semua ? '<th>Nama</th>' : '') + '<th>Jenis</th><th>Tanggal</th><th>Lama</th><th>Deskripsi</th><th>Dikirim</th><th></th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        var bolehHapus = semua ? bolehHapusSemua : true;
+        return '<tr>' +
+          (semua ? '<td class="ij-nama"><b>' + esc(x.nama) + '</b><small>ID mesin ' + esc(x.kode_mesin) + '</small></td>' : '') +
+          '<td>' + badge(x.jenis) + '</td>' +
+          '<td style="white-space:nowrap;">' + esc(rentang(x.tanggal_mulai, x.tanggal_selesai)) + '</td>' +
+          '<td style="white-space:nowrap;">' + lamaHari(x.tanggal_mulai, x.tanggal_selesai) + ' hari</td>' +
+          '<td><div class="ij-ket">' + esc(x.deskripsi || '—') + '</div></td>' +
+          '<td style="white-space:nowrap;color:var(--ink-soft);font-size:12px;">' + esc(waktuId(x.created_at)) + '</td>' +
+          '<td>' + (bolehHapus ? '<button type="button" class="btn-small btn-small--danger" data-hapus="' + esc(x.id) + '">Hapus</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function renderRiwayat() {
+    content.innerHTML = catatanGalat() +
+      '<div class="ij-toolbar"><span class="ij-count">' + data.length + ' pengajuan</span><span class="sp"></span>' +
+      '<button type="button" class="btn-small btn-small--primary" id="btnBaru"><i data-lucide="plus" style="width:14px;height:14px;"></i> Ajukan ijin baru</button></div>' +
+      tabel(data, false);
+    document.getElementById('btnBaru').addEventListener('click', function () { keHalaman('ajukan'); });
+  }
+
+  function saring() {
+    var q = filter.cari.trim().toLowerCase();
+    return data.filter(function (x) {
+      if (filter.jenis && x.jenis !== filter.jenis) return false;
+      if (filter.bulan && !hariDiBulan(x, filter.bulan)) return false;
+      if (q && String(x.nama || '').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+  function renderSemua() {
+    content.innerHTML = catatanGalat() +
+      '<div class="ij-toolbar">' +
+      '<input type="month" id="fBulan" value="' + esc(filter.bulan) + '" aria-label="Bulan">' +
+      '<select id="fJenis" aria-label="Jenis"><option value="">Semua jenis</option>' + Object.keys(JENIS).map(function (j) { return '<option value="' + j + '"' + (filter.jenis === j ? ' selected' : '') + '>' + JENIS[j].label + '</option>'; }).join('') + '</select>' +
+      '<input type="search" id="fCari" placeholder="Cari nama…" value="' + esc(filter.cari) + '">' +
+      '<span class="sp"></span><span class="ij-count" id="fCount"></span></div><div id="daftarWadah"></div>';
+    function isi() {
+      var rows = saring();
+      document.getElementById('fCount').textContent = rows.length + ' dari ' + data.length + ' pengajuan';
+      document.getElementById('daftarWadah').innerHTML = tabel(rows, true);
+      ikon();
+    }
+    document.getElementById('fBulan').addEventListener('input', function () { filter.bulan = this.value; isi(); });
+    document.getElementById('fJenis').addEventListener('change', function () { filter.jenis = this.value; isi(); });
+    document.getElementById('fCari').addEventListener('input', function () { filter.cari = this.value; isi(); });
+    isi();
+  }
+
+  content.addEventListener('click', async function (e) {
+    var b = e.target.closest('[data-hapus]');
+    if (!b || b.disabled) return;
+    if (!confirm('Hapus pengajuan ini? Status di Rekap Absen untuk tanggal tersebut juga hilang.')) return;
+    b.disabled = true;
+    try {
+      await panggil('hapus', { id: b.getAttribute('data-hapus') });
+      catatAktivitas('lainnya', 'Ijin & Dinas Luar', 'Menghapus pengajuan ijin');
+      data = data.filter(function (x) { return x.id !== b.getAttribute('data-hapus'); });
+      toast('Pengajuan dihapus.', true);
+      tampil();
+    } catch (err) { b.disabled = false; toast(err.message || String(err)); }
+  });
+
+  document.getElementById('menu').addEventListener('click', function (e) {
+    var a = e.target.closest('.menu-item[data-view]');
+    if (!a) return;
+    e.preventDefault();
+    keHalaman(a.dataset.view);
+  });
+
+  // ---------- Mulai ----------
+  (async function () {
+    var s = (await supabaseClient.auth.getSession()).data.session;
+    if (!s) { location.href = 'index.html'; return; }
+    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
+    if (p.error || !p.data) { location.href = 'portal.html'; return; }
+    meNama = p.data.nama || s.user.email;
+    meRole = p.data.role;
+    pimpinan = meRole === 'admin' || meRole === 'kepsek';
+    bolehHapusSemua = meRole === 'admin';
+    document.getElementById('userName').textContent = meNama;
+    var labelPeran = { admin: 'Admin', kepsek: 'Kepala Sekolah', guru: 'Guru', staf: 'Staf' }[meRole] || 'Guru';
+    document.getElementById('userRole').textContent = labelPeran;
+    document.getElementById('roleLabel').textContent = labelPeran;
+    bangunMenu();
+    content.innerHTML = '<div class="panel-note">Memuat…</div>';
+    await muatData();
+    keHalaman(pimpinan ? 'semua' : 'ajukan');
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+    await supabaseClient.auth.signOut();
+    location.href = 'index.html';
+  });
+  ikon();
+</script>
+</body>
+</html>

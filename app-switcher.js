@@ -28,7 +28,8 @@
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi.html',       judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal & form supervisi' },
     { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Ajukan bukti kinerja ke Kepala Sekolah' },
-    { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' }
+    { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
+    { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_ADMIN = [
     { href: 'portal.html',            judul: 'Menu Utama',          ikon: 'layout-grid',        warna: 'teal',   desc: 'Beranda semua aplikasi' },
@@ -40,6 +41,8 @@
     { href: 'supervisi-admin.html',   judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal, form & data supervisi' },
     { href: 'kinerja.html',           judul: 'Kinerja Guru',        ikon: 'award',              warna: 'oranye', desc: 'Pantau & beri jempol bukti kinerja' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
+    { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },
+    { href: 'https://wima15.github.io/rekap-presensi/', luar: true,  judul: 'Rekap Absen Fingerprint', ikon: 'fingerprint',      warna: 'hijau',  desc: 'Rekap kehadiran guru & staf (tab baru)' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' },
     { href: 'log-admin.html',         judul: 'Log Aktivitas',       ikon: 'history',            warna: 'slate',  desc: 'Siapa melakukan apa & kapan' }
   ];
@@ -110,7 +113,7 @@
     wrap.className = 'as-wrap';
     var items = daftar.map(function (a) {
       var aktif = a.href.toLowerCase() === kini;
-      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (a.sso ? ' data-sso="rpp"' : '') + (aktif ? ' aria-current="page"' : '') + '>' +
+      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (a.sso ? ' data-sso="rpp"' : '') + (a.luar ? ' target="_blank" rel="noopener"' : '') + (aktif ? ' aria-current="page"' : '') + '>' +
         '<span class="as-ic as-ic--' + a.warna + '"><i data-lucide="' + a.ikon + '"></i></span>' +
         '<span style="min-width:0;"><span class="as-t">' + esc(a.judul) + (aktif ? '<span class="as-now">Dibuka</span>' : '') + '</span>' +
         '<span class="as-d" style="display:block;">' + esc(a.desc) + '</span></span></a>';

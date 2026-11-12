@@ -51,6 +51,7 @@ function aplikasiDariHalaman() {
   if (b.indexOf("supervisi") === 0) return "Supervisi";
   if (b === "pelanggaran.html") return "Pelanggaran";
   if (b === "kinerja.html") return "Kinerja";
+  if (b === "ijin.html") return "Ijin & Dinas Luar";
   if (b === "pengaturan-admin.html") return "Pengaturan Sekolah";
   if (b === "log-admin.html") return "Log Aktivitas";
   if (b === "siswa.html") return "Portal Siswa";

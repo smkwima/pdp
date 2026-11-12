@@ -13,7 +13,7 @@
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="dashboard-kepsek.js?v=4"></script>
-<script src="bottomnav.js?v=4" defer></script>
+<script src="bottomnav.js?v=5" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
@@ -249,7 +249,8 @@
         'E-Rapor': 'Lihat kelas, siswa, mapel, nilai, leger dan rapor.',
         'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
         'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.',
-        'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.'
+        'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.',
+        'Ijin & Dinas Luar': 'Lihat pengajuan sakit, ijin dan dinas luar guru & staf.'
       };
       var hasil = [];
       daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso && m.href !== 'penugasan-admin.html'; }).forEach(function (m) {
@@ -278,10 +279,14 @@
       { grup: 'Pembinaan & Mutu', href: 'kinerja.html', warna: 'c-oranye', ikon: 'award', judul: admin ? 'Kinerja Guru' : 'Kinerja Saya',
         desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
-        desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' }
+        desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' },
+      { grup: 'Kepegawaian', href: 'ijin.html', warna: 'c-biru', ikon: 'calendar-off', judul: 'Ijin & Dinas Luar',
+        desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' }
     ].filter(Boolean).concat(admin ? [
       { grup: 'Administrasi', href: 'pengaturan-admin.html', warna: 'c-biru', ikon: 'settings', judul: 'Pengaturan Sekolah',
         desc: 'Profil sekolah, tahun ajaran, naik kelas & kelulusan, slideshow login.' },
+      { grup: 'Administrasi', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'c-hijau', ikon: 'fingerprint', judul: 'Rekap Absen Fingerprint',
+        desc: 'Rekap kehadiran guru & staf dari mesin fingerprint, termasuk ijin yang diajukan di pdp. Terbuka di tab baru.' },
       { grup: 'Administrasi', href: 'log-admin.html', warna: 'c-abu', ikon: 'history', judul: 'Log Aktivitas',
         desc: 'Pantau siapa melakukan apa dan kapan di semua aplikasi.' }
     ] : []);
@@ -296,15 +301,15 @@
         h += '<div class="pt-side__label">' + esc(m.grup) + '</div><div class="pt-nav">';
         grupTerakhir = m.grup;
       }
-      h += '<a href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + '><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
+      h += '<a href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
     });
-    h += '</div>';
+    if (grupTerakhir) h += '</div>';
     document.getElementById('sideNav').outerHTML = '<div id="sideNav">' + h + '</div>';
   }
 
   function renderModul(mods) {
     document.getElementById('grid').innerHTML = mods.map(function (m) {
-      return '<a class="pt-mod" href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + '>' +
+      return '<a class="pt-mod" href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '>' +
         '<div class="pt-mod__ic ' + m.warna + '"><i data-lucide="' + m.ikon + '"></i></div>' +
         '<div><div class="pt-mod__t">' + esc(m.judul) + '<i data-lucide="arrow-right"></i></div><div class="pt-mod__d">' + esc(m.desc) + '</div></div></a>';
     }).join('');
@@ -482,7 +487,8 @@
     var kepsek = pr.data.role === 'kepsek';
     var nama = pr.data.nama || user.email;
     document.getElementById('userName').textContent = nama;
-    document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : 'Guru');
+    var staf = pr.data.role === 'staf';
+    document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : (staf ? 'Staf' : 'Guru'));
     document.getElementById('hello').textContent = 'Halo, ' + nama.split(' ')[0] + '!';
 
     // Foto profil besar di kartu sambutan (semua peran). Diam saja kalau fitur foto belum aktif.
@@ -511,7 +517,7 @@
       } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
     })();
 
-    var mods = daftarModul(admin, kepsek);
+    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'ijin.html'; }) : daftarModul(admin, kepsek);
     renderSidebar(mods);
     renderModul(mods);
     if (window.lucide) lucide.createIcons();

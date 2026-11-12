@@ -35,6 +35,15 @@ function json(body: unknown, status: number) {
   });
 }
 
+// Kode mesin fingerprint: hanya angka, tanpa nol di depan (sama dengan cara
+// Rekap Absen membaca "No.ID"). Kosong -> null (dihapus). Tidak valid -> "invalid".
+function normKode(v: unknown): string | null | "invalid" {
+  const t = String(v ?? "").trim();
+  if (!t) return null;
+  if (!/^\d{1,9}$/.test(t)) return "invalid";
+  return String(parseInt(t, 10));
+}
+
 Deno.serve(async (req: Request) => {
   // Preflight CORS (browser selalu kirim OPTIONS dulu sebelum POST)
   if (req.method === "OPTIONS") {
@@ -102,8 +111,19 @@ Deno.serve(async (req: Request) => {
       if (!userId || !namaUpd || !emailUpd) {
         return json({ error: "Nama dan email wajib diisi." }, 400);
       }
-      if (roleUpd && !["admin", "guru"].includes(roleUpd)) {
-        return json({ error: "Role harus 'admin' atau 'guru'." }, 400);
+      if (roleUpd && !["admin", "guru", "staf"].includes(roleUpd)) {
+        return json({ error: "Role harus 'admin', 'guru', atau 'staf'." }, 400);
+      }
+      const kodeUpd = "kode_mesin" in body ? normKode(body.kode_mesin) : undefined;
+      if (kodeUpd === "invalid") {
+        return json({ error: "Kode mesin harus berupa angka (maksimal 9 digit)." }, 400);
+      }
+      if (kodeUpd) {
+        const { data: dup } = await adminClient
+          .from("profiles").select("nama").eq("kode_mesin", kodeUpd).neq("id", userId).limit(1);
+        if (dup && dup.length) {
+          return json({ error: `Kode mesin ${kodeUpd} sudah dipakai ${dup[0].nama}.` }, 400);
+        }
       }
       if (passwordUpd && passwordUpd.length < 6) {
         return json({ error: "Password baru minimal 6 karakter." }, 400);
@@ -125,6 +145,7 @@ Deno.serve(async (req: Request) => {
       // Update tabel profiles (nama, email, role)
       const profilePayload: Record<string, unknown> = { nama: namaUpd, email: emailUpd };
       if (roleUpd) profilePayload.role = roleUpd;
+      if (kodeUpd !== undefined) profilePayload.kode_mesin = kodeUpd;
 
       const { error: profUpdErr } = await adminClient.from("profiles").update(profilePayload).eq("id", userId);
       if (profUpdErr) {
@@ -184,8 +205,19 @@ Deno.serve(async (req: Request) => {
     if (password.length < 6) {
       return json({ error: "Password minimal 6 karakter." }, 400);
     }
-    if (!["admin", "guru"].includes(role)) {
-      return json({ error: "Role harus 'admin' atau 'guru'." }, 400);
+    if (!["admin", "guru", "staf"].includes(role)) {
+      return json({ error: "Role harus 'admin', 'guru', atau 'staf'." }, 400);
+    }
+    const kode = normKode(body.kode_mesin);
+    if (kode === "invalid") {
+      return json({ error: "Kode mesin harus berupa angka (maksimal 9 digit)." }, 400);
+    }
+    if (kode) {
+      const { data: dup } = await adminClient
+        .from("profiles").select("nama").eq("kode_mesin", kode).limit(1);
+      if (dup && dup.length) {
+        return json({ error: `Kode mesin ${kode} sudah dipakai ${dup[0].nama}.` }, 400);
+      }
     }
 
     // ---- 4. Buat akun di Supabase Auth ----
@@ -204,12 +236,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // ---- 5. Isi tabel profiles (nama + email + role) ----
-    const { error: insertErr } = await adminClient.from("profiles").insert({
+    const profilBaru: Record<string, unknown> = {
       id: created.user.id,
       nama,
       email,
       role,
-    });
+    };
+    if (kode) profilBaru.kode_mesin = kode;
+    const { error: insertErr } = await adminClient.from("profiles").insert(profilBaru);
 
     if (insertErr) {
       // Rollback: hapus akun Auth yang terlanjur dibuat supaya tidak

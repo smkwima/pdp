@@ -234,7 +234,7 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
     if (role === 'guru') {
       try { sessionStorage.setItem('erapor_sambutan_baru_login', '1'); } catch (e) { /* abaikan */ }
     }
-    await catatAktivitas('login', 'Akun', 'Masuk sebagai ' + (role === 'admin' ? 'admin' : (role === 'kepsek' ? 'kepala sekolah' : 'guru')));
+    await catatAktivitas('login', 'Akun', 'Masuk sebagai ' + (role === 'admin' ? 'admin' : (role === 'kepsek' ? 'kepala sekolah' : (role === 'staf' ? 'staf' : 'guru'))));
     // Setelah login, semua pengguna masuk ke Menu Utama (Buku Induk / E-Rapor / Supervisi).
     window.location.href = 'portal.html';
   });
