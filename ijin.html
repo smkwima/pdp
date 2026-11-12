@@ -181,7 +181,7 @@
     var langkah2 = st === 'menunggu' ? '<span class="ij-step ij-step--wait"><i></i>Menunggu admin</span>' : '<span class="ij-step ij-step--on"><i></i>Diperiksa admin</span>';
     var info = '<div class="ij-info">Diajukan ' + esc(waktuId(x.created_at)) + '</div>';
     if (st === 'menunggu') info = '<div class="ij-info">Diajukan ' + esc(waktuId(x.created_at)) + '. <b>Belum tercatat di Rekap Absen</b> sampai admin menyetujui.</div>';
-    if (st === 'disetujui') info = '<div class="ij-info">Disetujui oleh <b>' + esc(x.diproses_nama || 'Admin') + '</b>' + (x.diproses_at ? ' · ' + esc(waktuId(x.diproses_at)) : '') + '. Sudah tercatat di Rekap Absen.</div>';
+    if (st === 'disetujui') info = '<div class="ij-info">Disetujui oleh <b>' + esc(x.diproses_nama || 'Admin') + '</b>' + (x.diproses_at ? ' · ' + esc(waktuId(x.diproses_at)) : '') + '. ' + (x.catatan_admin ? esc(x.catatan_admin) + '. ' : '') + 'Sudah tercatat di Rekap Absen.</div>';
     if (st === 'ditolak') info = '<div class="ij-info">Ditolak oleh <b>' + esc(x.diproses_nama || 'Admin') + '</b>' + (x.diproses_at ? ' · ' + esc(waktuId(x.diproses_at)) : '') + (x.catatan_admin ? '<br>Alasan: ' + esc(x.catatan_admin) : '') + '</div>';
     return '<div class="ij-prog"><div class="ij-steps"><span class="ij-step ij-step--on"><i></i>Diajukan</span><span class="' + garis1 + '"></span>' + langkah2 + '<span class="' + garis2 + '"></span>' + langkah3 + '</div>' + info + '</div>';
   }
@@ -219,7 +219,8 @@
   }
   function bangunMenu() {
     var h = '<div class="sidebar__section-label">' + (pimpinan ? 'Pemantauan' : 'Ijin & Dinas Luar') + '</div>' +
-      (pimpinan ? menuItem('semua', 'list-checks', bolehHapusSemua ? 'Persetujuan Ijin' : 'Semua Pengajuan', bolehHapusSemua ? jumlahMenunggu() : 0)
+      (pimpinan ? menuItem('semua', 'list-checks', bolehHapusSemua ? 'Persetujuan Ijin' : 'Semua Pengajuan', bolehHapusSemua ? jumlahMenunggu() : 0) +
+                  (bolehHapusSemua ? menuItem('dinasluar', 'briefcase', 'Buat Dinas Luar') : '')
                 : menuItem('ajukan', 'square-pen', 'Ajukan Ijin') + menuItem('riwayat', 'history', 'Riwayat Saya')) +
       '<div class="sidebar__section-label">Lainnya</div>' +
       '<a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>';
@@ -229,6 +230,7 @@
   function judulHalaman(v) {
     if (v === 'ajukan') return ['Ajukan Ijin', 'Pilih jenis, isi tanggal dan deskripsi. Pengajuan masuk ke Rekap Absen setelah disetujui admin'];
     if (v === 'riwayat') return ['Riwayat Saya', 'Pantau progres setiap pengajuan: menunggu, disetujui atau ditolak'];
+    if (v === 'dinasluar') return ['Buat Dinas Luar', 'Admin mencatat dinas luar untuk guru / staf yang tidak berangkat. Langsung disetujui dan tercatat di Rekap Absen'];
     return bolehHapusSemua ? ['Persetujuan Ijin', 'Setujui atau tolak pengajuan sakit, ijin dan dinas luar guru & staf'] : ['Semua Pengajuan', 'Pengajuan ijin, sakit dan dinas luar seluruh guru & staf'];
   }
   function keHalaman(v) {
@@ -244,6 +246,7 @@
     if (document.getElementById('menu').children.length) { bangunMenu(); document.querySelectorAll('#menu .menu-item[data-view]').forEach(function (x) { x.classList.toggle('menu-item--active', x.dataset.view === tampilan); }); }
     if (tampilan === 'ajukan') renderForm();
     else if (tampilan === 'riwayat') renderRiwayat();
+    else if (tampilan === 'dinasluar' && bolehHapusSemua) renderDinasLuar();
     else renderSemua();
     ikon();
   }
@@ -320,6 +323,79 @@
     }
   }
 
+  // ---------- Admin: buat Dinas Luar untuk guru/staf yang tidak berangkat ----------
+  var daftarGuru = null;
+  async function muatDaftarGuru() {
+    if (daftarGuru) return daftarGuru;
+    var r = await supabaseClient.from('profiles').select('id, nama, role, kode_mesin').in('role', ['guru', 'staf']).order('nama');
+    if (r.error) throw new Error('Gagal memuat daftar guru: ' + r.error.message);
+    daftarGuru = r.data || [];
+    return daftarGuru;
+  }
+  async function renderDinasLuar() {
+    content.innerHTML = '<div class="panel-note">Memuat daftar guru…</div>';
+    var guru;
+    try { guru = await muatDaftarGuru(); }
+    catch (e) { content.innerHTML = '<div class="ij-msg ij-msg--err">' + esc(e.message || String(e)) + '</div>'; return; }
+    var hari = hariIniLokal();
+    var opsi = guru.map(function (g) {
+      var ada = String(g.kode_mesin || '').trim() !== '';
+      return '<option value="' + esc(g.id) + '"' + (ada ? '' : ' disabled') + '>' + esc(g.nama || '—') + (g.role === 'staf' ? ' (staf)' : '') + (ada ? '' : ' — kode mesin belum diisi') + '</option>';
+    }).join('');
+    content.innerHTML =
+      '<div class="ij-card ij-card--form"><h3>Buat Dinas Luar untuk guru / staf</h3>' +
+      '<p>Dipakai bila guru atau staf <b>tidak berangkat</b> karena tugas di luar sekolah. Langsung berstatus <b>Disetujui</b>. Pada tanggal yang dipilih, jika tidak ada scan fingerprint, statusnya di Rekap Absen menjadi <b>Dinas luar</b>. Jenis lain (sakit / ijin) tetap diajukan sendiri oleh guru.</p>' +
+      '<div class="field"><label for="dlGuru">Nama guru / staf</label><select id="dlGuru"><option value="">— Pilih guru / staf —</option>' + opsi + '</select></div>' +
+      '<div class="ij-tgl"><div class="field"><label for="tglMulai">Tanggal mulai</label><input type="date" id="tglMulai" value="' + hari + '"></div>' +
+      '<div class="field"><label for="tglSelesai">Tanggal selesai</label><input type="date" id="tglSelesai" value="' + hari + '"></div></div>' +
+      '<div class="ij-lama" id="lamaTxt"></div>' +
+      '<div class="field"><label for="deskripsi">Keterangan tugas</label><textarea id="deskripsi" maxlength="' + MAKS_DESKRIPSI + '" placeholder="Contoh: mengikuti workshop kurikulum di Dinas Pendidikan / mendampingi siswa lomba / rapat KKG"></textarea>' +
+      '<div class="ij-hint"><span>Untuk satu hari, biarkan tanggal selesai sama dengan tanggal mulai.</span><span id="cacah">0/' + MAKS_DESKRIPSI + '</span></div></div>' +
+      '<button type="button" class="btn-primary" id="btnDL" style="width:auto;padding:11px 26px;">Simpan dinas luar</button>' +
+      '<div id="formMsg"></div></div>';
+    var mulai = document.getElementById('tglMulai'), selesai = document.getElementById('tglSelesai'), des = document.getElementById('deskripsi');
+    function hitungLama() {
+      var el = document.getElementById('lamaTxt');
+      if (!mulai.value || !selesai.value) { el.textContent = ''; return; }
+      if (selesai.value < mulai.value) { el.textContent = 'Tanggal selesai tidak boleh sebelum tanggal mulai.'; el.style.color = '#b91c1c'; return; }
+      el.style.color = '';
+      var n = lamaHari(mulai.value, selesai.value);
+      el.textContent = 'Lama: ' + n + ' hari kalender' + (n > 1 ? ' (akhir pekan & hari libur otomatis diabaikan oleh Rekap Absen)' : '');
+    }
+    mulai.addEventListener('change', function () { if (!selesai.value || selesai.value < mulai.value) selesai.value = mulai.value; hitungLama(); });
+    selesai.addEventListener('change', hitungLama);
+    des.addEventListener('input', function () { document.getElementById('cacah').textContent = des.value.length + '/' + MAKS_DESKRIPSI; });
+    document.getElementById('btnDL').addEventListener('click', kirimDinasLuar);
+    hitungLama();
+    ikon();
+  }
+  async function kirimDinasLuar() {
+    var btn = document.getElementById('btnDL'), msg = document.getElementById('formMsg');
+    var sel = document.getElementById('dlGuru');
+    var untuk = sel.value, nama = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.replace(/ \(staf\)$/, '') : '';
+    var mulai = document.getElementById('tglMulai').value, selesai = document.getElementById('tglSelesai').value;
+    var des = document.getElementById('deskripsi').value.trim();
+    function gagal(t) { msg.innerHTML = '<div class="ij-msg ij-msg--err" role="alert">' + esc(t) + '</div>'; }
+    msg.innerHTML = '';
+    if (!untuk) return gagal('Pilih nama guru / staf.');
+    if (!mulai || !selesai) return gagal('Isi tanggal mulai dan tanggal selesai.');
+    if (selesai < mulai) return gagal('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+    if (!des) return gagal('Keterangan tugas wajib diisi.');
+    btn.disabled = true; btn.textContent = 'Menyimpan…';
+    try {
+      await panggil('simpan', { jenis: 'dinas_luar', untuk_user_id: untuk, tanggal_mulai: mulai, tanggal_selesai: selesai, deskripsi: des });
+      catatAktivitas('lainnya', 'Ijin & Dinas Luar', 'Membuat Dinas Luar untuk ' + nama + ' ' + rentang(mulai, selesai));
+      toast('Dinas luar ' + nama + ' tersimpan dan tercatat di Rekap Absen.', true);
+      try { window.dispatchEvent(new Event('ijin-diproses')); } catch (e) { /* abaikan */ }
+      await muatData();
+      filter.status = 'disetujui';
+      keHalaman('semua');
+    } catch (e) {
+      gagal(e.message || String(e));
+      btn.disabled = false; btn.textContent = 'Simpan dinas luar';
+    }
+  }
+
   // ---------- Daftar ----------
   function tabel(rows, semua) {
     if (!rows.length) return '<div class="ij-kosong">Belum ada pengajuan.</div>';
@@ -373,6 +449,7 @@
       '<select id="fJenis" aria-label="Jenis"><option value="">Semua jenis</option>' + Object.keys(JENIS).map(function (j) { return '<option value="' + j + '"' + (filter.jenis === j ? ' selected' : '') + '>' + JENIS[j].label + '</option>'; }).join('') + '</select>' +
       '<input type="search" id="fCari" placeholder="Cari nama…" value="' + esc(filter.cari) + '">' +
       '<span class="sp"></span><span class="ij-count" id="fCount"></span>' +
+      (bolehHapusSemua ? '<button type="button" class="btn-small" id="btnDinasLuar"><i data-lucide="briefcase" style="width:14px;height:14px;"></i> Buat dinas luar</button>' : '') +
       (bolehHapusSemua ? '<button type="button" class="btn-small btn-small--primary" id="btnSetujuiSemua"><i data-lucide="check-check" style="width:14px;height:14px;"></i> <span id="lblSemua">Setujui semua</span></button>' : '') +
       '</div><div id="daftarWadah"></div>';
     function isi() {
@@ -395,6 +472,8 @@
       var b = e.target.closest('[data-tab]'); if (!b) return;
       filter.status = b.getAttribute('data-tab'); isi();
     });
+    var bdl = document.getElementById('btnDinasLuar');
+    if (bdl) bdl.addEventListener('click', function () { keHalaman('dinasluar'); });
     var bs = document.getElementById('btnSetujuiSemua');
     if (bs) bs.addEventListener('click', async function () {
       // yang disetujui = semua berstatus "menunggu" yang sedang terfilter (bulan / jenis / nama)
