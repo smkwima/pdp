@@ -288,7 +288,10 @@
         desc: 'Terima laporan bullying & pelanggaran dari siswa (nama pelapor wajib, hanya terlihat admin & kepsek), beri tanggapan.' } : null,
       { grup: 'Kepegawaian', href: 'ijin.html', warna: 'c-biru', ikon: 'calendar-off', judul: 'Ijin & Dinas Luar',
         desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' }
-    ].filter(Boolean).concat(admin ? [
+    ].filter(Boolean).concat(!admin ? [
+      { grup: 'Bantuan', href: 'assets/Petunjuk_Penggunaan_PDP_Guru_dan_Staf.pdf', luar: true, warna: 'c-abu', ikon: 'book-open', judul: 'Panduan PDP',
+        desc: 'Petunjuk penggunaan PDP untuk guru dan staf (PDF). Terbuka di tab baru.' }
+    ] : []).concat(admin ? [
       { grup: 'Administrasi', href: 'pengaturan-admin.html', warna: 'c-biru', ikon: 'settings', judul: 'Pengaturan Sekolah',
         desc: 'Profil sekolah, tahun ajaran, naik kelas & kelulusan, slideshow login.' },
       { grup: 'Administrasi', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'c-hijau', ikon: 'fingerprint', judul: 'Rekap Absen Fingerprint',
@@ -523,7 +526,7 @@
       } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
     })();
 
-    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'ijin.html'; }).map(function (m) {
+    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'ijin.html' || m.judul === 'Panduan PDP'; }).map(function (m) {
       return m.href === 'kinerja.html' ? Object.assign({}, m, { desc: 'Tulis sendiri aspek bukti dukung kinerjamu, isi link dan keterangan, lalu ajukan ke Kepala Sekolah.' }) : m;
     }) : daftarModul(admin, kepsek);
     renderSidebar(mods);
