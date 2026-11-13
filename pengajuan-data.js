@@ -126,6 +126,35 @@
     }
 
     list.innerHTML = '';
+
+    // --- Terima semua pengajuan sekaligus ---
+    var bar = document.createElement('div');
+    bar.className = 'pd-bar';
+    bar.style.cssText = 'display:flex;align-items:center;gap:10px;margin:0 0 14px;flex-wrap:wrap;';
+    bar.innerHTML = '<button type="button" class="btn-small btn-small--primary" data-terima-semua>Terima Semua (' + rows.length + ')</button>' +
+      '<span class="sw-pesan" data-pesan-semua></span>';
+    list.appendChild(bar);
+    bar.querySelector('[data-terima-semua]').addEventListener('click', async function () {
+      if (!confirm('Terima SEMUA ' + rows.length + ' pengajuan? Seluruh perubahan akan disimpan ke data siswa. Sebaiknya periksa dulu isinya.')) return;
+      var semuaBtn = list.querySelectorAll('button');
+      semuaBtn.forEach(function (b) { b.disabled = true; });
+      var pesan = bar.querySelector('[data-pesan-semua]');
+      var ok = 0, hilang = 0, gagal = [];
+      for (var i = 0; i < rows.length; i++) {
+        pesan.textContent = 'Memproses ' + (i + 1) + ' dari ' + rows.length + '...';
+        var res = await supabaseClient.rpc('proses_pengajuan_data', { p_id: rows[i].id, p_setuju: true });
+        if (res.error) gagal.push(((rows[i].siswa || {}).nama || '—') + ': ' + res.error.message);
+        else if (res.data === 'SUDAH_TIDAK_ADA') hilang++;
+        else ok++;
+      }
+      var ringkas = ok + ' pengajuan diterima.';
+      if (hilang) ringkas += '\n' + hilang + ' sudah tidak ada (mungkin dibatalkan siswa).';
+      if (gagal.length) ringkas += '\n' + gagal.length + ' gagal:\n' + gagal.join('\n');
+      alert(ringkas);
+      if (opts.onChange) opts.onChange();
+      render(container, opts);
+    });
+
     rows.forEach(function (p) {
       var s = p.siswa || {};
       var baris = Object.keys(p.perubahan || {}).map(function (k) {
