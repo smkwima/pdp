@@ -95,7 +95,7 @@
     container.innerHTML =
       '<div class="panel-head"><div><div class="panel-head__title">Pengajuan Pembetulan Data Siswa</div>' +
       '<div class="panel-head__desc">Siswa mengajukan pembetulan biodata. <b>Terima</b> = perubahan disimpan ke data siswa. ' +
-      '<b>Tolak</b> = pengajuan dihapus dan tidak ada yang disimpan. NIS, NISN, NIK, dan No. KK tidak bisa diubah lewat pengajuan.</div></div></div>' +
+      '<b>Tolak</b> = pengajuan dihapus dan tidak ada yang disimpan. NIS dan NISN tidak bisa diubah lewat pengajuan.</div></div></div>' +
       '<div id="pdList"><div class="panel-note">Memuat pengajuan...</div></div>';
     var list = container.querySelector('#pdList');
 

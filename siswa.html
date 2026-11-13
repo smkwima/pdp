@@ -813,19 +813,12 @@
     var det = cekError(await supabaseClient.from('bi_siswa_detail').select('*').eq('siswa_id', S.siswa.id).maybeSingle(), 'buku induk').data || {};
     var gabung = Object.assign({}, det, S.siswa); // kolom tabel siswa menang untuk isian bersama
 
-    // NIK & No. KK tersimpan terenkripsi ("enc:...").
-    ['nik', 'no_kk'].forEach(function (k) { gabung[k] = det[k]; });
-    var perlu = [];
-    ['nik', 'no_kk'].forEach(function (k) {
-      if (typeof gabung[k] === 'string' && gabung[k].indexOf('enc:') === 0) perlu.push(gabung[k]);
-    });
-    if (perlu.length) {
-      var dek = await supabaseClient.rpc('bi_dekripsi', { p_vals: perlu });
-      var peta = {};
-      perlu.forEach(function (v, i) { peta[v] = (!dek.error && dek.data) ? dek.data[i] : null; });
-      ['nik', 'no_kk'].forEach(function (k) {
-        if (typeof gabung[k] === 'string' && gabung[k].indexOf('enc:') === 0) gabung[k] = peta[gabung[k]];
-      });
+    // NIK & No. KK tersimpan terenkripsi; siswa membaca miliknya sendiri lewat fungsi khusus.
+    ['nik', 'no_kk'].forEach(function (k) { gabung[k] = null; });
+    var sendiri = await supabaseClient.rpc('siswa_nik_kk_saya');
+    if (!sendiri.error && sendiri.data) {
+      gabung.nik = sendiri.data.nik || null;
+      gabung.no_kk = sendiri.data.no_kk || null;
     }
 
     var foto = { masuk: null, lulus: null };
@@ -882,9 +875,9 @@
   // =====================================================================
   // Siswa membetulkan isian lalu mengajukan. Perubahan TIDAK langsung tersimpan:
   // masuk ke pengajuan_data_siswa, menunggu diterima / ditolak wali kelas.
-  // Tidak boleh diubah: NIS, NISN, NIK, No. KK (dipaksa juga di database),
+  // Tidak boleh diubah: NIS dan NISN (dipaksa juga di database),
   // serta status siswa & tab "Keluar Sekolah" (urusan sekolah).
-  var PB_TERKUNCI = { nis: true, nisn: true, nik: true, no_kk: true };
+  var PB_TERKUNCI = { nis: true, nisn: true };
   var PB_DISEMBUNYIKAN = { status: true, catatan_khusus: true };
   var PB_TAB_DILEWATI = { keluar: true };
 
@@ -954,7 +947,7 @@
   // --- tampilan baca + tombol Edit ---
   function tampilBaca(d) {
     content.innerHTML = headHtml('Pengajuan Pembetulan Data', 'Klik Edit, betulkan data yang keliru, lalu ajukan ke wali kelas.') +
-      '<div class="panel-note" style="margin-bottom:12px;">NIS, NISN, NIK, dan No. KK <b>tidak bisa diubah</b> di sini. Kalau keliru, sampaikan langsung ke wali kelas / admin.</div>' +
+      '<div class="panel-note" style="margin-bottom:12px;">NIS dan NISN <b>tidak bisa diubah</b> di sini. Kalau keliru, sampaikan langsung ke wali kelas / admin. NIK dan No. KK boleh dibetulkan, tetapi baru berlaku setelah disetujui wali kelas.</div>' +
       '<div class="no-print" style="display:flex;gap:8px;margin:0 0 14px;"><button class="btn-small btn-small--primary" id="btnEditData"><i data-lucide="pencil" style="width:14px;height:14px;"></i> Edit</button></div>' +
       formPB(d, false);
     lucide.createIcons();
