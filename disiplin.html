@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rekap Kedisiplinan — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<title>Rekap Kehadiran Guru & Staf — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -25,6 +25,16 @@
   .dp-b--kurang { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
   .dp-b--none { background: var(--surface-tint-strong); color: var(--ink-soft); border-color: var(--border); }
   .dp-msg { padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; margin-bottom: 14px; }
+  .dp-warn { padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; margin-bottom: 14px; }
+  .dp-tbl th.dp-num, .dp-tbl td.dp-num { text-align: center; white-space: nowrap; }
+  .dp-tbl th.dp-urut { cursor: pointer; user-select: none; }
+  .dp-tbl th.dp-urut:hover { color: var(--primary); }
+  .dp-tbl th .dp-pnl { font-size: 10px; opacity: .6; margin-left: 3px; }
+  .dp-n0 { color: var(--ink-faint, #94a3b8); }
+  .dp-n--alpa { color: #b91c1c; font-weight: 800; }
+  .dp-n--warn { color: #b45309; font-weight: 800; }
+  .dp-n--info { color: #1d4ed8; font-weight: 800; }
+  .dp-tbl tfoot td { font-weight: 800; background: var(--surface-tint-strong); }
   .dp-kosong { padding: 34px 16px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
 </style>
 </head>
@@ -33,19 +43,19 @@
   <aside class="sidebar">
     <div class="sidebar__brand">
       <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
-      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Rekap Kedisiplinan</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Rekap Kehadiran</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
     </div>
     <div class="sidebar__role"><i data-lucide="fingerprint" style="width:13px;height:13px;"></i> <span id="roleLabel">Kepala Sekolah</span></div>
     <nav class="menu-list" id="menu">
       <div class="sidebar__section-label">Kepegawaian</div>
-      <a href="#" class="menu-item menu-item--active"><i data-lucide="fingerprint" class="menu-icon"></i><span class="menu-item__title">Rekap Kedisiplinan</span></a>
+      <a href="#" class="menu-item menu-item--active"><i data-lucide="fingerprint" class="menu-icon"></i><span class="menu-item__title">Rekap Kehadiran</span></a>
       <div class="sidebar__section-label">Lainnya</div>
       <a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>
     </nav>
   </aside>
   <div class="main">
     <div class="topbar">
-      <div><div class="topbar__title">Rekap Kedisiplinan</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div><div class="topbar__title">Rekap Kehadiran Guru &amp; Staf</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
       <div class="user-chip"><div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">Kepala Sekolah</div>
         <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a></div></div>
     </div>
@@ -56,7 +66,18 @@
 <script>
   var content = document.getElementById('content');
   var daftar = [], rekapIni = null, baris = [], galat = '';
-  var filter = { cari: '', predikat: '' };
+  var filter = { cari: '', predikat: '', urut: 'nama', arah: 1 };
+  var kolomHilang = [], serverLama = false;
+  var KOLOM = [
+    { k: 'alpa', t: 'Tidak Hadir (Alpa)', c: 'dp-n--alpa' },
+    { k: 'terlambat', t: 'Terlambat', c: 'dp-n--warn' },
+    { k: 'pulang_awal', t: 'Pulang Lebih Awal', c: 'dp-n--warn' },
+    { k: 'ijin', t: 'Ijin', c: 'dp-n--info' },
+    { k: 'sakit', t: 'Sakit', c: 'dp-n--info' },
+    { k: 'dinas_luar', t: 'Dinas Luar', c: 'dp-n--info' }
+  ];
+  var NAMA_KOLOM = { alpa: 'Tidak hadir (alpa)', terlambat: 'Terlambat', pulang_awal: 'Pulang lebih awal', ijin: 'Ijin', sakit: 'Sakit', dinas_luar: 'Dinas luar' };
+  var URUT_PRED = { 'Sangat Baik': 0, 'Baik': 1, 'Cukup': 2, 'Kurang': 3 };
   var PRED = { 'Sangat Baik': 'sangat-baik', 'Baik': 'baik', 'Cukup': 'cukup', 'Kurang': 'kurang' };
   var URUT = ['Sangat Baik', 'Baik', 'Cukup', 'Kurang'];
 
@@ -90,8 +111,8 @@
   async function muatRekap(id) {
     try {
       var out = await panggil('lihat', { id: id });
-      rekapIni = out; rekapIni.id = id; baris = out.data || []; galat = '';
-    } catch (e) { rekapIni = null; baris = []; galat = e.message || String(e); }
+      rekapIni = out; rekapIni.id = id; baris = out.data || []; kolomHilang = out.kolom_hilang || []; serverLama = (out.kolom_hilang === undefined); galat = '';
+    } catch (e) { rekapIni = null; baris = []; kolomHilang = []; galat = e.message || String(e); }
   }
 
   function tampil() {
@@ -105,6 +126,8 @@
     }).join('');
     content.innerHTML =
       (galat ? '<div class="dp-msg">' + esc(galat) + '</div>' : '') +
+      (serverLama && baris.length ? '<div class="dp-msg"><b>Edge Function rekap-disiplin masih versi lama</b>, jadi angka kehadiran belum dikirim. Deploy ulang: <code>supabase functions deploy rekap-disiplin</code> (atau salin isi supabase/functions/rekap-disiplin/index.ts di Dashboard → Edge Functions), lalu muat ulang halaman ini dengan Ctrl+F5.</div>' : '') +
+      (kolomHilang.length && baris.length ? '<div class="dp-warn"><b>Kolom belum terbaca dari rekap ini:</b> ' + esc(kolomHilang.map(function (m) { return NAMA_KOLOM[m] || m; }).join(', ')) + '. Biasanya rekap lama yang disimpan sebelum kolom itu ada. Minta admin menekan <b>Simpan rekap</b> ulang di Rekap Absen. Kolom yang tidak terbaca ditampilkan “–”.</div>' : '') +
       (!daftar.length && !galat ? '<div class="dp-kosong">Belum ada rekap tersimpan. Rekap muncul di sini setelah admin menekan <b>Simpan rekap</b> di Rekap Absen.</div>' :
       '<div class="dp-toolbar"><select id="dpRekap" aria-label="Pilih rekap">' + opsi + '</select>' +
       '<select id="dpPred" aria-label="Predikat"><option value="">Semua predikat</option>' + URUT.map(function (p) { return '<option value="' + p + '"' + (filter.predikat === p ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</select>' +
@@ -117,23 +140,59 @@
     var c = document.getElementById('dpCari'); if (c) c.addEventListener('input', function () { filter.cari = c.value; isiTabel(); });
     ikon();
   }
+  function angkaSel(v, c) {
+    if (v === null || v === undefined) return '<span class="dp-n0">–</span>';
+    return v > 0 ? '<span class="' + c + '">' + v + '</span>' : '<span class="dp-n0">0</span>';
+  }
+  function nilaiUrut(b, k) {
+    if (k === 'nama') return b.nama.toLowerCase();
+    if (k === 'predikat') return (URUT_PRED[b.predikat] !== undefined) ? URUT_PRED[b.predikat] : 9;
+    return (b[k] === null || b[k] === undefined) ? -1 : b[k];
+  }
   function isiTabel() {
     var w = document.getElementById('dpTabel'); if (!w) return;
     var q = filter.cari.trim().toLowerCase();
     var rows = baris.filter(function (b) {
       return (!filter.predikat || b.predikat === filter.predikat) && (!q || b.nama.toLowerCase().indexOf(q) >= 0);
     });
+    var k = filter.urut, arah = filter.arah;
+    rows = rows.slice().sort(function (a, b) {
+      var x = nilaiUrut(a, k), y = nilaiUrut(b, k);
+      if (x < y) return -1 * arah; if (x > y) return 1 * arah;
+      return a.nama.localeCompare(b.nama, 'id');
+    });
     document.getElementById('dpCount').textContent = rows.length + ' dari ' + baris.length + ' guru & staf';
+    function th(kunci, teks, num) {
+      var pnl = filter.urut === kunci ? (filter.arah === 1 ? '▲' : '▼') : '';
+      return '<th class="dp-urut' + (num ? ' dp-num' : '') + '" data-urut="' + kunci + '" title="Urutkan">' + teks + '<span class="dp-pnl">' + pnl + '</span></th>';
+    }
+    var jml = {};
+    KOLOM.forEach(function (c) { jml[c.k] = 0; });
+    rows.forEach(function (b) { KOLOM.forEach(function (c) { if (b[c.k]) jml[c.k] += b[c.k]; }); });
     w.innerHTML = rows.length
-      ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Predikat Kedisiplinan</th></tr></thead><tbody>' +
-        rows.map(function (b, i) { return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(b.nama) + '</b></td><td data-label="Predikat">' + badge(b.predikat) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-        '<div class="panel-note">Predikat dihitung dari rekap fingerprint yang disimpan admin: Sangat Baik = tidak ada tidak hadir, terlambat, pulang cepat, atau kurang scan. Baik = tidak pernah tidak hadir dan terlambat paling banyak 25% hari terjadwal. Cukup = tidak hadir paling banyak 25%. Kurang = di atas itu.</div>'
+      ? '<div class="table-wrap"><table class="data-table dp-tbl"><thead><tr><th>No</th>' + th('nama', 'Nama') +
+        KOLOM.map(function (c) { return th(c.k, c.t, true); }).join('') + th('predikat', 'Predikat') + '</tr></thead><tbody>' +
+        rows.map(function (b, i) {
+          return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(b.nama) + '</b></td>' +
+            KOLOM.map(function (c) { return '<td class="dp-num" data-label="' + c.t + '">' + angkaSel(b[c.k], c.c) + '</td>'; }).join('') +
+            '<td data-label="Predikat">' + badge(b.predikat) + '</td></tr>';
+        }).join('') + '</tbody><tfoot><tr><td></td><td>Jumlah</td>' +
+        KOLOM.map(function (c) { return '<td class="dp-num" data-label="' + c.t + '">' + (kolomHilang.indexOf(c.k) >= 0 ? '–' : jml[c.k]) + '</td>'; }).join('') + '<td></td></tr></tfoot></table></div>' +
+        '<div class="panel-note">Angka = jumlah hari/kali pada periode rekap yang dipilih (dari rekap fingerprint yang disimpan admin). Ijin, sakit, dan dinas luar hanya yang sudah disetujui admin. Klik judul kolom untuk mengurutkan. Predikat: Sangat Baik = tidak ada tidak hadir, terlambat, pulang cepat, atau kurang scan. Baik = tidak pernah tidak hadir dan terlambat paling banyak 25% hari terjadwal. Cukup = tidak hadir paling banyak 25%. Kurang = di atas itu.</div>'
       : '<div class="dp-kosong">Tidak ada data yang cocok.</div>';
+    w.querySelectorAll('[data-urut]').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var kk = h.getAttribute('data-urut');
+        if (filter.urut === kk) filter.arah = -filter.arah;
+        else { filter.urut = kk; filter.arah = (kk === 'nama' || kk === 'predikat') ? 1 : -1; }
+        isiTabel();
+      });
+    });
   }
   function judulMeta() {
     document.getElementById('metaHal').textContent = rekapIni
       ? rekapIni.judul + ' · ' + tglId(rekapIni.periode_awal) + ' – ' + tglId(rekapIni.periode_akhir)
-      : 'Predikat kedisiplinan guru dan staf dari rekap fingerprint';
+      : 'Rekap kehadiran dan predikat guru & staf dari rekap fingerprint';
   }
 
   (async function () {
