@@ -24,7 +24,7 @@
 
   var LABEL = {};
   var TIPE = {};
-  if (global.BI_FIELDS) global.BI_FIELDS.SEMUA.forEach(function (f) { LABEL[f.k] = f.l; TIPE[f.k] = f.tipe; });
+  if (global.BI_FIELDS) global.BI_FIELDS.SEMUA.forEach(function (f) { LABEL[f.k] = (global.BI_FIELDS.LABEL_JELAS || {})[f.k] || f.l; TIPE[f.k] = f.tipe; });
 
   var BUCKET_FOTO = 'buku-induk-foto';
   var LABEL_FOTO = { foto: 'Foto Saat Masuk', foto_lulus: 'Foto Saat Lulus' };

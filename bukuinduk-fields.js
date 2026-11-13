@@ -166,7 +166,14 @@
   var semua = [];
   TAB.forEach(function (tb) { tb.bagian.forEach(function (bg) { bg.fields.forEach(function (f) { f.tipe = f.tipe || 'text'; semua.push(f); }); }); });
 
-  var api = { TAB: TAB, SEMUA: semua, KATEGORI_CATATAN: KATEGORI_CATATAN, AGAMA: AGAMA };
+  // Label untuk daftar pengajuan/perubahan (tanpa judul bagian di dekatnya): diawali judul bagiannya,
+  // mis. "A. Keterangan Pribadi - Anak Ke-", "D. Ayah Kandung - Pekerjaan".
+  var labelJelas = {};
+  TAB.forEach(function (tb) { tb.bagian.forEach(function (bg) {
+    bg.fields.forEach(function (f) { labelJelas[f.k] = (bg.judul ? bg.judul + ' - ' : '') + f.l; });
+  }); });
+
+  var api = { TAB: TAB, SEMUA: semua, KATEGORI_CATATAN: KATEGORI_CATATAN, AGAMA: AGAMA, LABEL_JELAS: labelJelas };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.BI_FIELDS = api;
 })(typeof window !== 'undefined' ? window : this);

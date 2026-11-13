@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="bukuinduk-fields.js?v=1"></script>
+<script src="bukuinduk-fields.js?v=2"></script>
 <script src="bukuinduk-core.js?v=17"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
 <script src="kartu-pelajar.js?v=3"></script>
@@ -950,7 +950,7 @@
 
   function labelPB(k) {
     var l = k;
-    BI_FIELDS.SEMUA.forEach(function (f) { if (f.k === k) l = f.l; });
+    BI_FIELDS.SEMUA.forEach(function (f) { if (f.k === k) l = (BI_FIELDS.LABEL_JELAS && BI_FIELDS.LABEL_JELAS[k]) || f.l; });
     return l;
   }
   function fieldPB(k) {
