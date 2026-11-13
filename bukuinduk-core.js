@@ -2111,6 +2111,145 @@
     await simpanWorkbook(wb, namaFile || 'template_buku_induk.xlsx');
   };
 
+  // ---- Excel nilai per semester (dari arsip E-Rapor di Buku Induk: tabel bi_riwayat_semester) ----
+  // semKe: 1-6 = satu semester; 0/null = semua semester (satu sheet per semester + sheet rata-rata).
+  // Baris = siswa, kolom = mata pelajaran + rata-rata + sakit/izin/alpha. Nilai di bawah KKM berwarna merah.
+  function kunciMapel(nama) { return /pendidikan\s+agama/i.test(nama || '') ? 'Pendidikan Agama dan Budi Pekerti' : nama; }
+  function fillSolid(argb) { return { type: 'pattern', pattern: 'solid', fgColor: { argb: argb } }; }
+  function sel(ws, r, c, v, o) {
+    var x = ws.getCell(r, c); x.value = v; x.border = BORDER; o = o || {};
+    if (o.fmt) x.numFmt = o.fmt;
+    x.alignment = { horizontal: o.rata || 'center', vertical: 'middle', wrapText: !!o.wrap };
+    if (o.bold || o.merah) x.font = { bold: !!o.bold, color: { argb: o.merah ? 'FFDC2626' : 'FF0F172A' } };
+    if (o.bg) x.fill = fillSolid(o.bg);
+    return x;
+  }
+
+  BI.buatExcelNilai = async function (list, semKe, o) {
+    if (!g.ExcelJS) throw new Error('Pustaka ExcelJS belum termuat. Muat ulang halaman lalu coba lagi.');
+    o = o || {};
+    if (!list || !list.length) throw new Error('Tidak ada siswa untuk diunduh.');
+    list = list.slice().sort(function (a, b) {
+      var ka = a.kelas ? a.kelas.nama : '', kb = b.kelas ? b.kelas.nama : '';
+      return ka.localeCompare(kb) || ((a.no_absen == null ? 9999 : a.no_absen) - (b.no_absen == null ? 9999 : b.no_absen)) || String(a.nama).localeCompare(String(b.nama));
+    });
+    var rows = await inChunks(list.map(function (s) { return s.id; }), function (p, a, b) {
+      return sb().from('bi_riwayat_semester').select('*').in('siswa_id', p).order('id').range(a, b);
+    });
+    var by = {};
+    rows.forEach(function (r) { if (r.semester_ke) (by[r.siswa_id] = by[r.siswa_id] || {})[r.semester_ke] = r; });
+
+    var daftarSem = (semKe ? [Number(semKe)] : [1, 2, 3, 4, 5, 6]).filter(function (k) {
+      return list.some(function (s) { return by[s.id] && by[s.id][k]; });
+    });
+    if (!daftarSem.length) throw new Error('Belum ada data nilai' + (semKe ? ' untuk semester ' + semKe : '') + ' di Buku Induk. Buka menu "Sinkron dari E-Rapor" lebih dulu, lalu unduh lagi.');
+
+    var wb = new ExcelJS.Workbook();
+    wb.creator = 'Buku Induk — SMK Widya Mandala Tambak';
+    wb.created = new Date();
+    var KOL0 = 4; // No, NIS, Nama, Kelas
+
+    daftarSem.forEach(function (k) {
+      var data = list.map(function (s) { return (by[s.id] || {})[k] || null; });
+      var mp = {};
+      data.forEach(function (r) {
+        if (!r) return;
+        nilaiEfektif(r).forEach(function (n) {
+          var key = kunciMapel(n.mapel), u = n.urut == null ? 9999 : n.urut;
+          if (!mp[key]) mp[key] = { nama: key, urut: u }; else if (u < mp[key].urut) mp[key].urut = u;
+        });
+      });
+      var daftar = Object.keys(mp).map(function (x) { return mp[x]; }).sort(function (a, b) { return (a.urut - b.urut) || a.nama.localeCompare(b.nama); });
+      var kolRata = KOL0 + daftar.length + 1, total = kolRata + 3;
+      var ws = wb.addWorksheet('Semester ' + k, {
+        views: [{ state: 'frozen', xSplit: 3, ySplit: 4 }],
+        pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+      });
+      ws.getColumn(1).width = 5; ws.getColumn(2).width = 12; ws.getColumn(3).width = 30; ws.getColumn(4).width = 12;
+      for (var q = KOL0 + 1; q <= total; q++) ws.getColumn(q).width = q === kolRata ? 11 : 13;
+      var kolEnd = Math.min(total, 8);
+      ws.mergeCells(1, 1, 1, kolEnd);
+      ws.getCell(1, 1).value = (o.judul || 'REKAP NILAI PER SEMESTER') + ' — SEMESTER ' + k;
+      ws.getCell(1, 1).font = { bold: true, size: 15, color: { argb: WARNA.judul } };
+      ws.getRow(1).height = 24;
+      ws.mergeCells(2, 1, 2, kolEnd);
+      ws.getCell(2, 1).value = o.subjudul || 'SMK Widya Mandala Tambak';
+      ws.getCell(2, 1).font = { size: 11, color: { argb: 'FF475569' } };
+
+      var hdr = ['No', 'NIS', 'Nama', 'Kelas'].concat(daftar.map(function (m) { return m.nama; }), ['Rata-rata', 'Sakit', 'Izin', 'Alpha']);
+      hdr.forEach(function (t, i) { sel(ws, 4, i + 1, t, { bold: true, wrap: true, bg: WARNA.header }).font = { bold: true, color: { argb: 'FFFFFFFF' } }; });
+      ws.getRow(4).height = 62;
+
+      data.forEach(function (r, i) {
+        var s = list[i], row = 5 + i;
+        sel(ws, row, 1, i + 1, { bg: WARNA.kunci });
+        sel(ws, row, 2, s.nis == null ? null : String(s.nis), { fmt: '@', bg: WARNA.kunci });
+        sel(ws, row, 3, s.nama, { rata: 'left', bg: WARNA.kunci });
+        sel(ws, row, 4, r ? (r.kelas_nama || '') : '');
+        var ne = r ? nilaiEfektif(r) : [];
+        daftar.forEach(function (m, j) {
+          var n = ne.find(function (x) { return kunciMapel(x.mapel) === m.nama; });
+          var v = n ? Math.round(Number(n.nilai)) : null;
+          sel(ws, row, KOL0 + 1 + j, v, { fmt: '0', merah: n && n.kkm != null && Number(n.nilai) < Number(n.kkm) });
+        });
+        var rt = r ? rataNilai(ne) : null;
+        sel(ws, row, kolRata, rt === null ? null : Math.round(rt * 100) / 100, { fmt: '0.00', bold: true });
+        sel(ws, row, kolRata + 1, r ? r.jumlah_sakit : null, { fmt: '0' });
+        sel(ws, row, kolRata + 2, r ? r.jumlah_izin : null, { fmt: '0' });
+        sel(ws, row, kolRata + 3, r ? r.jumlah_alpha : null, { fmt: '0' });
+      });
+
+      // baris rata-rata kelas
+      var rb = 5 + data.length;
+      ws.mergeCells(rb, 1, rb, KOL0);
+      sel(ws, rb, 1, 'Rata-rata', { bold: true, bg: WARNA.grup });
+      for (var c = KOL0 + 1; c <= kolRata; c++) {
+        var arr = [];
+        for (var rr = 5; rr < rb; rr++) { var v = ws.getCell(rr, c).value; if (typeof v === 'number') arr.push(v); }
+        sel(ws, rb, c, arr.length ? Math.round(arr.reduce(function (a, b) { return a + b; }, 0) / arr.length * 100) / 100 : null, { fmt: '0.00', bold: true, bg: WARNA.grup });
+      }
+      for (var c2 = kolRata + 1; c2 <= total; c2++) sel(ws, rb, c2, null, { bg: WARNA.grup });
+      ws.pageSetup.printTitlesRow = '4:4';
+    });
+
+    // ringkasan rata-rata per semester (hanya saat semua semester)
+    if (!semKe) {
+      var wr = wb.addWorksheet('Rata-rata', { views: [{ state: 'frozen', xSplit: 3, ySplit: 4 }], pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+      wr.getColumn(1).width = 5; wr.getColumn(2).width = 12; wr.getColumn(3).width = 30;
+      for (var z = 4; z <= 10; z++) wr.getColumn(z).width = 12;
+      wr.mergeCells(1, 1, 1, 8);
+      wr.getCell(1, 1).value = (o.judul || 'REKAP NILAI PER SEMESTER') + ' — RATA-RATA';
+      wr.getCell(1, 1).font = { bold: true, size: 15, color: { argb: WARNA.judul } };
+      wr.mergeCells(2, 1, 2, 8);
+      wr.getCell(2, 1).value = o.subjudul || 'SMK Widya Mandala Tambak';
+      wr.getCell(2, 1).font = { size: 11, color: { argb: 'FF475569' } };
+      ['No', 'NIS', 'Nama', 'Smt 1', 'Smt 2', 'Smt 3', 'Smt 4', 'Smt 5', 'Smt 6', 'Rata-rata Semua'].forEach(function (t, i) {
+        sel(wr, 4, i + 1, t, { wrap: true, bg: WARNA.header }).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      });
+      wr.getRow(4).height = 34;
+      list.forEach(function (s, i) {
+        var row = 5 + i, ada = [];
+        sel(wr, row, 1, i + 1, { bg: WARNA.kunci });
+        sel(wr, row, 2, s.nis == null ? null : String(s.nis), { fmt: '@', bg: WARNA.kunci });
+        sel(wr, row, 3, s.nama, { rata: 'left', bg: WARNA.kunci });
+        for (var k2 = 1; k2 <= 6; k2++) {
+          var r2 = (by[s.id] || {})[k2], x = r2 ? rataNilai(nilaiEfektif(r2)) : null;
+          if (x !== null) ada.push(x);
+          sel(wr, row, 3 + k2, x === null ? null : Math.round(x * 100) / 100, { fmt: '0.00' });
+        }
+        sel(wr, row, 10, ada.length ? Math.round(ada.reduce(function (a, b) { return a + b; }, 0) / ada.length * 100) / 100 : null, { fmt: '0.00', bold: true });
+      });
+      wr.pageSetup.printTitlesRow = '4:4';
+    }
+    return wb;
+  };
+
+  BI.unduhNilaiExcel = async function (list, semKe, namaFile, o) {
+    var wb = await BI.buatExcelNilai(list, semKe, o);
+    await simpanWorkbook(wb, namaFile || 'nilai_per_semester.xlsx');
+  };
+
+
   function tglDariExcel(v) {
     if (v === null || v === undefined || v === '') return null;
     if (typeof v === 'number') {
@@ -2488,7 +2627,13 @@
       (opts.admin ? '<button class="btn-small" id="exKosong">⬇ Template Kosong (siswa baru)</button>' : '') +
       '<button class="btn-small" id="exUnduh">⬇ Data Saat Ini</button>' +
       (opts.admin ? '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" id="exAlumni"> sertakan lulus/pindah/keluar</label>' : '') + '</div>' +
-      '<div class="section-title">2. Impor</div>' +
+      '<div class="section-title">2. Unduh Nilai per Semester</div>' +
+      '<div class="toolbar" style="align-items:center;">' +
+      '<select id="exSem" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;"><option value="0">Semua semester (1 sheet per semester)</option>' +
+      [1, 2, 3, 4, 5, 6].map(function (k) { return '<option value="' + k + '">Semester ' + k + '</option>'; }).join('') + '</select>' +
+      '<button class="btn-small btn-small--primary" id="exNilai">⬇ Unduh Nilai (Excel)</button></div>' +
+      '<div class="panel-note" style="margin-top:-4px;">Berisi nilai tiap mata pelajaran, rata-rata, dan sakit/izin/alpha per siswa, dari arsip E-Rapor di Buku Induk. Nilai di bawah KKM berwarna merah. Bila kosong, jalankan menu "Sinkron dari E-Rapor" dulu.</div>' +
+      '<div class="section-title">3. Impor</div>' +
       '<div class="toolbar" style="align-items:center;">' +
       '<label class="btn-small" style="cursor:pointer;">⬆ Pilih File Excel untuk Diimpor<input type="file" id="exFile" accept=".xlsx,.xls" style="display:none;"></label>' +
       (opts.admin ? '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" id="exBaru"> tambahkan siswa baru bila NIS belum ada</label>' : '') +
@@ -2520,6 +2665,12 @@
     jalankan('#exUnduh', async function () {
       var list = await ambilList();
       await BI.unduhExcel(list, 'buku_induk' + sufiks + '.xlsx', { judul: 'BUKU INDUK PESERTA DIDIK', subjudul: (namaKelas ? 'Kelas ' + namaKelas + ' · ' : '') + taTeks + ' · SMK Widya Mandala Tambak' });
+    });
+
+    jalankan('#exNilai', async function () {
+      var list = await ambilList();
+      var sem = Number(root.querySelector('#exSem').value) || 0;
+      await BI.unduhNilaiExcel(list, sem, 'nilai' + (sem ? '_semester' + sem : '_semua_semester') + sufiks + '.xlsx', { judul: 'REKAP NILAI PER SEMESTER', subjudul: (namaKelas ? 'Kelas ' + namaKelas + ' · ' : '') + taTeks + ' · SMK Widya Mandala Tambak' });
     });
 
     var fileEl = root.querySelector('#exFile');
