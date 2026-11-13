@@ -893,6 +893,40 @@
     return f.tipe === 'date' ? t.slice(0, 10) : t;
   }
 
+  // --- Foto saat masuk / lulus: diunggah ke Storage, berlaku setelah disetujui wali kelas ---
+  var FOTO_PB = [
+    { key: 'masuk', kolom: 'foto',       judul: 'Foto Saat Masuk', ket: 'Foto 3×4 saat diterima di sekolah.' },
+    { key: 'lulus', kolom: 'foto_lulus', judul: 'Foto Saat Lulus', ket: 'Foto 3×4 saat lulus / meninggalkan sekolah.' }
+  ];
+  var BUCKET_FOTO_PB = 'buku-induk-foto';
+  var STYLE_THUMB_PB = 'width:90px;height:120px;object-fit:cover;border:1px solid #d1d5db;border-radius:6px;display:block;background:#f1f5f9;';
+
+  function thumbPB(path) {
+    if (path === null || path === undefined || path === '') return '<i>(kosong)</i>';
+    if (String(path).indexOf('/') < 0) return '<i>(foto sebelumnya)</i>';
+    return '<img data-fp="' + escapeHtml(path) + '" alt="Foto" style="' + STYLE_THUMB_PB + '">';
+  }
+  function isiThumbPB(root) {
+    root.querySelectorAll('img[data-fp]').forEach(function (img) {
+      supabaseClient.storage.from(BUCKET_FOTO_PB).createSignedUrl(img.getAttribute('data-fp'), 3600).then(function (r) {
+        if (r && r.data) img.src = r.data.signedUrl;
+      });
+    });
+  }
+  function fotoPBHtml(d, edit) {
+    return '<div class="pb-sec"><div class="pb-sec__t">Foto</div><div class="pb-grid">' + FOTO_PB.map(function (f) {
+      var src = d.foto ? d.foto[f.key] : null;
+      var img = src
+        ? '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(f.judul) + '" style="' + STYLE_THUMB_PB + '">'
+        : '<div style="' + STYLE_THUMB_PB + 'display:flex;align-items:center;justify-content:center;font-size:11px;color:#6b7280;text-align:center;">Belum ada<br>foto</div>';
+      return '<div class="pb-it"><label>' + escapeHtml(f.judul) + '</label>' +
+        '<div id="pbwrap_' + f.key + '" style="margin-bottom:6px;">' + img + '</div>' +
+        (edit ? '<input type="file" accept="image/*" id="pbfile_' + f.key + '">' +
+                '<div id="pbket_' + f.key + '" style="font-size:12px;color:#6b7280;margin-top:4px;">' + escapeHtml(f.ket) + ' Dikompres otomatis (maks. 50 KB). Berlaku setelah disetujui wali kelas.</div>' : '') +
+        '</div>';
+    }).join('') + '</div></div>';
+  }
+
   async function renderPengajuan() {
     content.innerHTML = headHtml('Pengajuan Pembetulan Data', 'Betulkan data dirimu yang keliru, lalu ajukan. Perubahan baru tersimpan setelah disetujui wali kelas.') +
       '<div class="panel-note">Memuat data...</div>';
@@ -928,6 +962,8 @@
     var baris = Object.keys(pending.perubahan || {}).map(function (k) {
       var f = fieldPB(k);
       var x = pending.perubahan[k] || {};
+      var fp = FOTO_PB.filter(function (q) { return q.kolom === k; })[0];
+      if (fp) return '<tr><td>' + escapeHtml(fp.judul) + '</td><td>' + thumbPB(x.lama) + '</td><td>' + thumbPB(x.baru) + '</td></tr>';
       return '<tr><td>' + escapeHtml(f.l) + '</td><td>' + (escapeHtml(nilaiTampilBI(f, x.lama)) || '<i>(kosong)</i>') + '</td><td><b>' + (escapeHtml(nilaiTampilBI(f, x.baru)) || '<i>(kosong)</i>') + '</b></td></tr>';
     }).join('');
     content.innerHTML = headHtml('Pengajuan Pembetulan Data', 'Pengajuanmu sedang menunggu persetujuan wali kelas.') +
@@ -935,6 +971,7 @@
       '. Kalau disetujui, datamu otomatis diperbarui. Kalau ditolak, pengajuan hilang dan datamu tidak berubah. Mau mengubah isi pengajuan? Batalkan dulu, lalu ajukan ulang.</div>' +
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>Isian</th><th>Data sekarang</th><th>Usulanmu</th></tr></thead><tbody>' + baris + '</tbody></table></div>' +
       '<div class="pb-bar"><button class="btn-small btn-small--danger" id="btnBatalAjuan">Batalkan Pengajuan</button><span class="sw-pesan" id="pesanAjuan"></span></div>';
+    isiThumbPB(content);
     document.getElementById('btnBatalAjuan').addEventListener('click', async function () {
       if (!confirm('Batalkan pengajuan ini? Perubahan yang kamu usulkan akan dihapus.')) return;
       this.disabled = true;
@@ -947,9 +984,9 @@
   // --- tampilan baca + tombol Edit ---
   function tampilBaca(d) {
     content.innerHTML = headHtml('Pengajuan Pembetulan Data', 'Klik Edit, betulkan data yang keliru, lalu ajukan ke wali kelas.') +
-      '<div class="panel-note" style="margin-bottom:12px;">NIS dan NISN <b>tidak bisa diubah</b> di sini. Kalau keliru, sampaikan langsung ke wali kelas / admin. NIK dan No. KK boleh dibetulkan, tetapi baru berlaku setelah disetujui wali kelas.</div>' +
+      '<div class="panel-note" style="margin-bottom:12px;">NIS dan NISN <b>tidak bisa diubah</b> di sini. Kalau keliru, sampaikan langsung ke wali kelas / admin. NIK, No. KK, dan foto boleh dibetulkan, tetapi baru berlaku setelah disetujui wali kelas.</div>' +
       '<div class="no-print" style="display:flex;gap:8px;margin:0 0 14px;"><button class="btn-small btn-small--primary" id="btnEditData"><i data-lucide="pencil" style="width:14px;height:14px;"></i> Edit</button></div>' +
-      formPB(d, false);
+      fotoPBHtml(d, false) + formPB(d, false);
     lucide.createIcons();
     document.getElementById('btnEditData').addEventListener('click', function () { tampilEdit(d); });
   }
@@ -957,7 +994,7 @@
   // --- mode edit ---
   function tampilEdit(d) {
     content.innerHTML = headHtml('Pengajuan Pembetulan Data', 'Ubah isian yang keliru. Isian yang kamu ubah ditandai hijau. Setelah selesai klik Ajukan.') +
-      formPB(d, true) +
+      fotoPBHtml(d, true) + formPB(d, true) +
       '<div class="pb-bar"><button class="btn-small btn-small--primary" id="btnAjukan"><i data-lucide="send" style="width:14px;height:14px;"></i> Ajukan</button>' +
       '<button class="btn-small" id="btnBatalEdit">Batal</button><span class="sw-pesan" id="pesanAjuan"></span></div>';
     lucide.createIcons();
@@ -987,6 +1024,32 @@
       el.addEventListener('change', function () { tandai(f); });
     });
 
+    var fotoPilih = {}; // key -> { blob, kolom }
+    FOTO_PB.forEach(function (f) {
+      var inp = document.getElementById('pbfile_' + f.key);
+      if (!inp) return;
+      inp.addEventListener('change', async function () {
+        var ket = document.getElementById('pbket_' + f.key);
+        var wrap = document.getElementById('pbwrap_' + f.key);
+        var file = inp.files && inp.files[0];
+        if (!file) { delete fotoPilih[f.key]; wrap.parentNode.classList.remove('pb-it--ubah'); return; }
+        ket.textContent = 'Memproses foto...';
+        try {
+          if (!window.BI) throw new Error('Komponen foto belum termuat. Muat ulang halaman.');
+          var blob = await BI.fotoDariFile(file);
+          fotoPilih[f.key] = { blob: blob, kolom: f.kolom };
+          wrap.innerHTML = '<img src="' + URL.createObjectURL(blob) + '" alt="Foto baru" style="' + STYLE_THUMB_PB + '">';
+          wrap.parentNode.classList.add('pb-it--ubah');
+          ket.textContent = 'Foto baru siap diajukan (' + Math.max(1, Math.round(blob.size / 1024)) + ' KB).';
+        } catch (e) {
+          delete fotoPilih[f.key];
+          inp.value = '';
+          wrap.parentNode.classList.remove('pb-it--ubah');
+          ket.textContent = e.message || String(e);
+        }
+      });
+    });
+
     document.getElementById('btnBatalEdit').addEventListener('click', function () { tampilBaca(d); });
     document.getElementById('btnAjukan').addEventListener('click', async function () {
       var btn = this;
@@ -999,10 +1062,24 @@
         var v = bacaNilai(f);
         if (v !== pbNormal(f, d.data[f.k])) { baru[f.k] = v; jumlah++; }
       }
+      var kunciFoto = Object.keys(fotoPilih);
+      jumlah += kunciFoto.length;
       if (!jumlah) { tampil('Belum ada data yang kamu ubah.', false); return; }
       if (baru.nama === null) { tampil('Nama tidak boleh kosong.', false); return; }
       if (!confirm('Ajukan ' + jumlah + ' perubahan data ke wali kelas?')) return;
       btn.disabled = true;
+      for (var j = 0; j < kunciFoto.length; j++) {
+        var fk = fotoPilih[kunciFoto[j]];
+        var path = S.siswa.id + '/' + kunciFoto[j] + '-' + Date.now() + '.jpg';
+        tampil('Mengunggah foto ' + (j + 1) + ' dari ' + kunciFoto.length + '...', true);
+        var up = await supabaseClient.storage.from(BUCKET_FOTO_PB).upload(path, fk.blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false });
+        if (up.error) {
+          btn.disabled = false;
+          tampil('Gagal mengunggah foto: ' + up.error.message + ' — pastikan migrasi_siswa_upload_foto.sql sudah dijalankan.', false);
+          return;
+        }
+        baru[fk.kolom] = path;
+      }
       var res = await supabaseClient.rpc('ajukan_pembetulan_data', { p_baru: baru });
       btn.disabled = false;
       if (res.error) { tampil('Gagal mengajukan: ' + res.error.message, false); return; }

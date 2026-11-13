@@ -26,7 +26,38 @@
   var TIPE = {};
   if (global.BI_FIELDS) global.BI_FIELDS.SEMUA.forEach(function (f) { LABEL[f.k] = f.l; TIPE[f.k] = f.tipe; });
 
+  var BUCKET_FOTO = 'buku-induk-foto';
+  var LABEL_FOTO = { foto: 'Foto Saat Masuk', foto_lulus: 'Foto Saat Lulus' };
+  var THUMB = 'width:90px;height:120px;object-fit:cover;border:1px solid #d1d5db;border-radius:6px;display:block;background:#f1f5f9;';
+
+  function thumb(v) {
+    if (v === null || v === undefined || v === '') return '<span class="pd-kosong">(kosong)</span>';
+    if (String(v).indexOf('/') < 0) return '<span class="pd-kosong">(foto sebelumnya)</span>';
+    return '<img data-fp="' + esc(v) + '" alt="Foto" style="' + THUMB + '">';
+  }
+  function isiThumb(root) {
+    root.querySelectorAll('img[data-fp]').forEach(function (img) {
+      supabaseClient.storage.from(BUCKET_FOTO).createSignedUrl(img.getAttribute('data-fp'), 3600).then(function (r) {
+        if (r && r.data) img.src = r.data.signedUrl;
+      });
+    });
+  }
+  // Setelah diproses: diterima -> hapus file foto lama; ditolak -> hapus file foto usulan.
+  // Gagal hapus tidak fatal (hanya sisa file kecil di Storage).
+  async function bersihkanFoto(p, setuju) {
+    var hapus = [];
+    ['foto', 'foto_lulus'].forEach(function (k) {
+      var x = (p.perubahan || {})[k];
+      if (!x) return;
+      var t = setuju ? x.lama : x.baru;
+      if (typeof t === 'string' && t.indexOf(p.siswa_id + '/') === 0) hapus.push(t);
+    });
+    if (!hapus.length) return;
+    try { await supabaseClient.storage.from(BUCKET_FOTO).remove(hapus); } catch (e) { /* abaikan */ }
+  }
+
   function tampilNilai(k, v) {
+    if (LABEL_FOTO[k]) return thumb(v);
     if (v === null || v === undefined || String(v).trim() === '') return '<span class="pd-kosong">(kosong)</span>';
     if (TIPE[k] === 'date') {
       var d = new Date(v + 'T00:00:00');
@@ -95,7 +126,7 @@
     container.innerHTML =
       '<div class="panel-head"><div><div class="panel-head__title">Pengajuan Pembetulan Data Siswa</div>' +
       '<div class="panel-head__desc">Siswa mengajukan pembetulan biodata. <b>Terima</b> = perubahan disimpan ke data siswa. ' +
-      '<b>Tolak</b> = pengajuan dihapus dan tidak ada yang disimpan. NIS dan NISN tidak bisa diubah lewat pengajuan.</div></div></div>' +
+      '<b>Tolak</b> = pengajuan dihapus dan tidak ada yang disimpan. NIS dan NISN tidak bisa diubah lewat pengajuan. Siswa juga bisa mengajukan foto saat masuk / lulus.</div></div></div>' +
       '<div id="pdList"><div class="panel-note">Memuat pengajuan...</div></div>';
     var list = container.querySelector('#pdList');
 
@@ -145,7 +176,7 @@
         var res = await supabaseClient.rpc('proses_pengajuan_data', { p_id: rows[i].id, p_setuju: true });
         if (res.error) gagal.push(((rows[i].siswa || {}).nama || '—') + ': ' + res.error.message);
         else if (res.data === 'SUDAH_TIDAK_ADA') hilang++;
-        else ok++;
+        else { ok++; await bersihkanFoto(rows[i], true); }
       }
       var ringkas = ok + ' pengajuan diterima.';
       if (hilang) ringkas += '\n' + hilang + ' sudah tidak ada (mungkin dibatalkan siswa).';
@@ -159,7 +190,7 @@
       var s = p.siswa || {};
       var baris = Object.keys(p.perubahan || {}).map(function (k) {
         var x = p.perubahan[k] || {};
-        return '<tr><td>' + esc(LABEL[k] || k) + '</td><td>' + tampilNilai(k, x.lama) + '</td><td class="pd-baru">' + tampilNilai(k, x.baru) + '</td></tr>';
+        return '<tr><td>' + esc(LABEL[k] || LABEL_FOTO[k] || k) + '</td><td>' + tampilNilai(k, x.lama) + '</td><td class="pd-baru">' + tampilNilai(k, x.baru) + '</td></tr>';
       }).join('');
       var card = document.createElement('div');
       card.className = 'pd-card';
@@ -186,12 +217,14 @@
           return;
         }
         if (res.data === 'SUDAH_TIDAK_ADA') alert('Pengajuan ini sudah tidak ada (mungkin dibatalkan siswa).');
+        else await bersihkanFoto(p, setuju);
         if (opts.onChange) opts.onChange();
         render(container, opts);
       }
       card.querySelector('[data-terima]').addEventListener('click', function () { proses(true); });
       card.querySelector('[data-tolak]').addEventListener('click', function () { proses(false); });
     });
+    isiThumb(list);
   }
 
   global.PengajuanData = { hitung: hitung, pasangBadge: pasangBadge, render: render };
