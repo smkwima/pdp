@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pengaduan Siswa — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="jadwal-kegiatan.js?v=1"></script>
+<script src="app-switcher.js?v=8" defer></script>
+<script src="kepsek-nav.js?v=7"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=10" defer></script>
+<script src="ijin-notif.js?v=2" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<script src="pengingat-guru.js?v=2" defer></script>
+<style>
+  .pgd-rahasia { display: flex; gap: 12px; align-items: flex-start; background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.55; margin-bottom: 18px; }
+  .pgd-rahasia svg, .pgd-rahasia i { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+  .pgd-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg, 12px); }
+  .pgd-filter .field { margin-bottom: 0; min-width: 150px; flex: 1; }
+  .pgd-filter .field--cari { flex: 2; min-width: 220px; }
+  .pgd-filter select, .pgd-filter input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; background: var(--surface); color: var(--ink); }
+  .pgd-st { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+  .pgd-st--baru { background: #dbeafe; color: #1d4ed8; }
+  .pgd-st--diproses { background: #fef3c7; color: #b45309; }
+  .pgd-st--selesai { background: #dcfce7; color: #15803d; }
+  .pgd-st--ditolak { background: #f1f5f9; color: #475569; }
+  .pgd-nama { font-weight: 700; }
+  .pgd-sub { font-size: 12px; color: var(--ink-soft); }
+  .pgd-ringkas { max-width: 340px; font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pgd-baris-baru td:first-child { box-shadow: inset 3px 0 0 #2563eb; }
+  .pgd-det { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; margin: 6px 0 4px; }
+  .pgd-det__it--full { grid-column: 1 / -1; }
+  .pgd-det__l { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 2px; }
+  .pgd-det__v { font-size: 14px; font-weight: 600; word-break: break-word; }
+  .pgd-uraian { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.6; background: var(--surface-tint-strong, #f1f5f9); border-radius: 10px; padding: 12px 14px; font-weight: 400; }
+  .pgd-pelapor { border: 1.5px solid #c4b5fd; background: #f5f3ff; border-radius: 12px; padding: 12px 14px; margin: 10px 0 14px; }
+  .pgd-pelapor__t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #6d28d9; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .pgd-form .field { margin-bottom: 12px; }
+  .pgd-form textarea, .pgd-form select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; background: var(--surface); color: var(--ink); }
+  .pgd-form textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+  .pgd-form label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 5px; }
+  .pgd-form label small { font-weight: 500; color: var(--ink-soft); }
+  @media (max-width: 620px) { .pgd-det { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div class="sidebar__brand-text">
+        <span class="sidebar__brand-mark">Pengaduan</span>
+        <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
+      </div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="megaphone" style="width:13px;height:13px;"></i> <span id="roleLabel">Admin</span></div>
+
+    <div class="sidebar__section-label">Pembinaan</div>
+    <nav class="menu-list">
+      <a href="pengaduan.html" class="menu-item menu-item--active"><i data-lucide="megaphone" class="menu-icon"></i><span class="menu-item__title">Pengaduan Siswa</span></a>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div style="margin-bottom:8px; opacity:0.8;">SMK Widya Mandala Tambak · Banyumas</div>
+      <div style="margin-top:8px;font-size:10px;opacity:0.45;">developed by Hanif Shohibul A.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar__title">Pengaduan Siswa</div>
+        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Memuat...</div><a href="portal.html" class="btn-small topbar__app"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Menu Utama</a></div>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip__text">
+          <div class="user-chip__name" id="userName">Memuat...</div>
+          <div class="user-chip__role" id="userRoleLabel">Admin</div>
+          <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
+        </div>
+        <div class="user-chip__avatar" id="userAvatar">•</div>
+      </div>
+    </div>
+
+    <div class="content" id="content"><div class="panel-note">Memuat...</div></div>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  var content = document.getElementById('content');
+  JadwalKegiatan.pasang({ modul: 'pengaduan' });
+
+  var KATEGORI = {
+    bullying: 'Perundungan / bullying', kekerasan: 'Kekerasan fisik', pelecehan: 'Pelecehan',
+    tata_tertib: 'Pelanggaran tata tertib', narkoba_rokok: 'Rokok / miras / narkoba',
+    pencurian: 'Pencurian / perusakan', lainnya: 'Lainnya'
+  };
+  var STATUS = { baru: 'Baru', diproses: 'Diproses', selesai: 'Selesai', ditolak: 'Ditutup' };
+
+  var bisaProses = false;   // hanya admin; kepala sekolah hanya melihat
+  var semua = [];           // seluruh pengaduan (hasil pengaduan_daftar)
+
+  function esc(s) {
+    return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmtWaktu(iso) {
+    try { return new Date(iso).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(/\./g, ':'); }
+    catch (e) { return String(iso || ''); }
+  }
+  function fmtTgl(s) {
+    if (!s) return '';
+    var b = String(s).slice(0, 10).split('-');
+    var bln = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return b.length === 3 ? (parseInt(b[2], 10) + ' ' + bln[parseInt(b[1], 10) - 1] + ' ' + b[0]) : '';
+  }
+  function pesan(judul, desc) {
+    return '<div class="empty-state"><div class="empty-state__mark">！</div><div class="empty-state__title">' + judul + '</div><div class="empty-state__desc">' + desc + '</div></div>';
+  }
+
+  // ---------------- Rangka halaman ----------------
+  function gambarRangka() {
+    var n = { total: semua.length, baru: 0, diproses: 0, selesai: 0 };
+    semua.forEach(function (r) { if (n[r.status] !== undefined) n[r.status]++; });
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Pengaduan Siswa</div>' +
+      '<div class="panel-head__desc">Laporan bullying dan pelanggaran dari siswa. ' + (bisaProses ? 'Anda dapat mengubah status dan menulis tanggapan untuk pelapor.' : 'Akun Kepala Sekolah hanya dapat melihat.') + '</div></div></div>' +
+      '<div class="pgd-rahasia"><i data-lucide="lock"></i><div><b>Data rahasia.</b> Laporan ini hanya terlihat oleh Admin dan Kepala Sekolah. ' +
+      'Jangan menunjukkan atau menyebut identitas pelapor kepada pihak lain, termasuk pihak yang dilaporkan, agar pelapor tetap aman.</div></div>' +
+      '<div class="stat-grid">' +
+      stat('inbox', 'Total', n.total) + stat('bell-ring', 'Baru', n.baru) + stat('loader', 'Diproses', n.diproses) + stat('check-circle-2', 'Selesai', n.selesai) +
+      '</div>' +
+      '<div class="pgd-filter">' +
+      '<div class="field"><label>Status</label><select id="fStatus"><option value="">Semua</option>' +
+      Object.keys(STATUS).map(function (k) { return '<option value="' + k + '">' + STATUS[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label>Jenis</label><select id="fKat"><option value="">Semua</option>' +
+      Object.keys(KATEGORI).map(function (k) { return '<option value="' + k + '">' + esc(KATEGORI[k]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field field--cari"><label>Cari</label><input id="fCari" type="search" placeholder="Nama pelapor, terlapor, isi laporan..."></div></div>' +
+      '<div id="daftar"></div>';
+    ['fStatus', 'fKat'].forEach(function (id) { document.getElementById(id).addEventListener('change', gambarDaftar); });
+    document.getElementById('fCari').addEventListener('input', gambarDaftar);
+    if (window.lucide) lucide.createIcons();
+    gambarDaftar();
+  }
+
+  function stat(ikon, label, nilai) {
+    return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + ikon + '"></i>' + label + '</div><div class="stat-card__value">' + nilai + '</div></div>';
+  }
+
+  function gambarDaftar() {
+    var st = document.getElementById('fStatus').value;
+    var kt = document.getElementById('fKat').value;
+    var q = document.getElementById('fCari').value.trim().toLowerCase();
+    var rows = semua.filter(function (r) {
+      if (st && r.status !== st) return false;
+      if (kt && r.kategori !== kt) return false;
+      if (q) {
+        var gabung = [r.pelapor_nama, r.pelapor_nis, r.pelapor_kelas, r.terlapor, r.tempat, r.uraian].join(' ').toLowerCase();
+        if (gabung.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    var box = document.getElementById('daftar');
+    if (!rows.length) {
+      box.innerHTML = '<div class="panel-note">' + (semua.length ? 'Tidak ada pengaduan yang cocok dengan filter.' : 'Belum ada pengaduan yang masuk.') + '</div>';
+      return;
+    }
+    box.innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr>' +
+      '<th>No</th><th>Masuk</th><th>Pelapor</th><th>Jenis</th><th>Terlibat</th><th>Isi singkat</th><th>Status</th><th></th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr class="' + (r.status === 'baru' ? 'pgd-baris-baru' : '') + '">' +
+          '<td>#' + esc(r.nomor) + '</td>' +
+          '<td style="white-space:nowrap;">' + esc(fmtWaktu(r.dibuat_pada)) + '</td>' +
+          '<td><div class="pgd-nama">' + esc(r.pelapor_nama) + '</div><div class="pgd-sub">' + esc([r.pelapor_kelas, r.pelapor_nis].filter(Boolean).join(' · ')) + '</div>' +
+          '</td>' +
+          '<td>' + esc(KATEGORI[r.kategori] || r.kategori) + '</td>' +
+          '<td>' + esc(r.terlapor || '—') + '</td>' +
+          '<td><div class="pgd-ringkas">' + esc(r.uraian) + '</div></td>' +
+          '<td><span class="pgd-st pgd-st--' + r.status + '">' + esc(STATUS[r.status] || r.status) + '</span></td>' +
+          '<td><button class="btn-small" data-buka="' + r.id + '">Buka</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+    box.querySelectorAll('[data-buka]').forEach(function (b) {
+      b.addEventListener('click', function () { bukaDetail(b.getAttribute('data-buka')); });
+    });
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ---------------- Detail ----------------
+  function it(l, v, penuh) {
+    return '<div class="pgd-det__it' + (penuh ? ' pgd-det__it--full' : '') + '"><div class="pgd-det__l">' + l + '</div><div class="pgd-det__v">' + (v ? esc(v) : '<span style="color:var(--ink-faint);font-weight:400;">—</span>') + '</div></div>';
+  }
+
+  function tutupModal() {
+    var m = document.getElementById('modalDetail');
+    if (m) m.remove();
+    document.removeEventListener('keydown', escTutup);
+  }
+  function escTutup(e) { if (e.key === 'Escape') tutupModal(); }
+
+  function bukaDetail(id) {
+    var r = semua.filter(function (x) { return x.id === id; })[0];
+    if (!r) return;
+    tutupModal();
+    var form = bisaProses
+      ? '<div class="form-section-title" style="margin:18px 0 12px;">Tindak lanjut</div><div class="pgd-form">' +
+        '<div class="field"><label for="dSt">Status</label><select id="dSt">' +
+        Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (r.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label for="dTgp">Tanggapan untuk pelapor <small>(tampil di Portal Siswa pelapor; jangan memuat data pihak lain)</small></label><textarea id="dTgp" maxlength="2000">' + esc(r.tanggapan || '') + '</textarea></div>' +
+        '<div class="field"><label for="dCat">Catatan internal <small>(hanya Admin &amp; Kepala Sekolah)</small></label><textarea id="dCat" maxlength="4000">' + esc(r.catatan_internal || '') + '</textarea></div>' +
+        '<div class="sw-pesan" id="dPesan" style="margin:0 0 6px;font-size:13px;"></div></div>' +
+        '<div class="modal-box__actions"><button class="btn-small btn-small--danger" id="dHapus" style="margin-right:auto;">Hapus</button>' +
+        '<button class="btn-small" id="dBatal">Tutup</button><button class="btn-small btn-small--primary" id="dSimpan">Simpan</button></div>'
+      : '<div class="form-section-title" style="margin:18px 0 12px;">Tindak lanjut</div><div class="pgd-det">' +
+        it('Status', STATUS[r.status] || r.status, true) +
+        it('Tanggapan untuk pelapor', r.tanggapan, true) + it('Catatan internal', r.catatan_internal, true) + '</div>' +
+        '<div class="modal-box__actions"><button class="btn-small" id="dBatal">Tutup</button></div>';
+
+    var el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'modalDetail';
+    el.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true" aria-label="Detail pengaduan">' +
+      '<div class="modal-box__head"><div class="modal-box__title">Pengaduan #' + esc(r.nomor) + ' · ' + esc(KATEGORI[r.kategori] || r.kategori) + '</div>' +
+      '<button class="modal-box__close" id="dX" aria-label="Tutup">&times;</button></div>' +
+      '<div class="modal-box__desc">Masuk ' + esc(fmtWaktu(r.dibuat_pada)) + (r.diperbarui_pada && r.diperbarui_pada !== r.dibuat_pada ? ' · diperbarui ' + esc(fmtWaktu(r.diperbarui_pada)) : '') + '</div>' +
+      '<div class="pgd-pelapor"><div class="pgd-pelapor__t"><i data-lucide="user-lock" style="width:14px;height:14px;"></i> Identitas pelapor</div>' +
+      '<div class="pgd-det">' + it('Nama', r.pelapor_nama) + it('Kelas', r.pelapor_kelas) + it('NIS', r.pelapor_nis) + '</div></div>' +
+      '<div class="pgd-det">' +
+      it('Pihak yang dilaporkan', r.terlapor) + it('Tempat', r.tempat) +
+      it('Tanggal kejadian', fmtTgl(r.tanggal_kejadian)) + it('Jenis', KATEGORI[r.kategori] || r.kategori) +
+      '<div class="pgd-det__it pgd-det__it--full"><div class="pgd-det__l">Uraian</div><div class="pgd-det__v pgd-uraian">' + esc(r.uraian) + '</div></div></div>' +
+      form + '</div>';
+    document.body.appendChild(el);
+    document.addEventListener('keydown', escTutup);
+    el.addEventListener('mousedown', function (e) { if (e.target === el) tutupModal(); });
+    document.getElementById('dX').addEventListener('click', tutupModal);
+    document.getElementById('dBatal').addEventListener('click', tutupModal);
+    if (window.lucide) lucide.createIcons();
+
+    if (!bisaProses) return;
+    document.getElementById('dSimpan').addEventListener('click', async function () {
+      var btn = this, p = document.getElementById('dPesan');
+      function tampil(t, ok) { p.textContent = t; p.className = 'sw-pesan ' + (ok ? 'sw-pesan--ok' : 'sw-pesan--err'); }
+      btn.disabled = true; tampil('Menyimpan...', true);
+      var res = await supabaseClient.rpc('pengaduan_proses', {
+        p_id: r.id,
+        p_status: document.getElementById('dSt').value,
+        p_tanggapan: document.getElementById('dTgp').value || null,
+        p_catatan_internal: document.getElementById('dCat').value || null
+      });
+      btn.disabled = false;
+      if (res.error) { tampil('Gagal menyimpan: ' + res.error.message, false); return; }
+      try { catatAktivitas('lainnya', 'Pengaduan', 'Memproses pengaduan #' + r.nomor + ' → ' + document.getElementById('dSt').value); } catch (x) { /* abaikan */ }
+      tutupModal();
+      await muat();
+    });
+    document.getElementById('dHapus').addEventListener('click', async function () {
+      if (!window.confirm('Hapus pengaduan #' + r.nomor + ' secara permanen? Tindakan ini tidak dapat dibatalkan.')) return;
+      var res = await supabaseClient.rpc('pengaduan_hapus', { p_id: r.id });
+      if (res.error) { document.getElementById('dPesan').textContent = 'Gagal menghapus: ' + res.error.message; document.getElementById('dPesan').className = 'sw-pesan sw-pesan--err'; return; }
+      try { catatAktivitas('lainnya', 'Pengaduan', 'Menghapus pengaduan #' + r.nomor); } catch (x) { /* abaikan */ }
+      tutupModal();
+      await muat();
+    });
+  }
+
+  async function muat() {
+    var res = await supabaseClient.rpc('pengaduan_daftar');
+    if (res.error) {
+      var belum = /pengaduan_daftar|schema cache|does not exist/i.test(res.error.message || '');
+      content.innerHTML = pesan(belum ? 'Fitur belum diaktifkan' : 'Gagal memuat',
+        belum ? 'Jalankan <b>migrasi_pengaduan.sql</b> di Supabase SQL Editor terlebih dahulu.' : esc(res.error.message));
+      return;
+    }
+    semua = res.data || [];
+    var fs = document.getElementById('fStatus') ? document.getElementById('fStatus').value : '';
+    var fk = document.getElementById('fKat') ? document.getElementById('fKat').value : '';
+    var fc = document.getElementById('fCari') ? document.getElementById('fCari').value : '';
+    gambarRangka();
+    document.getElementById('fStatus').value = fs;
+    document.getElementById('fKat').value = fk;
+    document.getElementById('fCari').value = fc;
+    gambarDaftar();
+  }
+
+  (async function () {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
+    if (pr.error || !pr.data) { window.location.href = 'portal.html'; return; } // akun siswa / tanpa role
+    // Hanya Admin dan Kepala Sekolah. Guru, wali kelas, staf tidak boleh membuka.
+    if (pr.data.role !== 'admin' && pr.data.role !== 'kepsek') { window.location.href = 'portal.html'; return; }
+    bisaProses = pr.data.role === 'admin';
+    var labelPeran = bisaProses ? 'Admin' : 'Kepala Sekolah';
+    var nama = pr.data.nama || user.email;
+
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
+    document.getElementById('userRoleLabel').textContent = labelPeran;
+    document.getElementById('roleLabel').textContent = labelPeran;
+    document.getElementById('topbarMeta').textContent = bisaProses ? 'Kelola pengaduan siswa' : 'Lihat pengaduan siswa (hanya baca)';
+    document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+      e.preventDefault();
+      await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    });
+
+    await muat();
+  })();
+</script>
+
+</body>
+</html>

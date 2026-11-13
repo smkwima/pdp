@@ -45,6 +45,7 @@
     { href: 'supervisi-admin.html',   judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal, form & data supervisi' },
     { href: 'kinerja.html',           judul: 'Kinerja Guru',        ikon: 'award',              warna: 'oranye', desc: 'Pantau & beri jempol bukti kinerja' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
+    { href: 'pengaduan.html',         judul: 'Pengaduan Siswa',     ikon: 'megaphone',          warna: 'merah',  desc: 'Laporan bullying & pelanggaran dari siswa' },
     { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },
     { href: 'https://wima15.github.io/rekap-presensi/', luar: true,  judul: 'Rekap Absen Fingerprint', ikon: 'fingerprint',      warna: 'hijau',  desc: 'Rekap kehadiran guru & staf (tab baru)' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' },
@@ -53,6 +54,7 @@
 
   // Halaman yang pasti milik satu peran (dipakai agar menu langsung tampil tanpa menunggu cek role).
   var HALAMAN_ADMIN = ['admin.html', 'penugasan-admin.html', 'bukuinduk-admin.html', 'supervisi-admin.html', 'pengaturan-admin.html', 'log-admin.html'];
+  // pengaduan.html dipakai admin & kepsek -> role ditentukan dari akun, bukan dari nama berkas.
   var HALAMAN_GURU = ['guru.html', 'bukuinduk-guru.html', 'supervisi.html'];
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }

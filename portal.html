@@ -13,7 +13,7 @@
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="dashboard-kepsek.js?v=4"></script>
-<script src="bottomnav.js?v=9" defer></script>
+<script src="bottomnav.js?v=10" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
@@ -251,7 +251,8 @@
         'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
         'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.',
         'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.',
-        'Ijin & Dinas Luar': 'Lihat pengajuan sakit, ijin dan dinas luar guru & staf.'
+        'Ijin & Dinas Luar': 'Lihat pengajuan sakit, ijin dan dinas luar guru & staf.',
+        'Pengaduan Siswa': 'Lihat laporan bullying dan pelanggaran dari siswa beserta nama pelapor (rahasia).'
       };
       var hasil = [];
       daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso && m.href !== 'penugasan-admin.html'; }).forEach(function (m) {
@@ -283,6 +284,8 @@
         desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
         desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' },
+      admin ? { grup: 'Pembinaan & Mutu', href: 'pengaduan.html', warna: 'c-merah', ikon: 'megaphone', judul: 'Pengaduan Siswa',
+        desc: 'Terima laporan bullying & pelanggaran dari siswa (nama pelapor wajib, hanya terlihat admin & kepsek), beri tanggapan.' } : null,
       { grup: 'Kepegawaian', href: 'ijin.html', warna: 'c-biru', ikon: 'calendar-off', judul: 'Ijin & Dinas Luar',
         desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' }
     ].filter(Boolean).concat(admin ? [

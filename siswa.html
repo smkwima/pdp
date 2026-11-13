@@ -15,6 +15,7 @@
 <script src="bukuinduk-core.js?v=17"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
 <script src="kartu-pelajar.js?v=3"></script>
+<script src="pengaduan-siswa.js?v=1"></script>
 <script src="mobile.js?v=1" defer></script>
 <style>
   /* ---- Kartu menu di Beranda (gaya sama dengan portal.html) ---- */
@@ -438,6 +439,7 @@
       kartu('rapor', '', 'file-text', 'Lihat Rapor', 'Nilai, capaian kompetensi, ekstrakurikuler, dan ketidakhadiran. Tersedia setelah rapor diterbitkan sekolah.') +
       kartu('presensi', 'app-card--hijau', 'calendar-check', 'Lihat Presensi', 'Rekap sakit, izin, dan tanpa keterangan per tahun ajaran dan semester.') +
       kartu('pelanggaran', 'app-card--merah', 'shield-alert', 'Lihat Catatan Pelanggaran', 'Catatan pelanggaran dan pembinaan kedisiplinan dari sekolah, lengkap dengan poinnya.') +
+      kartu('pengaduan', 'app-card--merah', 'megaphone', 'Pengaduan', 'Lapor bullying atau pelanggaran lain. Laporan hanya dibaca Admin dan Kepala Sekolah.') +
       kartu('pengajuan', '', 'pencil-line', 'Pengajuan Pembetulan Data', 'Ada data dirimu yang keliru? Betulkan lalu ajukan ke wali kelas untuk disetujui.') +
       '</div>' +
       '<div class="panel-note sw-nota" style="margin-top:18px;">Kata sandi awal semua siswa sama. Demi keamanan, segera ganti lewat menu <b>Ganti Kata Sandi</b> (di HP: <b>Lainnya → Ganti Kata Sandi</b>). ' +
@@ -1188,6 +1190,7 @@
     kartu: renderKartuPelajar,
     pengajuan: renderPengajuan,
     pelanggaran: renderPelanggaran,
+    pengaduan: function () { window.PengaduanSiswa.render(); },
     sandi: renderSandi
   };
 
@@ -1200,8 +1203,9 @@
     { v: 'biodata',     t: 'Lihat Biodata Buku Induk', k: 'Biodata', i: 'book-user' },
     { v: 'presensi',    t: 'Lihat Presensi',       k: 'Presensi', i: 'calendar-check' },
     { v: 'pelanggaran', t: 'Lihat Catatan Pelanggaran', k: 'Pelanggaran', i: 'shield-alert' },
+    { v: 'pengaduan',   t: 'Pengaduan (Bullying & Pelanggaran)', k: 'Pengaduan', i: 'megaphone' },
     { v: 'pengajuan',   t: 'Pengajuan Pembetulan Data', k: 'Pembetulan', i: 'pencil-line' },
-    { v: 'sandi',       t: 'Ganti Kata Sandi',     k: 'Sandi',    i: 'key-round' }
+    { v: 'sandi',      t: 'Ganti Kata Sandi',     k: 'Sandi',    i: 'key-round' }
   ];
   var BATAS_NAV = 4;
   var menuUtama = MENU.length > BATAS_NAV ? MENU.slice(0, BATAS_NAV - 1) : MENU;
