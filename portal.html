@@ -9,10 +9,10 @@
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=2"></script>
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
-<script src="dashboard-kepsek.js?v=4"></script>
+<script src="dashboard-kepsek.js?v=5"></script>
 <script src="bottomnav.js?v=10" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
@@ -370,7 +370,7 @@
     for (var i = 0; i < [10, 11, 12].length; i++) {
       var t = [10, 11, 12][i];
       var ids = kelas.filter(function (k) { return k.tingkat === t; }).map(function (k) { return k.id; });
-      var n = ids.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', ids)) : 0;
+      var n = ids.length ? await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).in('kelas_id', ids)) : 0;
       hasil.push({ t: t, n: n || 0 });
     }
     var maks = Math.max.apply(null, hasil.map(function (x) { return x.n; })) || 1;
@@ -417,11 +417,11 @@
 
     var jmlSiswaWali = null;
     if (waliKelasObj) {
-      jmlSiswaWali = await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('kelas_id', waliKelasObj.id));
+      jmlSiswaWali = await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).eq('kelas_id', waliKelasObj.id));
     }
     var pesertaEkskul = {};
     await Promise.all(daftarEkskul.map(async function (e) {
-      pesertaEkskul[e.id] = await hitung(supabaseClient.from('ekstrakurikuler_siswa').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('ekstrakurikuler_id', e.id));
+      pesertaEkskul[e.id] = await hitung(supabaseClient.from('ekstrakurikuler_siswa').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).eq('ekstrakurikuler_id', e.id));
     }));
 
     var kelasIds = [], mapelIds = {};
@@ -429,7 +429,7 @@
     isiStat('stKelas', kelasIds.length);
     isiStat('stMapel', Object.keys(mapelIds).length);
     isiStat('stWali', wali || 'Bukan wali kelas');
-    isiStat('stSiswa', kelasIds.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', kelasIds)) : 0);
+    isiStat('stSiswa', kelasIds.length ? await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).in('kelas_id', kelasIds)) : 0);
 
     // Daftar tugas mengajar, dikelompokkan per kelas
     var perKelas = {};

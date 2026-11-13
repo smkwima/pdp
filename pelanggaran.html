@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=2"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=8" defer></script>
 <script src="kepsek-nav.js?v=7"></script>
@@ -111,11 +111,11 @@
     isi.innerHTML = '<div class="panel-note">Mengambil catatan pelanggaran kelas ' + esc(kelas.nama) + ' dari CP...</div>';
 
     var res = await supabaseClient.from('siswa_kelas')
-      .select('siswa:siswa_id(id, nis, nama)')
+      .select('siswa:siswa_id(id, nis, nama, status)')
       .eq('kelas_id', kelasId).eq('tahun_ajaran_id', taAktif.id);
     if (nomor !== urutMuat) return;
     if (res.error) { isi.innerHTML = pesan('Gagal memuat siswa', esc(res.error.message)); return; }
-    var siswa = (res.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+    var siswa = (res.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
     siswa.sort(function (a, b) { return a.nama.localeCompare(b.nama, 'id'); });
     if (!siswa.length) { isi.innerHTML = pesan('Belum ada siswa', 'Kelas ' + esc(kelas.nama) + ' belum punya siswa pada tahun ajaran aktif.'); return; }
 

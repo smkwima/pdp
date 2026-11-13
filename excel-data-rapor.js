@@ -84,10 +84,10 @@
 
       var sk = await ambilSemua(function () {
         return sb().from('siswa_kelas')
-          .select('siswa:siswa_id(id, nis, nisn, nama, agama)')
+          .select('siswa:siswa_id(id, nis, nisn, nama, agama, status)')
           .eq('kelas_id', kelas.id).eq('tahun_ajaran_id', ta.id).order('id');
       });
-      var siswaList = sk.map(function (r) { return r.siswa; }).filter(Boolean);
+      var siswaList = sk.map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
       siswaList.sort(function (a, b) { return (a.nama || '').localeCompare(b.nama || ''); });
       if (!siswaList.length) continue; // kelas kosong dilewati
       totalSiswa += siswaList.length;

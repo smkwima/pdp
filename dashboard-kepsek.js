@@ -164,11 +164,11 @@
 
     var mapelIds = Array.from(new Set(pg.map(function (p) { return p.mapel.id; })));
     var sk = await semua(function (a, b) {
-      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id')
+      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id, siswa:siswa_id(status)')
         .eq('tahun_ajaran_id', ta.id).order('id').range(a, b);
     });
     var kelasSiswa = {};
-    sk.forEach(function (r) { (kelasSiswa[r.kelas_id] = kelasSiswa[r.kelas_id] || []).push(r.siswa_id); });
+    sk.forEach(function (r) { if (!siswaMasihAktif(r.siswa)) return; (kelasSiswa[r.kelas_id] = kelasSiswa[r.kelas_id] || []).push(r.siswa_id); });
 
     var nl = await semua(function (a, b) {
       return supabaseClient.from('nilai').select('siswa_id, mapel_id, nilai')

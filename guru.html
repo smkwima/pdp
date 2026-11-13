@@ -14,7 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="excel-rekap.js?v=4"></script>
 <script src="unsaved-guard.js?v=1"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=2"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=8" defer></script>
 <script src="bukuinduk-fields.js?v=1"></script>
@@ -658,10 +658,11 @@
     async function ambilSiswaKelas(kelasId) {
       var res = await supabaseClient
         .from('siswa_kelas')
-        .select('siswa:siswa_id(id, nis, nama, agama)')
+        .select('siswa:siswa_id(id, nis, nama, agama, status)')
         .eq('kelas_id', kelasId)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var list = (res.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+      // Siswa lulus / pindah / keluar tidak ditampilkan lagi.
+      var list = (res.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
       list.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
       return list;
     }
@@ -673,10 +674,10 @@
     async function ambilSemuaSiswa() {
       var res = await supabaseClient
         .from('siswa_kelas')
-        .select('siswa:siswa_id(id, nis, nama), kelas:kelas_id(id, nama)')
+        .select('siswa:siswa_id(id, nis, nama, status), kelas:kelas_id(id, nama)')
         .eq('tahun_ajaran_id', tahunAktif.id);
       var list = (res.data || [])
-        .filter(function (r) { return r.siswa && r.kelas; })
+        .filter(function (r) { return r.siswa && r.kelas && siswaMasihAktif(r.siswa); })
         .map(function (r) { return { id: r.siswa.id, nis: r.siswa.nis, nama: r.siswa.nama, kelasId: r.kelas.id, kelasNama: r.kelas.nama }; });
       list.sort(function (a, b) {
         if (a.kelasNama === b.kelasNama) return a.nama.localeCompare(b.nama);
@@ -742,9 +743,10 @@
       var siswaAgamaMap = {};
       if (kelasIds.length) {
         var siswaKelasRes = await supabaseClient
-          .from('siswa_kelas').select('siswa_id, kelas_id, siswa:siswa_id(agama)')
+          .from('siswa_kelas').select('siswa_id, kelas_id, siswa:siswa_id(agama, status)')
           .eq('tahun_ajaran_id', tahunAktif.id).in('kelas_id', kelasIds);
         (siswaKelasRes.data || []).forEach(function (r) {
+          if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
           (kelasSiswaMap[r.kelas_id] = kelasSiswaMap[r.kelas_id] || []).push(r.siswa_id);
           siswaAgamaMap[r.siswa_id] = r.siswa ? r.siswa.agama : null;
         });
@@ -890,10 +892,11 @@
       if (daftarPembinaEkskul.length) {
         var ekskulIds = daftarPembinaEkskul.map(function (pb) { return pb.ekstrakurikuler.id; });
         var pesertaRes = await supabaseClient
-          .from('ekstrakurikuler_siswa').select('siswa_id, ekstrakurikuler_id')
+          .from('ekstrakurikuler_siswa').select('siswa_id, ekstrakurikuler_id, siswa:siswa_id(status)')
           .eq('tahun_ajaran_id', tahunAktif.id).in('ekstrakurikuler_id', ekskulIds);
         var pesertaByEkskul = {};
         (pesertaRes.data || []).forEach(function (r) {
+          if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
           (pesertaByEkskul[r.ekstrakurikuler_id] = pesertaByEkskul[r.ekstrakurikuler_id] || []).push(r.siswa_id);
         });
 
@@ -941,9 +944,9 @@
 
         var totalSemuaSiswaCount = 0;
         if (adaLingkupSemuaKelas) {
-          var semuaSiswaRes = await supabaseClient
-            .from('siswa_kelas').select('siswa_id', { count: 'exact', head: true })
-            .eq('tahun_ajaran_id', tahunAktif.id);
+          var semuaSiswaRes = await hanyaSiswaAktif(supabaseClient
+            .from('siswa_kelas').select('siswa_id, siswa:siswa_id!inner(status)', { count: 'exact', head: true })
+            .eq('tahun_ajaran_id', tahunAktif.id));
           totalSemuaSiswaCount = semuaSiswaRes.count || 0;
         }
 
@@ -1040,13 +1043,14 @@
             .eq('tahun_ajaran_id', tahunAktif.id).eq('jenis', 'rapor').order('id');
         });
         var siswaKelasSemua = await ambilSemuaAn(function () {
-          return supabaseClient.from('siswa_kelas').select('id, siswa_id, kelas:kelas_id(nama), siswa:siswa_id(nama)')
+          return supabaseClient.from('siswa_kelas').select('id, siswa_id, kelas:kelas_id(nama), siswa:siswa_id(nama, status)')
             .eq('tahun_ajaran_id', tahunAktif.id).order('id');
         });
         var mapelSemuaRes = await supabaseClient.from('mata_pelajaran').select('id, nama, kkm');
 
         var infoSiswaAn = {}; // siswaId -> { nama, kelas }
         siswaKelasSemua.forEach(function (r) {
+          if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar tidak ikut analisis
           infoSiswaAn[r.siswa_id] = { nama: r.siswa ? r.siswa.nama : null, kelas: r.kelas ? r.kelas.nama : '-' };
         });
         var infoMapelAn = {}; // mapelId -> { nama, kkm }
@@ -1311,9 +1315,9 @@
           }
           try {
             var kelasIdWali = waliKelas.kelas.id;
-            var skRes = await supabaseClient.from('siswa_kelas').select('siswa:siswa_id(id, nama)')
+            var skRes = await supabaseClient.from('siswa_kelas').select('siswa:siswa_id(id, nama, status)')
               .eq('kelas_id', kelasIdWali).eq('tahun_ajaran_id', tahunAktif.id);
-            var anggota = (skRes.data || []).filter(function (r) { return r.siswa; })
+            var anggota = (skRes.data || []).filter(function (r) { return siswaMasihAktif(r.siswa); })
               .map(function (r) { return { id: r.siswa.id, nama: r.siswa.nama || '(tanpa nama)' }; });
             if (!anggota.length) { pesan('Belum ada siswa di kelas ini pada tahun ajaran aktif.'); return; }
 
@@ -4595,10 +4599,10 @@
 
       var pesertaRes = await supabaseClient
         .from('ekstrakurikuler_siswa')
-        .select('siswa:siswa_id(id, nis, nama)')
+        .select('siswa:siswa_id(id, nis, nama, status)')
         .eq('ekstrakurikuler_id', ekskul.id)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var siswaList = (pesertaRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+      var siswaList = (pesertaRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
       siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
       if (!siswaList.length) {

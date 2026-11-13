@@ -14,9 +14,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="excel-rekap.js?v=4"></script>
-<script src="excel-data-rapor.js?v=1"></script>
+<script src="excel-data-rapor.js?v=2"></script>
 <script src="unsaved-guard.js?v=1"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=2"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=8" defer></script>
 <script src="kepsek-readonly.js?v=12"></script>
@@ -356,12 +356,13 @@
     // Semua query dipaginasi (Supabase membatasi 1000 baris per permintaan),
     // supaya hitungan tidak terpotong di sekolah dengan siswa banyak.
     var siswaKelasRows = await ambilSemuaBaris(function () {
-      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id')
+      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id, siswa:siswa_id(status)')
         .eq('tahun_ajaran_id', tahunAktif.id).order('id');
     });
     var kelasSiswaMap = {};
     var siswaUnik = {};
     siswaKelasRows.forEach(function (r) {
+      if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
       (kelasSiswaMap[r.kelas_id] = kelasSiswaMap[r.kelas_id] || []).push(r.siswa_id);
       siswaUnik[r.siswa_id] = true;
     });
@@ -754,7 +755,7 @@
       if (isNaN(waktu.getTime())) { alert('Tanggal / jam tidak valid.'); return; }
 
       // Hitung siswa pada periode ini untuk konfirmasi.
-      var cnt = await supabaseClient.from('siswa_kelas').select('siswa_id', { count: 'exact', head: true }).eq('tahun_ajaran_id', taId);
+      var cnt = await hanyaSiswaAktif(supabaseClient.from('siswa_kelas').select('siswa_id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).eq('tahun_ajaran_id', taId));
       var jumlah = cnt.error ? null : cnt.count;
       var sekarang = waktu.getTime() <= Date.now();
       var pesan = 'Terbitkan rapor ' + p.nama + ' semester ' + p.semester + (jumlah !== null ? ' untuk ' + jumlah + ' siswa' : ' untuk semua siswa') + '?\n\n' +
@@ -2470,12 +2471,12 @@
 
       var skRows = await ambilSemuaBaris(function () {
         return supabaseClient.from('siswa_kelas')
-          .select('kelas_id, siswa:siswa_id(id, nis, nisn, nama, agama)')
+          .select('kelas_id, siswa:siswa_id(id, nis, nisn, nama, agama, status)')
           .eq('tahun_ajaran_id', tahunAktif.id).order('id');
       });
       var siswaPerKelas = {};
       skRows.forEach(function (r) {
-        if (!r.siswa) return;
+        if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
         (siswaPerKelas[r.kelas_id] = siswaPerKelas[r.kelas_id] || []).push(r.siswa);
       });
 
@@ -2579,10 +2580,10 @@
 
     var skRes = await supabaseClient
       .from('siswa_kelas')
-      .select('siswa:siswa_id(id, nis, nisn, nama, agama)')
+      .select('siswa:siswa_id(id, nis, nisn, nama, agama, status)')
       .eq('kelas_id', kelasObj.id)
       .eq('tahun_ajaran_id', tahunAktif.id);
-    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
     siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
     if (!siswaList.length) {
@@ -2763,10 +2764,10 @@
 
     var skRes = await supabaseClient
       .from('siswa_kelas')
-      .select('siswa:siswa_id(id, nis, nisn, nama, agama)')
+      .select('siswa:siswa_id(id, nis, nisn, nama, agama, status)')
       .eq('kelas_id', kelasObj.id)
       .eq('tahun_ajaran_id', tahunAktif.id);
-    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
     siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
     var area = document.getElementById('legerArea');

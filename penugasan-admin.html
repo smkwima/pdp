@@ -13,7 +13,7 @@
 <script src="xlsx-autofit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="unsaved-guard.js?v=1"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=2"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=8" defer></script>
 <script src="simpan-atas.js?v=1"></script>
@@ -1717,9 +1717,9 @@
     // menampilkan nama kelas tiap peserta saat export.
     var semuaSkRes = await supabaseClient
       .from('siswa_kelas')
-      .select('siswa:siswa_id(id, nama), kelas:kelas_id(nama)')
+      .select('siswa:siswa_id(id, nama, status), kelas:kelas_id(nama)')
       .eq('tahun_ajaran_id', tahunAktif.id);
-    var semuaSiswaKelas = (semuaSkRes.data || []).filter(function (r) { return r.siswa && r.kelas; });
+    var semuaSiswaKelas = (semuaSkRes.data || []).filter(function (r) { return r.kelas && siswaMasihAktif(r.siswa); });
     var kelasNamaBySiswaId = {};
     var siswaIdByNamaKelas = {};
     semuaSiswaKelas.forEach(function (r) {
@@ -1908,10 +1908,10 @@
       if (!ekskulId) { alert('Pilih Ekstrakurikuler dulu untuk mengunduh data pesertanya.'); return; }
       var r = await supabaseClient
         .from('ekstrakurikuler_siswa')
-        .select('siswa_id, siswa:siswa_id(nama)')
+        .select('siswa_id, siswa:siswa_id(nama, status)')
         .eq('ekstrakurikuler_id', ekskulId)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var rows = (r.data || []).filter(function (x) { return x.siswa; }).map(function (x) {
+      var rows = (r.data || []).filter(function (x) { return siswaMasihAktif(x.siswa); }).map(function (x) {
         return { 'Nama': x.siswa.nama, 'Kelas': kelasNamaBySiswaId[x.siswa_id] || '' };
       });
       rows.sort(function (a, b) { return a.Kelas.localeCompare(b.Kelas) || a.Nama.localeCompare(b.Nama); });
@@ -1985,10 +1985,10 @@
 
       var skRes = await supabaseClient
         .from('siswa_kelas')
-        .select('siswa:siswa_id(id, nis, nama)')
+        .select('siswa:siswa_id(id, nis, nama, status)')
         .eq('kelas_id', kelasId)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
       siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
       if (!siswaList.length) {

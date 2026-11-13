@@ -12,6 +12,23 @@ var SUPABASE_ANON_KEY = "sb_publishable_dZfvfiSsA-JAndPn172VSg_sq_zRWqS";
 var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---------------------------------------------------------
+// STATUS SISWA
+// Siswa berstatus lulus / pindah / keluar (mutasi) tidak boleh muncul lagi
+// di daftar siswa & daftar nilai tahun ajaran berjalan. Status kosong
+// dianggap "aktif" (sama seperti Data Siswa di menu Admin).
+// - siswaMasihAktif(s)  : untuk memfilter objek siswa hasil query (JS).
+// - hanyaSiswaAktif(q)  : untuk query hitung (count) pada tabel siswa_kelas;
+//                         select-nya HARUS memakai "siswa:siswa_id!inner(status)".
+// ---------------------------------------------------------
+function siswaMasihAktif(s) {
+  if (!s) return false;
+  return String(s.status || 'aktif').toLowerCase() === 'aktif';
+}
+function hanyaSiswaAktif(q) {
+  return q.or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' });
+}
+
+// ---------------------------------------------------------
 // LOGIN SISWA
 // Siswa masuk dengan NIS (bukan email). Di Supabase Auth, akunnya memakai
 // email internal <NIS>@siswa.raporwima.local (dibuat oleh
