@@ -10,11 +10,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=2"></script>
-<script src="app-switcher.js?v=5" defer></script>
+<script src="app-switcher.js?v=7" defer></script>
 <script src="kepsek-nav.js?v=6"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=6" defer></script>
+<script src="bottomnav.js?v=8" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
@@ -136,7 +136,7 @@
   var BUCKET = 'bukti-kinerja';
   var MAKS_BERKAS = 10 * 1024 * 1024; // sama dengan batas bucket di migrasi_kinerja.sql
 
-  var meId = null, meNama = '', meRole = 'guru', pantau = false;
+  var meId = null, meNama = '', meRole = 'guru', pantau = false, staf = false;
   var periode = '', taAktif = null;
   var items = [], guruList = [], tampilan = 'ringkas', tabelSiap = true, galat = '';
   var filter = { guru: '', kategori: '', status: '', cari: '' };
@@ -149,7 +149,8 @@
     penilaian:      { judul: 'Penilaian',                     ikon: 'clipboard-list' },
     tugas_tambahan: { judul: 'Tugas Tambahan',                ikon: 'briefcase' },
     administrasi:   { judul: 'Administrasi dan Kedisiplinan', ikon: 'shield-check' },
-    supervisi:      { judul: 'Observasi Pembelajaran (Supervisi)', ikon: 'eye' }
+    supervisi:      { judul: 'Observasi Pembelajaran (Supervisi)', ikon: 'eye' },
+    manual:         { judul: 'Bukti Dukung Kinerja', ikon: 'clipboard-check' } // staf: aspek diketik sendiri
   };
   var URUT_KAT = ['perangkat', 'pelaksanaan', 'penilaian', 'tugas_tambahan', 'administrasi', 'supervisi'];
   var JENIS = { wali_kelas: 'Wali Kelas', kokurikuler: 'Kokurikuler / P5', ekskul: 'Ekstrakurikuler', lainnya: 'Tugas lain (Waka, Kaprog, Kalab, Perpustakaan, OSIS, Koord. PKL, dll.)' };
@@ -167,7 +168,8 @@
     penilaian: 'Daftar nilai, analisis asesmen, remedial/pengayaan, input nilai e-rapor, deskripsi capaian dll',
     tugas_tambahan: 'SK/surat tugas, program kerja, absensi, jurnal kegiatan, laporan, notulen, dokumentasi dll',
     administrasi: 'Rekap kehadiran, kehadiran rapat/workshop/pelatihan, sertifikat pengembangan diri dll',
-    supervisi: 'Lembar hasil supervisi/observasi kelas, catatan observasi, tindak lanjut dll'
+    supervisi: 'Lembar hasil supervisi/observasi kelas, catatan observasi, tindak lanjut dll',
+    manual: ''
   };
 
   // ---------- Pembantu ----------
@@ -188,12 +190,16 @@
   }
   function pesanGalat(e) {
     var m = (e && e.message) ? e.message : String(e);
-    if (/kinerja_butir_kategori_check/i.test(m)) return 'Kategori baru belum aktif. Minta admin menjalankan migrasi_kinerja_v2.sql di Supabase → SQL Editor, lalu muat ulang halaman.';
+    if (/kinerja_butir_kategori_check|contoh/i.test(m) && /kinerja_butir/i.test(m)) return 'Kategori baru belum aktif. Minta admin menjalankan migrasi_kinerja_v2.sql dan migrasi_kinerja_v3.sql di Supabase → SQL Editor, lalu muat ulang halaman.';
     if (/kinerja_butir|kinerja_cek|kinerja_boleh_cek|bukti-kinerja|schema cache|Bucket not found/i.test(m) && !/Hanya Kepala/i.test(m)) {
       return 'Fitur Kinerja Saya belum aktif. Minta admin menjalankan migrasi_kinerja.sql di Supabase → SQL Editor, lalu muat ulang halaman. (' + m + ')';
     }
     return m;
   }
+  // Guru: aspek dipilih dari daftar. Staf: aspek & contoh diketik sendiri (kategori 'manual').
+  function aspekJudul(x) { return x.kategori === 'manual' ? (x.judul || '—') : KAT[x.kategori].judul; }
+  function aspekSub(x) { return x.kategori !== 'manual' && x.judul && x.judul !== KAT[x.kategori].judul ? '<div class="kj-contoh">' + esc(x.judul) + '</div>' : ''; }
+  function contohTeks(x) { return x.kategori === 'manual' ? (x.contoh || '—') : CONTOH[x.kategori]; }
   function namaGuru(id) { var g = guruList.find(function (x) { return x.id === id; }); return g ? g.nama : '—'; }
   function hitung(list) {
     var h = { total: list.length, draft: 0, diajukan: 0, disetujui: 0, revisi: 0 };
@@ -256,7 +262,7 @@
   }
   function judulHalaman(v) {
     if (v === 'ringkas') return pantau ? ['Dashboard', 'Kelengkapan dan status bukti kinerja tiap guru'] : ['Dashboard', 'Ringkasan bukti dukung kinerjamu'];
-    return pantau ? ['Bukti Dukung Kinerja', 'Pilih nama guru, lalu cek bukti yang diajukan dan beri jempol'] : ['Bukti Dukung Kinerja', 'Pilih aspek bukti dukung, lalu isi link dan keterangannya'];
+    return pantau ? ['Bukti Dukung Kinerja', 'Pilih nama guru / staf, lalu cek bukti yang diajukan dan beri jempol'] : ['Bukti Dukung Kinerja', staf ? 'Tulis aspek bukti dukung sendiri, lalu isi link dan keterangannya' : 'Pilih aspek bukti dukung, lalu isi link dan keterangannya'];
   }
   function keHalaman(v) {
     tampilan = v;
@@ -290,7 +296,7 @@
   function metaButir(x, denganGuru) {
     var p = [];
     if (denganGuru) p.push('<b>' + esc(namaGuru(x.guru_id)) + '</b>');
-    p.push(esc(KAT[x.kategori].judul));
+    p.push(esc(aspekJudul(x)));
     if (x.nama_tugas) p.push(esc(x.nama_tugas));
     if (x.tanggal) p.push(esc(tglId(x.tanggal)));
     if (x.status === 'diajukan' && x.diajukan_pada) p.push('diajukan ' + esc(tglId(x.diajukan_pada)));
@@ -323,7 +329,7 @@
       statKartu('Total Butir', h.total, 'list') + statKartu('Belum Diajukan', h.draft, 'file-pen-line') +
       statKartu('Menunggu Dicek', h.diajukan, 'hourglass') + statKartu('Mendapat Jempol', h.disetujui, 'thumbs-up') +
       statKartu('Perlu Revisi', h.revisi, 'undo-2') + '</div>';
-    html += '<div class="kj-panel">' + URUT_KAT.map(function (k) {
+    html += '<div class="kj-panel">' + (staf ? ['manual'] : URUT_KAT).map(function (k) {
       var c = hitung(items.filter(function (x) { return x.kategori === k; }));
       return '<div class="kj-prog"><div class="kj-prog__n"><i data-lucide="' + KAT[k].ikon + '"></i>' + KAT[k].judul + '</div>' +
         '<div class="kj-track"><div class="kj-fill" style="width:' + pct(c.disetujui, c.total) + '%"></div></div>' +
@@ -341,16 +347,21 @@
     var edit = x.status === 'draft' || x.status === 'revisi';
     var link = (x.bukti || []).filter(function (b) { return b.t === 'link'; })[0];
     var berkas = (x.bukti || []).filter(function (b) { return b.t === 'file'; });
-    var sub = x.judul && x.judul !== KAT[x.kategori].judul ? '<div class="kj-contoh">' + esc(x.judul) + '</div>' : '';
+    var sub = aspekSub(x);
     var c5 = edit ? '<input type="url" class="kj-linkin" data-link="' + x.id + '" placeholder="https://drive.google.com/…" value="' + esc(link ? link.u : '') + '">' + (berkas.length ? '<div class="kj-bukti-row">' + buktiHtml({ bukti: berkas }) + '</div>' : '')
       : '<div class="kj-bukti-row">' + buktiHtml(x) + '</div>';
     var stat = '<div style="margin-bottom:6px;">' + chipStatus(x.status) + '</div>' + catatanHtml(x);
     var c6 = stat + (edit ? '<textarea class="kj-linkin" rows="2" maxlength="500" data-ket="' + x.id + '" placeholder="mis. mapel / keterangan singkat">' + esc(x.keterangan || '') + '</textarea>' : '<div class="kj-ket" style="margin-top:6px;">' + esc(x.keterangan || '—') + '</div>');
     var aksi = edit ? tombol('simpan', x.id, 'save', 'Simpan') + tombol('ajukan', x.id, 'send', 'Ajukan', 'btn-small--primary') + tombol('hapus', x.id, 'trash-2', 'Hapus', 'btn-small--danger')
       : x.status === 'diajukan' ? tombol('tarik', x.id, 'undo-2', 'Batalkan Pengajuan') : '';
+    var manual = x.kategori === 'manual';
+    var cAspek = manual && edit ? '<input type="text" class="kj-linkin" maxlength="150" data-asp="' + x.id + '" placeholder="Tulis aspek bukti dukung" value="' + esc(x.judul || '') + '">'
+      : '<b>' + esc(aspekJudul(x)) + '</b>' + sub;
+    var cContoh = manual && edit ? '<textarea class="kj-linkin" rows="2" maxlength="300" data-contoh="' + x.id + '" placeholder="Contoh dokumen bukti (boleh dikosongkan)">' + esc(x.contoh || '') + '</textarea>'
+      : '<div class="kj-contoh">' + esc(contohTeks(x)) + '</div>';
     return '<tr><td data-label="No">' + no + '</td><td data-label="Nama"><b>' + esc(meNama) + '</b></td>' +
-      '<td data-label="Aspek"><b>' + esc(KAT[x.kategori].judul) + '</b>' + sub + '</td>' +
-      '<td data-label="Contoh Bukti Dukung"><div class="kj-contoh">' + esc(CONTOH[x.kategori]) + '</div></td>' +
+      '<td data-label="Aspek">' + cAspek + '</td>' +
+      '<td data-label="Contoh Bukti Dukung">' + cContoh + '</td>' +
       '<td data-label="Link">' + c5 + '</td><td data-label="Keterangan">' + c6 + '</td>' +
       '<td data-label="Aksi"><div class="kj-aksi" style="margin-top:0;">' + aksi + '</div></td></tr>';
   }
@@ -360,7 +371,7 @@
       '<button type="button" class="btn-small" data-act="ajukan-semua"' + (siap ? '' : ' disabled') + '><i data-lucide="send"></i> Ajukan Semua yang Siap (' + siap + ')</button></div>';
     if (!items.length) {
       html += '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">+</div><div class="empty-state__title">Belum ada bukti dukung</div>' +
-        '<div class="empty-state__desc">Klik <b>Tambah Bukti Dukung</b>, pilih aspeknya, lalu isi link dan keterangan pada tabel yang muncul.</div></div>';
+        '<div class="empty-state__desc">Klik <b>Tambah Bukti Dukung</b>, ' + (staf ? 'tulis aspeknya sendiri' : 'pilih aspeknya') + ', lalu isi link dan keterangan pada tabel yang muncul.</div></div>';
     } else {
       var urut = items.slice().sort(function (a, b) { return URUT_KAT.indexOf(a.kategori) - URUT_KAT.indexOf(b.kategori); });
       html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Aspek</th><th>Contoh Bukti Dukung</th><th>Link</th><th>Keterangan</th><th></th></tr></thead><tbody>' +
@@ -373,10 +384,10 @@
   function renderGuruRingkas() {
     var h = hitung(items);
     var html = '<div class="stat-grid">' +
-      statKartu('Guru', guruList.length, 'users') + statKartu('Menunggu Dicek', h.diajukan, 'hourglass') +
+      statKartu('Guru & Staf', guruList.length, 'users') + statKartu('Menunggu Dicek', h.diajukan, 'hourglass') +
       statKartu('Mendapat Jempol', h.disetujui, 'thumbs-up') + statKartu('Dikembalikan', h.revisi, 'undo-2') + '</div>' +
-      '<div class="kj-toolbar"><input type="search" id="kjCari" placeholder="Cari nama guru…" value="' + esc(filter.cari) + '"></div>' +
-      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Nama Guru</th><th>Butir</th><th>Belum Diajukan</th><th>Menunggu</th><th>Jempol 👍</th><th>Revisi</th><th>Progres</th><th></th></tr></thead><tbody id="kjTbody"></tbody></table></div>' +
+      '<div class="kj-toolbar"><input type="search" id="kjCari" placeholder="Cari nama guru / staf…" value="' + esc(filter.cari) + '"></div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Nama</th><th>Butir</th><th>Belum Diajukan</th><th>Menunggu</th><th>Jempol 👍</th><th>Revisi</th><th>Progres</th><th></th></tr></thead><tbody id="kjTbody"></tbody></table></div>' +
       '<div class="panel-note">Progres = butir yang sudah mendapat jempol dibagi seluruh butir guru pada periode ini.</div>';
     content.innerHTML = html;
     isiTabelGuru();
@@ -389,7 +400,7 @@
     }).sort(function (a, b) { return (b.c.diajukan - a.c.diajukan) || String(a.g.nama).localeCompare(String(b.g.nama)); });
     document.getElementById('kjTbody').innerHTML = baris.length ? baris.map(function (r) {
       var c = r.c;
-      return '<tr><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b></td>' +
+      return '<tr><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b>' + (r.g.role === 'staf' ? '<span class="kj-tag">Staf</span>' : '') + '</td>' +
         '<td data-label="Butir">' + (c.total || '<span style="color:var(--ink-faint)">Belum ada</span>') + '</td>' +
         '<td data-label="Belum Diajukan">' + c.draft + '</td>' +
         '<td data-label="Menunggu">' + (c.diajukan ? '<span class="kj-st kj-st--ajuan">' + c.diajukan + '</span>' : 0) + '</td>' +
@@ -410,16 +421,16 @@
     var html = '<div class="kj-toolbar"><button type="button" class="btn-small" data-act="kembali-guru"><i data-lucide="arrow-left"></i> Daftar Guru</button>' +
       '<b>' + esc(g ? g.nama : '—') + '</b><span class="kj-hint">' + list.length + ' bukti diajukan</span></div>';
     if (!list.length) {
-      html += '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">✓</div><div class="empty-state__title">Belum ada pengajuan</div><div class="empty-state__desc">Guru ini belum mengajukan bukti dukung kinerja.</div></div>';
+      html += '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">✓</div><div class="empty-state__title">Belum ada pengajuan</div><div class="empty-state__desc">Belum ada bukti dukung kinerja yang diajukan.</div></div>';
     } else {
       html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Aspek</th><th>Contoh Bukti Dukung</th><th>Link</th><th>Keterangan</th><th></th></tr></thead><tbody>' +
         list.map(function (x, i) {
           var aksi = x.status === 'diajukan' ? tombol('jempol', x.id, 'thumbs-up', 'Beri Jempol', 'kj-btn-jempol') + tombol('minta-revisi', x.id, 'undo-2', 'Minta Revisi')
             : x.status === 'disetujui' ? tombol('cabut', x.id, 'rotate-ccw', 'Cabut Jempol') : '';
-          var sub = x.judul && x.judul !== KAT[x.kategori].judul ? '<div class="kj-contoh">' + esc(x.judul) + '</div>' : '';
+          var sub = aspekSub(x);
           return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(g ? g.nama : '—') + '</b></td>' +
-            '<td data-label="Aspek"><b>' + esc(KAT[x.kategori].judul) + '</b>' + sub + '</td>' +
-            '<td data-label="Contoh Bukti Dukung"><div class="kj-contoh">' + esc(CONTOH[x.kategori]) + '</div></td>' +
+            '<td data-label="Aspek"><b>' + esc(aspekJudul(x)) + '</b>' + sub + '</td>' +
+            '<td data-label="Contoh Bukti Dukung"><div class="kj-contoh">' + esc(contohTeks(x)) + '</div></td>' +
             '<td data-label="Link"><div class="kj-bukti-row">' + buktiHtml(x) + '</div></td><td data-label="Keterangan"><div style="margin-bottom:6px;">' + chipStatus(x.status) + '</div>' + catatanHtml(x) + '<div class="kj-ket" style="margin-top:6px;">' + esc(x.keterangan || '—') + '</div></td>' +
             '<td data-label="Aksi"><div class="kj-aksi" style="margin-top:0;">' + aksi + '</div></td></tr>';
         }).join('') + '</tbody></table></div>';
@@ -428,7 +439,7 @@
   }
   function renderPilihGuru() {
     content.innerHTML = '<div class="kj-toolbar"><input type="search" id="kjCari" placeholder="Cari nama guru…" value="' + esc(filter.cari) + '"></div>' +
-      '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama Guru</th><th>Menunggu Dicek</th><th>Jempol 👍</th><th>Revisi</th><th></th></tr></thead><tbody id="kjPilih"></tbody></table></div>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Menunggu Dicek</th><th>Jempol 👍</th><th>Revisi</th><th></th></tr></thead><tbody id="kjPilih"></tbody></table></div>' +
       '<div class="panel-note">Buka nama guru untuk melihat bukti dukung yang diajukan.</div>';
     function isi() {
       var q = filter.cari.trim().toLowerCase();
@@ -436,7 +447,7 @@
         return { g: g, c: hitung(items.filter(function (x) { return x.guru_id === g.id && x.status !== 'draft'; })) };
       }).sort(function (a, b) { return (b.c.diajukan - a.c.diajukan) || String(a.g.nama).localeCompare(String(b.g.nama)); });
       document.getElementById('kjPilih').innerHTML = baris.length ? baris.map(function (r, i) {
-        return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b></td>' +
+        return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama Guru"><b>' + esc(r.g.nama) + '</b>' + (r.g.role === 'staf' ? '<span class="kj-tag">Staf</span>' : '') + '</td>' +
           '<td data-label="Menunggu Dicek">' + (r.c.diajukan ? '<span class="kj-st kj-st--ajuan">' + r.c.diajukan + '</span>' : 0) + '</td>' +
           '<td data-label="Jempol">' + r.c.disetujui + '</td><td data-label="Revisi">' + r.c.revisi + '</td>' +
           '<td><button type="button" class="btn-small btn-small--primary" data-act="buka-guru" data-id="' + r.g.id + '">Buka</button></td></tr>';
@@ -501,13 +512,44 @@
     if (u && !urlAman(u)) { toast('Tautan harus diawali http:// atau https://'); return; }
     var bukti = (x.bukti || []).filter(function (b) { return b.t === 'file'; }).concat(u ? [{ t: 'link', u: u, n: 'Link bukti kinerja' }] : []);
     if (ajukan && !bukti.length) { toast('Isi link bukti dulu sebelum mengajukan.'); return; }
-    var r = await supabaseClient.from('kinerja_butir').update({ bukti: bukti, keterangan: (kt && kt.value.trim()) || null, status: ajukan ? 'diajukan' : (x.status === 'revisi' ? 'revisi' : 'draft') }).eq('id', id).select().single();
+    var ubah = { bukti: bukti, keterangan: (kt && kt.value.trim()) || null, status: ajukan ? 'diajukan' : (x.status === 'revisi' ? 'revisi' : 'draft') };
+    if (x.kategori === 'manual') {
+      var asp = content.querySelector('[data-asp="' + id + '"]'), ctn = content.querySelector('[data-contoh="' + id + '"]');
+      var teksAsp = asp ? asp.value.trim() : (x.judul || '');
+      if (!teksAsp) { toast('Tulis aspek bukti dukungnya dulu.'); return; }
+      ubah.judul = teksAsp;
+      if (ctn) ubah.contoh = ctn.value.trim() || null;
+    }
+    var r = await supabaseClient.from('kinerja_butir').update(ubah).eq('id', id).select().single();
     if (r.error) throw r.error;
     gabung(r.data);
-    if (ajukan) catat('Mengajukan bukti kinerja: ' + KAT[x.kategori].judul);
+    if (ajukan) catat('Mengajukan bukti kinerja: ' + aspekJudul(x));
     toast(ajukan ? 'Diajukan ke Kepala Sekolah.' : 'Tersimpan.', true); tampil();
   }
+  function bukaTulisManual() {
+    var ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = '<div class="modal-box kj-modal"><div class="modal-box__head"><div class="modal-box__title">Tambah Bukti Dukung</div><button type="button" class="modal-box__close" data-tutup="1">×</button></div>' +
+      '<div class="modal-box__desc">Tulis sendiri aspek bukti dukungnya sesuai tugasmu. Tabelnya muncul setelah ditambahkan.</div><div class="form-grid">' +
+      '<div class="field field--full"><label for="mAsp">Aspek bukti dukung</label><input type="text" id="mAsp" maxlength="150" placeholder="Contoh: Pengelolaan arsip surat masuk dan keluar"></div>' +
+      '<div class="field field--full"><label for="mContoh">Contoh bukti dukung (boleh dikosongkan)</label><textarea id="mContoh" maxlength="300" placeholder="Contoh: buku agenda surat, scan surat, laporan bulanan dll"></textarea></div></div>' +
+      '<div class="modal-box__actions"><button type="button" class="btn-small" data-tutup="1">Batal</button><button type="button" class="btn-small btn-small--primary" id="mSimpan">Tambahkan</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.getAttribute('data-tutup')) ov.remove(); });
+    document.getElementById('mAsp').focus();
+    document.getElementById('mSimpan').addEventListener('click', async function () {
+      var asp = document.getElementById('mAsp').value.trim(), ctn = document.getElementById('mContoh').value.trim();
+      if (!asp) { toast('Tulis aspek bukti dukungnya dulu.'); return; }
+      this.disabled = true;
+      try {
+        var r = await supabaseClient.from('kinerja_butir').insert({ guru_id: meId, periode: periode, kategori: 'manual', judul: asp, contoh: ctn || null, standar: false, status: 'draft', bukti: [] }).select().single();
+        if (r.error) throw r.error;
+        gabung(r.data); ov.remove(); toast('Ditambahkan. Isi link dan keterangannya pada tabel.', true); tampil();
+      } catch (e) { this.disabled = false; toast(pesanGalat(e)); }
+    });
+  }
   function bukaPilih() {
+    if (staf) { bukaTulisManual(); return; }
     var ov = document.createElement('div');
     ov.className = 'modal-overlay';
     ov.innerHTML = '<div class="modal-box kj-modal"><div class="modal-box__head"><div class="modal-box__title">Tambah Bukti Dukung</div><button type="button" class="modal-box__close" data-tutup="1">×</button></div>' +
@@ -603,13 +645,14 @@
     if (!s) { location.href = 'index.html'; return; }
     meId = s.user.id;
     var p = await supabaseClient.from('profiles').select('nama, role').eq('id', meId).single();
-    if (p.error || !p.data || p.data.role === 'staf') { location.href = 'portal.html'; return; }
+    if (p.error || !p.data) { location.href = 'portal.html'; return; }
     meNama = p.data.nama || s.user.email;
     meRole = p.data.role;
     pantau = meRole === 'admin' || meRole === 'kepsek';
+    staf = meRole === 'staf';
     document.getElementById('userName').textContent = meNama;
-    document.getElementById('userRole').textContent = meRole === 'admin' ? 'Admin' : meRole === 'kepsek' ? 'Kepala Sekolah' : 'Guru';
-    document.getElementById('roleLabel').textContent = pantau ? (meRole === 'kepsek' ? 'Kepala Sekolah' : 'Admin') : 'Guru';
+    document.getElementById('userRole').textContent = meRole === 'admin' ? 'Admin' : meRole === 'kepsek' ? 'Kepala Sekolah' : (staf ? 'Staf' : 'Guru');
+    document.getElementById('roleLabel').textContent = pantau ? (meRole === 'kepsek' ? 'Kepala Sekolah' : 'Admin') : (staf ? 'Staf' : 'Guru');
     if (pantau) document.querySelector('.sidebar__brand-mark').textContent = 'Kinerja Guru';
 
     try {
@@ -621,7 +664,7 @@
     bangunMenu();
     if (pantau) {
       try {
-        var g = await supabaseClient.from('profiles').select('id, nama').eq('role', 'guru').order('nama');
+        var g = await supabaseClient.from('profiles').select('id, nama, role').in('role', ['guru', 'staf']).order('nama');
         guruList = g.data || [];
       } catch (e) { guruList = []; }
     }

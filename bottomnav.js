@@ -78,6 +78,9 @@
       { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true },
       { k: 'log',   label: 'Log',         judul: 'Log Aktivitas',       href: 'log-admin.html', warna: 'slate', sheetSaja: true, hanyaAdmin: true }
     ];
+    if (role === 'staf') { // staf: HANYA Kinerja Saya dan Ijin & Dinas Luar
+      return menu.filter(function (it) { return it.k === 'kin' || it.k === 'ijin'; });
+    }
     return menu.filter(function (it) {
       if (it.hanyaAdmin && role !== 'admin') return false;
       return !it.hanyaPimpinan || role === 'kepsek' || role === 'admin';
@@ -201,8 +204,8 @@
       return '<a class="bnav__item' + (aktif ? ' is-active' : '') + '" href="' + it.href + '" data-k="' + it.k + '"' + atributSso(it) +
         (aktif ? ' aria-current="page"' : '') + '>' + ikonSvg(it.k) + '<span>' + it.label + '</span></a>';
     }).join('') +
-      '<button type="button" id="bnavSemua" class="bnav__item' + (adaDiBar ? '' : ' is-active') + '" aria-haspopup="dialog">' +
-      ikonSvg('semua') + '<span>Semua Aplikasi</span></button>';
+      (role === 'staf' ? '' : '<button type="button" id="bnavSemua" class="bnav__item' + (adaDiBar ? '' : ' is-active') + '" aria-haspopup="dialog">' +
+      ikonSvg('semua') + '<span>Semua Aplikasi</span></button>');
 
     // panel "Semua Aplikasi"
     var sheet = document.getElementById('bnavSheet');
@@ -258,7 +261,7 @@
       var cache = roleTersimpan(user.id);
       if (cache) return cache;
       var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
-      var role = (pr && pr.data && (pr.data.role === 'admin' || pr.data.role === 'kepsek')) ? pr.data.role : 'guru';
+      var role = (pr && pr.data && (pr.data.role === 'admin' || pr.data.role === 'kepsek' || pr.data.role === 'staf')) ? pr.data.role : 'guru';
       if (pr && pr.data) simpanRole(user.id, role);
       return role;
     } catch (e) {
@@ -273,10 +276,13 @@
       render(roleDariBerkas);
     } else {
       // pkl / pelanggaran / portal / kinerja: role bergantung akun
-      render('guru'); // tampil dulu supaya bar tidak "muncul belakangan"
+      var petunjuk = null;
+      try { petunjuk = localStorage.getItem('bnav_role_hint'); } catch (e) { /* abaikan */ }
+      if (petunjuk) render(petunjuk); // tampil dulu supaya bar tidak "muncul belakangan"
       var role = await cariRole();
       roleAkhir = role;
-      if (role === 'admin' || role === 'kepsek') render(role);
+      try { localStorage.setItem('bnav_role_hint', role); } catch (e) { /* abaikan */ }
+      if (role !== petunjuk) render(role); // tanpa petunjuk: bar baru digambar setelah role diketahui (staf tidak melihat menu guru sekilas)
     }
     // Catat kunjungan SETELAH bar digambar, supaya pilihan 2 aplikasi tidak berubah di tengah halaman yang sedang dibuka.
     catat(roleAkhir || 'guru', kunciAktif);

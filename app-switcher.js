@@ -31,6 +31,10 @@
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
+  var APP_STAF = [
+    { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Tulis & ajukan bukti kinerja ke Kepala Sekolah' },
+    { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
+  ];
   var APP_ADMIN = [
     { href: 'portal.html',            judul: 'Menu Utama',          ikon: 'layout-grid',        warna: 'teal',   desc: 'Beranda semua aplikasi' },
     { href: 'admin.html',             judul: 'E-Rapor',             ikon: 'file-text',          warna: 'hijau',  desc: 'Kelas, siswa, nilai & rapor' },
@@ -163,6 +167,7 @@
     var role = await tentukanRole();
     if (role === 'admin') bangun(APP_ADMIN);
     else if (role === 'guru') bangun(APP_GURU);
+    else if (role === 'staf') bangun(APP_STAF);
     // 'kepsek' / siswa / belum login: biarkan seperti semula.
   }
 

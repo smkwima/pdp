@@ -13,7 +13,7 @@
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="dashboard-kepsek.js?v=4"></script>
-<script src="bottomnav.js?v=6" defer></script>
+<script src="bottomnav.js?v=8" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
@@ -518,7 +518,9 @@
       } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
     })();
 
-    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'ijin.html'; }) : daftarModul(admin, kepsek);
+    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'ijin.html'; }).map(function (m) {
+      return m.href === 'kinerja.html' ? Object.assign({}, m, { desc: 'Tulis sendiri aspek bukti dukung kinerjamu, isi link dan keterangan, lalu ajukan ke Kepala Sekolah.' }) : m;
+    }) : daftarModul(admin, kepsek);
     renderSidebar(mods);
     renderModul(mods);
     if (window.lucide) lucide.createIcons();
