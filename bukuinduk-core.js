@@ -2618,7 +2618,7 @@
   // sama seperti tombol "+ Tambah Semester Manual", tetapi untuk satu kelas sekaligus.
   var NS_SHEET = 'Nilai Semester';
   var NS_TAMBAHAN = 3;
-  var NS_EKSKUL = 3; // jumlah pasangan kolom Ekstrakurikuler N + Predikat Ekstrakurikuler N di template
+  var NS_EKSKUL = 5; // jumlah pasangan kolom Ekstrakurikuler N + Predikat Ekstrakurikuler N di template
   function semesterDariKe(ke) { return ke % 2 === 1 ? 'Gasal' : 'Genap'; }
   function urutMapel(m) { return m.urutan_leger != null ? m.urutan_leger : (m.urutan_rapor != null ? m.urutan_rapor : 9999); }
 
