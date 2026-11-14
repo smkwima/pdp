@@ -1701,9 +1701,30 @@
       var profil = pr.data || {};
       var logo = new URL('assets/logo.png', g.location.href).href;
       var ta = BI.ctx.ta;
+      // Cover & Daftar Siswa memakai TAHUN AJARAN PERTAMA dan KELAS di SEMESTER 1 (bukan kelas saat ini).
+      var taNama1 = '', kelasNama1 = '', perkiraan = false;
+      try {
+        var idsC = list.map(function (x) { return x.id; });
+        var rw1 = await inChunks(idsC, function (p, a, b) { return sb().from('bi_riwayat_semester').select('id, siswa_id, ta_nama, kelas_nama').eq('semester_ke', 1).in('siswa_id', p).order('id').range(a, b); });
+        var hit = {};
+        rw1.forEach(function (r) { if (!r.ta_nama || !r.kelas_nama) return; var k = r.ta_nama + '||' + r.kelas_nama; hit[k] = (hit[k] || 0) + 1; });
+        var best = Object.keys(hit).sort(function (a, b) { return (hit[b] - hit[a]) || a.localeCompare(b); })[0];
+        if (best) { taNama1 = best.split('||')[0]; kelasNama1 = best.split('||')[1]; }
+      } catch (e) { /* pakai perkiraan di bawah */ }
+      if (!taNama1 || !kelasNama1) {
+        var nmK = String(kelas.nama || '');
+        var mt = /^\s*(XII|XI|X)(?![A-Za-z])/i.exec(nmK);
+        var geser = mt ? ({ x: 0, xi: 1, xii: 2 })[mt[1].toLowerCase()] : Math.max(0, (Number(kelas.tingkat) || 10) - 10);
+        var mta = ta && /^(\d{4})\/(\d{4})$/.exec(String(ta.nama || ''));
+        kelasNama1 = nmK.replace(/^(\s*)(XII|XI|X)(?![A-Za-z])/i, '$1X');
+        taNama1 = mta ? (Number(mta[1]) - geser) + '/' + (Number(mta[2]) - geser) : '';
+        perkiraan = true;
+        if (!confirm('Data semester 1 siswa kelas ini belum ada di arsip Buku Induk (belum disinkron dari E-Rapor / diisi lewat Isi Semester Terlewat).\n\nCover & Daftar Siswa akan memakai PERKIRAAN: Kelas ' + kelasNama1 + ', Tahun Ajaran ' + (taNama1 || '-') + '.\n\nLanjutkan cetak?')) { w.close(); return; }
+      }
+      var kelasCetak = Object.assign({}, kelas, { nama: kelasNama1 });
       var urut = list.slice().sort(function (a, b) { return (a.nama || '').localeCompare(b.nama || ''); });
-      var taTeks = ta ? 'Tahun Ajaran ' + ta.nama : '';
-      var cover = BI.htmlCover(kelas, profil, logo, taTeks);
+      var taTeks = taNama1 ? 'Tahun Ajaran ' + taNama1 : '';
+      var cover = BI.htmlCover(kelasCetak, profil, logo, taTeks);
 
       var tgl = new Date();
       var tglCetak = tgl.getDate() + ' ' + BULAN[tgl.getMonth()] + ' ' + tgl.getFullYear();
@@ -1720,12 +1741,12 @@
         return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(s.nama) + '</td><td class="c">' + esc(s.nis || '') + '</td><td class="c">' + esc(s.nisn || '') + '</td><td class="c">' + keteranganMasuk(s) + '</td></tr>';
       }).join('');
       var daftar = '<div class="hal">' + kopHtml(profil, logo) +
-        '<div class="judul"><div class="t">DAFTAR SISWA</div><div class="n">Kelas <b>' + esc(kelas.nama) + '</b>' + (taTeks ? ' &nbsp;|&nbsp; ' + esc(taTeks) : '') + ' &nbsp;|&nbsp; Jumlah <b>' + urut.length + '</b> siswa</div></div>' +
+        '<div class="judul"><div class="t">DAFTAR SISWA</div><div class="n">Kelas <b>' + esc(kelasNama1) + '</b>' + (taTeks ? ' &nbsp;|&nbsp; ' + esc(taTeks) : '') + ' &nbsp;|&nbsp; Jumlah <b>' + urut.length + '</b> siswa</div></div>' +
         '<table class="ds"><thead><tr><th style="width:8%;">No</th><th>Nama</th><th style="width:17%;">NIS</th><th style="width:20%;">NISN</th><th style="width:15%;">Keterangan</th></tr></thead><tbody>' + baris + '</tbody></table>' + ttdKepsek +
-        '<div class="ft"><span>Daftar Siswa Kelas ' + esc(kelas.nama) + '</span><span>Dicetak ' + tglCetak + '</span></div></div>';
+        '<div class="ft"><span>Daftar Siswa Kelas ' + esc(kelasNama1) + '</span><span>Dicetak ' + tglCetak + '</span></div></div>';
 
       w.document.open();
-      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cover & Daftar Siswa ' + esc(kelas.nama) + '</title><style>' + cssCetak() + '</style></head><body>' + cover + daftar + '</body></html>');
+      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cover & Daftar Siswa ' + esc(kelasNama1) + '</title><style>' + cssCetak() + '</style></head><body>' + cover + daftar + '</body></html>');
       w.document.close();
       w.focus();
       var imgs = Array.prototype.slice.call(w.document.images);
@@ -1816,8 +1837,6 @@
       '<div class="ringkas"><div class="nama">' + esc(s.nama) + '</div><table>' +
       '<tr><td class="l">Tempat, Tgl. Lahir</td><td class="c">:</td><td class="v">' + esc([s.tempat_lahir, s.tanggal_lahir ? fmtTgl(s.tanggal_lahir) : ''].filter(Boolean).join(', ')) + '</td></tr>' +
       '<tr><td class="l">Jenis Kelamin</td><td class="c">:</td><td class="v">' + esc(LABEL_OPSI[s.jenis_kelamin] || s.jenis_kelamin || '') + '</td></tr>' +
-      '<tr><td class="l">Kelas Saat Ini</td><td class="c">:</td><td class="v">' + esc(s.kelas ? s.kelas.nama : '') + '</td></tr>' +
-      '<tr><td class="l">Status</td><td class="c">:</td><td class="v"><span class="lencana">' + esc(LABEL_OPSI[s.status] || s.status || '') + '</span></td></tr>' +
       '</table></div>' + kotakFoto(foto.lulus, 'Saat Lulus', s.status === 'aktif' ? '' : s.tanggal_keluar) + '</div>';
 
     var judulDok = jenis === 'nilai' ? 'NILAI PESERTA DIDIK' : jenis === 'biodata' ? 'BIODATA PESERTA DIDIK' : 'BUKU INDUK PESERTA DIDIK';
@@ -1826,8 +1845,6 @@
     function kartuNilai() {
       return '<div class=\"kartu\"><div class=\"ringkas\"><div class=\"nama\">' + esc(s.nama) + '</div><table>' +
         '<tr><td class=\"l\">Tempat, Tgl. Lahir</td><td class=\"c\">:</td><td class=\"v\">' + esc([s.tempat_lahir, s.tanggal_lahir ? fmtTgl(s.tanggal_lahir) : ''].filter(Boolean).join(', ')) + '</td></tr>' +
-        '<tr><td class=\"l\">Kelas Saat Ini</td><td class=\"c\">:</td><td class=\"v\">' + esc(s.kelas ? s.kelas.nama : '') + '</td></tr>' +
-        '<tr><td class=\"l\">Status</td><td class=\"c\">:</td><td class=\"v\"><span class=\"lencana\">' + esc(LABEL_OPSI[s.status] || s.status || '') + '</span></td></tr>' +
         '</table></div></div>';
     }
 
@@ -2591,7 +2608,7 @@
       (!opts.kelasId ? '<div class="field" style="margin-bottom:0;"><label>Kelas</label><select id="cetKelas"><option value="">— pilih kelas —</option>' + kelasList.map(function (k) { return '<option value="' + k.id + '">' + esc(k.nama) + '</option>'; }).join('') + '</select></div>' :
         '<div class="field" style="margin-bottom:0;"><label>Kelas</label><div style="padding:8px 0;font-weight:600;">' + esc(kelasWali ? kelasWali.nama : '—') + '</div></div>') +
       '<button class="btn-small btn-small--primary" id="cetCover">🖨 Cetak Cover + Daftar Siswa</button></div>' +
-      '<div class="panel-note" style="margin-top:-4px;">Cover: judul, kelas, program keahlian, tahun ajaran. Daftar Siswa: No, Nama, NIS, NISN, Keterangan (Baru / Pindahan, dari isian "Diterima Sebagai"). Hanya siswa aktif di kelas tersebut. Tanda tangan hanya Kepala Sekolah, tanggalnya mengikuti tanggal diterima siswa baru.</div>' +
+      '<div class="panel-note" style="margin-top:-4px;">Cover: judul, kelas, program keahlian, tahun ajaran — kelas dan tahun ajaran diambil dari <b>semester 1</b> siswa (bukan kelas saat ini). Daftar Siswa: No, Nama, NIS, NISN, Keterangan (Baru / Pindahan, dari isian "Diterima Sebagai"). Hanya siswa aktif di kelas tersebut. Tanda tangan hanya Kepala Sekolah, tanggalnya mengikuti tanggal diterima siswa baru.</div>' +
 
       '<div class="section-title" style="margin-top:22px;">3 & 4. Biodata dan Nilai <span style="font-weight:400;font-size:12px;color:var(--ink-soft);">(centang siswa yang ingin dicetak)</span></div>' +
       '<div class="toolbar" style="align-items:flex-end;">' +
