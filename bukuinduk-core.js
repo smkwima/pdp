@@ -2891,6 +2891,18 @@
     return { ok: ok, gagal: gagal };
   };
 
+  // Halaman menu "Isi Semester Terlewat" (admin & wali kelas).
+  // opts: { root, kelasId (wali), admin }
+  BI.renderSemesterTerlewat = async function (opts) {
+    var root = opts.root;
+    var kls = (opts.kelasId && BI.ctx.kelasWali) ? ' — Kelas ' + esc(BI.ctx.kelasWali.nama) : '';
+    root.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Isi Semester Terlewat' + kls + '</div><div class="panel-head__desc">' +
+      'Untuk semester yang tidak ada di E-Rapor (tahun lama, siswa pindahan). Isi nilai, kehadiran, ekstrakurikuler, dan kokurikuler satu kelas sekaligus lewat Excel.</div></div></div>' +
+      '<div id="exNs"></div>';
+    await BI.pasangExcelNilaiSemester(root, opts);
+  };
+
   // Panel UI di menu Excel: unduh template + impor nilai semester (per kelas).
   BI.pasangExcelNilaiSemester = async function (root, opts) {
     var el = root.querySelector('#exNs');
@@ -2899,7 +2911,7 @@
     if (opts.admin) { try { kelasPilihan = await BI.muatKelas(); } catch (e) { kelasPilihan = []; } }
     var kelasWali = BI.ctx.kelasWali;
     el.innerHTML =
-      '<div class="section-title">3. Isi Semester Terlewat per Kelas (Excel)</div>' +
+      '<div class="section-title">1. Unduh template, isi, lalu impor</div>' +
       '<div class="panel-note" style="margin-top:-4px;">Untuk semester yang tidak ada di E-Rapor: unduh template berisi daftar siswa kelas dan mapel yang berlaku, isi nilai + kehadiran + ekstrakurikuler + kokurikuler, lalu impor. Tersimpan sebagai semester manual (dikunci) dan tidak ditimpa saat "Sinkron dari E-Rapor". Siswa diambil dari kelas pada tahun ajaran aktif.</div>' +
       '<div class="toolbar" style="align-items:center;flex-wrap:wrap;">' +
       (opts.admin ? '<select id="nsKelas" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;"><option value="">— pilih kelas —</option>' +
@@ -2985,8 +2997,7 @@
       [1, 2, 3, 4, 5, 6].map(function (k) { return '<option value="' + k + '">Semester ' + k + '</option>'; }).join('') + '</select>' +
       '<button class="btn-small btn-small--primary" id="exNilai">⬇ Unduh Nilai (Excel)</button></div>' +
       '<div class="panel-note" style="margin-top:-4px;">Berisi nilai tiap mata pelajaran, rata-rata, dan sakit/izin/alpha per siswa, dari arsip E-Rapor di Buku Induk. Nilai di bawah KKM berwarna merah. Bila kosong, jalankan menu "Sinkron dari E-Rapor" dulu.</div>' +
-      '<div id="exNs"></div>' +
-      '<div class="section-title">4. Impor Data Siswa</div>' +
+      '<div class="section-title">3. Impor</div>' +
       '<div class="toolbar" style="align-items:center;">' +
       '<label class="btn-small" style="cursor:pointer;">⬆ Pilih File Excel untuk Diimpor<input type="file" id="exFile" accept=".xlsx,.xls" style="display:none;"></label>' +
       (opts.admin ? '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;"><input type="checkbox" id="exBaru"> tambahkan siswa baru bila NIS belum ada</label>' : '') +
@@ -3064,7 +3075,6 @@
       var el = root.querySelector(id);
       if (el) el.addEventListener('change', prosesFile);
     });
-    BI.pasangExcelNilaiSemester(root, opts);
   };
 
   // Tombol bantu: logout seragam

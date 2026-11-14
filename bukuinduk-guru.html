@@ -18,7 +18,7 @@
 <script src="sticky-nama.js?v=1"></script>
 <script src="bukuinduk-fields.js?v=2"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
-<script src="bukuinduk-core.js?v=20"></script>
+<script src="bukuinduk-core.js?v=21"></script>
 <script src="pengajuan-data.js?v=2"></script>
 <script src="mobile.js?v=1" defer></script>
 <script src="bottomnav.js?v=10" defer></script>
@@ -46,6 +46,7 @@
       <a href="#" class="menu-item" data-view="pengajuan"><i data-lucide="inbox" class="menu-icon"></i><span class="menu-item__title">Pengajuan Data Siswa</span></a>
       <a href="#" class="menu-item" data-view="sinkron"><i data-lucide="refresh-cw" class="menu-icon"></i><span class="menu-item__title">Sinkron dari E-Rapor</span></a>
       <a href="#" class="menu-item" data-view="excel"><i data-lucide="file-spreadsheet" class="menu-icon"></i><span class="menu-item__title">Unduh Excel</span></a>
+      <a href="#" class="menu-item" data-view="terlewat"><i data-lucide="calendar-plus" class="menu-icon"></i><span class="menu-item__title">Isi Semester Terlewat</span></a>
       <a href="#" class="menu-item" data-view="cetak"><i data-lucide="printer" class="menu-icon"></i><span class="menu-item__title">Cetak Buku Induk</span></a>
     </nav>
 
@@ -101,6 +102,7 @@
     pengajuan: function () { return PengajuanData.render(content, { tahunAjaranId: taAktif ? taAktif.id : null, menuEl: document.querySelector('#menuBI [data-view="pengajuan"]') }); },
     sinkron: function () { return BI.renderSinkron({ root: content, kelasId: kelas.id }); },
     excel: function () { return BI.renderExcel({ root: content, kelasId: kelas.id }); },
+    terlewat: function () { return BI.renderSemesterTerlewat({ root: content, kelasId: kelas.id }); },
     cetak: function () { return BI.renderCetak({ root: content, kelasId: kelas.id }); }
   };
 
