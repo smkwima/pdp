@@ -2656,7 +2656,7 @@
       .map(function (m) { return m.nama; });
   }
 
-  BI.buatTemplateNilaiSemester = async function (list, kelas, taNama, semKe) {
+  BI.buatTemplateNilaiSemester = async function (list, kelas, taNama, semKe, kelasSemNama) {
     if (!g.ExcelJS) throw new Error('Pustaka ExcelJS belum termuat. Muat ulang halaman lalu coba lagi.');
     if (!list || !list.length) throw new Error('Tidak ada siswa di kelas ini pada tahun ajaran aktif.');
     list = list.slice().sort(function (a, b) {
@@ -2678,7 +2678,7 @@
     wp.getCell('A1').font = { bold: true, size: 14, color: { argb: WARNA.judul } };
     [
       '1. Dipakai untuk semester yang tidak ada di E-Rapor (tahun lama, siswa pindahan). Isi sheet "' + NS_SHEET + '", simpan, lalu impor lewat menu Excel → bagian "Isi Semester Terlewat".',
-      '2. Bagian atas sheet (Tahun Ajaran, Semester ke-, Kelas pada semester ini) boleh diperbaiki bila keliru. Tahun ajaran berformat 2023/2024. Semester ke- 1 sampai 6 (ganjil = Gasal, genap = Genap).',
+      '2. Bagian atas sheet (Tahun Ajaran, Semester ke-, Kelas pada semester ini) boleh diperbaiki bila keliru. Tahun Ajaran ditulis TTTT/TTTT, contoh 2025/2026. Semester ke- 1 sampai 6 (ganjil = Gasal, genap = Genap). Kelas pada semester ini adalah kelas siswa SAAT semester itu, bukan kelas sekarang (contoh: siswa kini XII-ANM yang mengisi semester 1 berarti kelasnya X-ANM).',
       '3. Jangan mengubah, menghapus, atau menambah kolom, dan jangan mengubah judul kolom. Kolom NIS, NISN, dan Nama dipakai untuk mencocokkan siswa.',
       '4. Kolom mapel diisi nilai 0-100 (koma/titik desimal boleh). Mapel yang kosong dianggap tidak ada. Pendidikan Agama otomatis memakai agama masing-masing siswa.',
       '5. Mapel yang tidak ada di daftar: ketik namanya pada judul kolom "Mapel Tambahan 1-' + NS_TAMBAHAN + '" (timpa tulisan judulnya), lalu isi nilainya. Kolom yang judulnya tidak diubah diabaikan.',
@@ -2700,7 +2700,7 @@
     ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: WARNA.judul } };
     ws.getCell(2, 1).value = 'SMK Widya Mandala Tambak · isi nilai, kehadiran, ekskul, dan kokurikuler semester yang terlewat';
     ws.getCell(2, 1).font = { italic: true, color: { argb: 'FF475569' } };
-    [['Tahun Ajaran', taNama], ['Semester ke-', semKe], ['Semester', sem], ['Kelas pada semester ini', kelas.nama]].forEach(function (p, i) {
+    [['Tahun Ajaran', taNama], ['Semester ke-', semKe], ['Semester', sem], ['Kelas pada semester ini', kelasSemNama || kelas.nama]].forEach(function (p, i) {
       var a = ws.getCell(3 + i, 1), b = ws.getCell(3 + i, 2);
       a.value = p[0]; a.font = { bold: true }; a.border = BORDER; a.fill = fillSolid(WARNA.grup);
       b.value = p[1]; b.border = BORDER; b.numFmt = '@'; b.fill = fillSolid('FFFEF9C3'); b.alignment = { horizontal: 'left' };
@@ -2746,8 +2746,8 @@
     return wb;
   };
 
-  BI.unduhTemplateNilaiSemester = async function (list, kelas, taNama, semKe, namaFile) {
-    var wb = await BI.buatTemplateNilaiSemester(list, kelas, taNama, semKe);
+  BI.unduhTemplateNilaiSemester = async function (list, kelas, taNama, semKe, namaFile, kelasSemNama) {
+    var wb = await BI.buatTemplateNilaiSemester(list, kelas, taNama, semKe, kelasSemNama);
     await simpanWorkbook(wb, namaFile || 'template_nilai_semester.xlsx');
   };
 
@@ -2933,12 +2933,16 @@
     el.innerHTML =
       '<div class="section-title">1. Unduh template, isi, lalu impor</div>' +
       '<div class="panel-note" style="margin-top:-4px;">Untuk semester yang tidak ada di E-Rapor: unduh template berisi daftar siswa kelas dan mapel yang berlaku, isi nilai + kehadiran + ekstrakurikuler + kokurikuler, lalu impor. Tersimpan sebagai semester manual (dikunci) dan tidak ditimpa saat "Sinkron dari E-Rapor". Siswa diambil dari kelas pada tahun ajaran aktif.</div>' +
+      '<div class="panel-note" style="margin-top:-4px;"><b>Petunjuk pengisian:</b><br>' +
+      '• <b>Tahun Ajaran</b> ditulis dengan format <b>TTTT/TTTT</b>, contoh: <b>2025/2026</b>.<br>' +
+      '• <b>Kelas pada semester itu</b> diisi kelas siswa saat semester tersebut, bukan kelas sekarang. Contoh: siswa kini kelas XII-ANM yang mengisi semester 1 → kelasnya <b>X-ANM</b> (semester 1-2 = kelas X, 3-4 = XI, 5-6 = XII). Kolom ini terisi saran otomatis dan boleh diubah.</div>' +
       '<div class="toolbar" style="align-items:center;flex-wrap:wrap;">' +
       (opts.admin ? '<select id="nsKelas" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;"><option value="">— pilih kelas —</option>' +
         kelasPilihan.map(function (k) { return '<option value="' + esc(k.id) + '">' + esc(k.nama) + '</option>'; }).join('') + '</select>' : '') +
-      '<input type="text" id="nsTa" placeholder="Tahun ajaran, mis. 2023/2024" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:210px;">' +
+      '<input type="text" id="nsTa" placeholder="Tahun ajaran, mis. 2025/2026" title="Format TTTT/TTTT, contoh 2025/2026" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:210px;">' +
       '<select id="nsKe" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;">' +
       [1, 2, 3, 4, 5, 6].map(function (k) { return '<option value="' + k + '">Semester ' + k + ' (' + semesterDariKe(k) + ')</option>'; }).join('') + '</select>' +
+      '<input type="text" id="nsKelasSem" placeholder="Kelas saat semester itu, mis. X-ANM" title="Kelas siswa pada semester yang diisi (bukan kelas sekarang)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:230px;">' +
       '<button class="btn-small btn-small--primary" id="nsUnduh">⬇ Unduh Template Nilai Semester</button></div>' +
       '<div class="toolbar" style="align-items:center;flex-wrap:wrap;">' +
       '<label class="btn-small" style="cursor:pointer;">⬆ Impor Nilai Semester<input type="file" id="nsFile" accept=".xlsx,.xls" style="display:none;"></label>' +
@@ -2956,6 +2960,23 @@
       return kelasPilihan.find(function (k) { return String(k.id) === String(id); });
     }
 
+    // Saran nama kelas saat semester itu: ganti tingkat (X/XI/XII) sesuai semester, sisanya ikut kelas sekarang.
+    var kelasSemEl = el.querySelector('#nsKelasSem'), kelasSemDiubah = false;
+    kelasSemEl.addEventListener('input', function () { kelasSemDiubah = true; });
+    function saranKelasSemester() {
+      if (kelasSemDiubah) return;
+      var k = null;
+      if (opts.admin) { var idk = el.querySelector('#nsKelas').value; k = idk ? kelasPilihan.find(function (x) { return String(x.id) === String(idk); }) : null; }
+      else k = kelasWali;
+      var ke = Number(el.querySelector('#nsKe').value);
+      var tingkat = ke <= 2 ? 'X' : (ke <= 4 ? 'XI' : 'XII');
+      var nm = k ? String(k.nama || '') : '';
+      kelasSemEl.value = /^\s*(XII|XI|X)(?![A-Za-z])/i.test(nm) ? nm.replace(/^(\s*)(XII|XI|X)(?![A-Za-z])/i, '$1' + tingkat) : '';
+    }
+    el.querySelector('#nsKe').addEventListener('change', saranKelasSemester);
+    if (opts.admin) el.querySelector('#nsKelas').addEventListener('change', saranKelasSemester);
+    saranKelasSemester();
+
     el.querySelector('#nsUnduh').addEventListener('click', async function () {
       var btn = this, teks = btn.textContent; btn.disabled = true; btn.textContent = 'Menyiapkan...';
       try {
@@ -2963,8 +2984,10 @@
         var ta = el.querySelector('#nsTa').value.trim().replace(/\s+/g, '');
         if (!/^\d{4}\/\d{4}$/.test(ta)) throw new Error('Tahun ajaran harus berformat 2023/2024.');
         var ke = Number(el.querySelector('#nsKe').value);
+        var kelasSem = kelasSemEl.value.trim();
+        if (!kelasSem) throw new Error('Isi nama kelas saat semester itu, mis. X-ANM (bukan kelas sekarang).');
         var list = await BI.muatSiswa({ kelasId: kelas.id });
-        await BI.unduhTemplateNilaiSemester(list, kelas, ta, ke, 'template_nilai_semester' + ke + '_' + String(kelas.nama).replace(/\s+/g, '_') + '.xlsx');
+        await BI.unduhTemplateNilaiSemester(list, kelas, ta, ke, 'template_nilai_semester' + ke + '_' + String(kelas.nama).replace(/\s+/g, '_') + '.xlsx', kelasSem);
       } catch (e) { alert('Gagal: ' + pesanError(e)); }
       btn.disabled = false; btn.textContent = teks;
     });
