@@ -2618,6 +2618,7 @@
   // sama seperti tombol "+ Tambah Semester Manual", tetapi untuk satu kelas sekaligus.
   var NS_SHEET = 'Nilai Semester';
   var NS_TAMBAHAN = 3;
+  var NS_EKSKUL = 3; // jumlah pasangan kolom Ekstrakurikuler N + Predikat Ekstrakurikuler N di template
   function semesterDariKe(ke) { return ke % 2 === 1 ? 'Gasal' : 'Genap'; }
   function urutMapel(m) { return m.urutan_leger != null ? m.urutan_leger : (m.urutan_rapor != null ? m.urutan_rapor : 9999); }
 
@@ -2682,14 +2683,17 @@
       '4. Kolom mapel diisi nilai 0-100 (koma/titik desimal boleh). Mapel yang kosong dianggap tidak ada. Pendidikan Agama otomatis memakai agama masing-masing siswa.',
       '5. Mapel yang tidak ada di daftar: ketik namanya pada judul kolom "Mapel Tambahan 1-' + NS_TAMBAHAN + '" (timpa tulisan judulnya), lalu isi nilainya. Kolom yang judulnya tidak diubah diabaikan.',
       '6. Sakit / Izin / Tanpa Keterangan: angka jumlah hari. Kosong dianggap 0.',
-      '7. Ekstrakurikuler: satu baris satu ekskul, format Nama | Predikat (predikat boleh dikosongkan). Pindah baris dalam satu sel dengan Alt+Enter, atau pisahkan dengan titik koma (;).',
+      '7. Ekstrakurikuler: tersedia ' + NS_EKSKUL + ' pasang kolom. Isi nama ekskul pada "Ekstrakurikuler 1" dan predikatnya pada "Predikat Ekstrakurikuler 1", lalu ekskul berikutnya pada pasangan 2, 3, dst. Predikat boleh dikosongkan; pasangan yang tidak dipakai biarkan kosong.',
       '8. Kokurikuler: satu baris satu kegiatan, format Nama Kegiatan | Deskripsi capaian. Pindah baris dalam sel dengan Alt+Enter.',
       '9. Data yang diimpor tersimpan sebagai semester MANUAL (dikunci), tidak ditimpa saat "Tarik dari E-Rapor". Bila siswa sudah punya arsip semester yang sama, baris dilewati kecuali "timpa" dicentang saat impor.'
     ].forEach(function (tx, i) { var c = wp.getCell(3 + i, 1); c.value = tx; c.alignment = { wrapText: true, vertical: 'top' }; wp.getRow(3 + i).height = 34; });
 
     var ws = wb.addWorksheet(NS_SHEET);
     var IDENT = ['No', 'NIS', 'NISN', 'Nama Lengkap'];
-    var AKHIR = ['Sakit', 'Izin', 'Tanpa Keterangan', 'Ekstrakurikuler', 'Kokurikuler', 'Catatan Wali Kelas'];
+    var EKS = [];
+    for (var e = 1; e <= NS_EKSKUL; e++) { EKS.push('Ekstrakurikuler ' + e); EKS.push('Predikat Ekstrakurikuler ' + e); }
+    var nEk = EKS.length;
+    var AKHIR = ['Sakit', 'Izin', 'Tanpa Keterangan'].concat(EKS, ['Kokurikuler', 'Catatan Wali Kelas']);
     var judul = IDENT.concat(kolMapel, AKHIR);
     var HDR = 8, DATA = 9;
     ws.getCell(1, 1).value = 'TEMPLATE NILAI SATU SEMESTER — KELAS ' + kelas.nama;
@@ -2729,12 +2733,13 @@
         var ck = ws.getCell(r, cSakit + k); ck.border = BORDER; ck.alignment = { horizontal: 'center', vertical: 'top' }; ck.numFmt = '0';
         ck.dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0], showErrorMessage: true, errorStyle: 'warning', errorTitle: 'Jumlah hari', error: 'Isi dengan angka bulat 0 atau lebih.' };
       }
-      for (var q = 3; q < 6; q++) { var cq = ws.getCell(r, cSakit + q); cq.border = BORDER; cq.alignment = { vertical: 'top', wrapText: true }; cq.numFmt = '@'; }
+      for (var q = 3; q < 5 + nEk; q++) { var cq = ws.getCell(r, cSakit + q); cq.border = BORDER; cq.alignment = { vertical: 'top', wrapText: true }; cq.numFmt = '@'; }
     });
     ws.getColumn(1).width = 12; ws.getColumn(2).width = 14; ws.getColumn(3).width = 14; ws.getColumn(4).width = 32;
     for (var m2 = 0; m2 < nMap; m2++) ws.getColumn(IDENT.length + 1 + m2).width = 15;
     for (var k2 = 0; k2 < 3; k2++) ws.getColumn(cSakit + k2).width = 11;
-    ws.getColumn(cSakit + 3).width = 30; ws.getColumn(cSakit + 4).width = 48; ws.getColumn(cSakit + 5).width = 30;
+    for (var e2 = 0; e2 < NS_EKSKUL; e2++) { ws.getColumn(cSakit + 3 + e2 * 2).width = 26; ws.getColumn(cSakit + 4 + e2 * 2).width = 16; }
+    ws.getColumn(cSakit + 3 + nEk).width = 48; ws.getColumn(cSakit + 4 + nEk).width = 30;
     ws.views = [{ state: 'frozen', xSplit: 4, ySplit: HDR }];
     ws.autoFilter = { from: { row: HDR, column: 1 }, to: { row: HDR, column: judul.length } };
     wb.views = [{ activeTab: 1 }];
@@ -2781,7 +2786,13 @@
     var cNis = judul.indexOf('NIS'), cNisn = judul.indexOf('NISN'), cNama = judul.indexOf('Nama Lengkap');
     var cS = judul.indexOf('Sakit'), cI = judul.indexOf('Izin'), cA = judul.indexOf('Tanpa Keterangan');
     var cEk = judul.indexOf('Ekstrakurikuler'), cKo = judul.indexOf('Kokurikuler'), cCat = judul.indexOf('Catatan Wali Kelas');
-    if (cS < 0 || cI < 0 || cA < 0 || cEk < 0 || cKo < 0 || cCat < 0) throw new Error('Kolom Sakit / Izin / Tanpa Keterangan / Ekstrakurikuler / Kokurikuler / Catatan Wali Kelas tidak lengkap. Gunakan template terbaru.');
+    // Template baru: pasangan kolom "Ekstrakurikuler N" + "Predikat Ekstrakurikuler N". cEk (satu kolom Nama | Predikat) tetap dibaca untuk template lama.
+    var kolEk = [];
+    judul.forEach(function (t, c) {
+      var mk = /^Ekstrakurikuler\s+(\d+)$/i.exec(t);
+      if (mk) kolEk.push({ c: c, p: judul.indexOf('Predikat Ekstrakurikuler ' + mk[1]), n: mk[1] });
+    });
+    if (cS < 0 || cI < 0 || cA < 0 || (cEk < 0 && !kolEk.length) || cKo < 0 || cCat < 0) throw new Error('Kolom Sakit / Izin / Tanpa Keterangan / Ekstrakurikuler / Kokurikuler / Catatan Wali Kelas tidak lengkap. Gunakan template terbaru.');
     var kolMapel = [];
     for (var c = cNama + 1; c < cS; c++) {
       if (judul[c] && !/^Mapel Tambahan \d+$/i.test(judul[c])) kolMapel.push({ c: c, nama: judul[c] });
@@ -2841,7 +2852,16 @@
         return Math.round(n);
       }
       var ekskul = [];
-      String(row[cEk] === undefined ? '' : row[cEk]).split(/\r?\n|;/).forEach(function (ln) {
+      kolEk.forEach(function (ke2) {
+        var nm = String(row[ke2.c] === undefined ? '' : row[ke2.c]).trim();
+        var pr = ke2.p >= 0 ? String(row[ke2.p] === undefined ? '' : row[ke2.p]).trim() : '';
+        if (!nm) {
+          if (pr) hasil.peringatan.push('Baris ' + noBaris + ': Predikat Ekstrakurikuler ' + ke2.n + ' terisi tetapi nama ekskulnya kosong (diabaikan).');
+          return;
+        }
+        ekskul.push({ nama: nm, predikat: pr || null });
+      });
+      if (cEk >= 0) String(row[cEk] === undefined ? '' : row[cEk]).split(/\r?\n|;/).forEach(function (ln) {
         var p = ln.split('|'); if (!p[0].trim()) return;
         ekskul.push({ nama: p[0].trim(), predikat: p[1] && p[1].trim() ? p[1].trim() : null });
       });
