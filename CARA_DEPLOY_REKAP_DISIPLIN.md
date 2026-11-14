@@ -11,3 +11,11 @@ Sumbernya rekap yang disimpan admin di Rekap Absen (tombol "Simpan rekap").
 
 Akses: Kepala Sekolah (dan admin). Guru/staf yang membuka disiplin.html dikembalikan ke Menu Utama,
 dan server menolak permintaannya.
+
+## Kartu "Predikat Kedisiplinan" di Menu Utama guru & staf
+Kartu di baris kartu Beranda (portal.html) menampilkan predikat milik sendiri dari rekap tersimpan terbaru.
+Diklik -> rekapan: Tidak hadir (alpa), Terlambat, Pulang lebih cepat, Ijin, Sakit, Dinas luar (bisa pilih periode lain).
+
+1. Deploy ulang Edge Function: `supabase functions deploy rekap-disiplin` (ada aksi baru `saya`).
+2. Upload `portal.html` dan `disiplin-saya.js` (file baru).
+3. Tidak perlu SQL. Data dicocokkan lewat **Kode Mesin** akun (cadangan: nama). Server hanya mengirim baris milik pemanggil.

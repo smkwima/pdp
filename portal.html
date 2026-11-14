@@ -18,6 +18,7 @@
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
+<script src="disiplin-saya.js?v=1"></script>
 <style>
   body { background: var(--bg); min-height: 100vh; }
 
@@ -80,6 +81,7 @@
   .pt-hero__ta b { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
 
   .pt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+  .pt-hero__disp { flex-basis: 100%; }
   .pt-stat { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
   .pt-stat__ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .pt-stat__ic i, .pt-stat__ic svg { width: 22px; height: 22px; }
@@ -214,6 +216,7 @@
           <p class="pt-hero__sub" id="heroSub">Pilih modul aplikasi yang ingin kamu buka.</p>
         </div>
         <div class="pt-hero__ta" id="heroTa" style="display:none;"><span>Tahun Ajaran Aktif</span><b id="heroTaTxt"></b></div>
+        <div class="pt-hero__disp" id="dsWadah" style="display:none;"></div>
       </section>
 
       <div class="pt-stats" id="stats"></div>
@@ -393,6 +396,12 @@
       kartuStat('user-check', 'c-oranye', 'stWali', 'Wali Kelas', true);
     document.getElementById('heroSub').textContent = 'Lanjutkan pekerjaanmu — pilih modul di bawah ini.';
     if (window.lucide) lucide.createIcons();
+    if (window.DisiplinSaya) {
+      var dsW = document.getElementById('dsWadah');
+      dsW.innerHTML = DisiplinSaya.kartu(); dsW.style.display = '';
+      if (window.lucide) lucide.createIcons();
+    }
+    if (window.DisiplinSaya) DisiplinSaya.muat(); // dimuat paralel; gagal tidak mengganggu kartu lain
     if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
 
     var peng = [], wali = null, waliKelasObj = null;

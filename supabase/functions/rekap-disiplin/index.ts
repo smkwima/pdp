@@ -6,8 +6,11 @@
 // jadwal, jam, dan jumlah menit tidak pernah dikirim ke browser.
 //
 // Aksi (body JSON, field "aksi"):
-//   daftar : { }        -> daftar rekap tersimpan (judul, periode), terbaru dulu
-//   lihat  : { id }     -> [{ nama, predikat }] untuk satu rekap
+//   daftar : { }        -> daftar rekap tersimpan (judul, periode), terbaru dulu   (kepsek/admin)
+//   lihat  : { id }     -> semua guru/staf + angka + predikat untuk satu rekap      (kepsek/admin)
+//   saya   : { id? }    -> HANYA baris milik pemanggil (dicocokkan lewat kode mesin,
+//                          cadangan: nama) + daftar rekap; id kosong = rekap terbaru.
+//                          Boleh untuk guru, staf, kepsek, admin.  (kartu di Menu Utama)
 //
 // Secrets (sama dengan ijin-absen): REKAP_SUPABASE_URL, REKAP_SERVICE_KEY
 // =========================================================
@@ -20,6 +23,79 @@ const corsHeaders = {
 };
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// ---- pembaca angka ringkasan (toleran terhadap variasi nama kunci) ----
+const KOLOM: Record<string, string[]> = {
+  alpa: ["alpa", "alpha", "tidak_hadir", "tidakHadir"],
+  terlambat: ["terlambat", "telat"],
+  pulang_awal: ["pulang_awal", "pulangAwal", "pulang_cepat", "pulangCepat", "pulang_lebih_awal"],
+  ijin: ["ijin", "izin"],
+  sakit: ["sakit"],
+  dinas_luar: ["dinas_luar", "dinasLuar", "dl"],
+};
+// Ubah satu nilai ringkasan jadi angka: angka, "1", "1x", "1 kali", daftar tanggal (dihitung), atau objek {kali/jumlah/count}.
+function keAngka(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v === "number") return isNaN(v) ? null : v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (Array.isArray(v)) return v.length;
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    for (const k of ["kali", "jumlah", "count", "n", "hari", "total"]) {
+      const x = keAngka(o[k]);
+      if (x !== null) return x;
+    }
+    return null;
+  }
+  const f = parseFloat(String(v).replace(",", "."));
+  return isNaN(f) ? null : f;
+}
+// Pola cadangan bila nama kunci tidak persis sama. Kunci berisi menit/jam/durasi tidak dipakai (itu lama, bukan jumlah kejadian).
+const POLA: Record<string, RegExp> = {
+  alpa: /(alpa|alpha|tidak_?hadir|absen)/i,
+  terlambat: /(terlambat|telat|late)/i,
+  pulang_awal: /(pulang.*(awal|cepat)|(awal|cepat).*pulang|early)/i,
+  ijin: /(ijin|izin)/i,
+  sakit: /sakit/i,
+  dinas_luar: /(dinas|^dl$|_dl$)/i,
+};
+const BUKAN_JUMLAH = /(menit|min$|_min|jam|durasi|detik|total_?waktu|persen|pct)/i;
+function angka(o: Record<string, unknown>, kunci: string[], pola?: RegExp): number | null {
+  for (const k of kunci) {
+    const x = keAngka(o[k]);
+    if (x !== null) return x;
+  }
+  if (pola) {
+    for (const k of Object.keys(o)) {
+      if (pola.test(k) && !BUKAN_JUMLAH.test(k)) {
+        const x = keAngka(o[k]);
+        if (x !== null) return x;
+      }
+    }
+  }
+  return null;
+}
+function barisAman(o: Record<string, unknown>) {
+  const out: Record<string, unknown> = {
+    nama: String(o.nama ?? "").slice(0, 120),
+    predikat: String(o.predikat ?? "–").slice(0, 30),
+  };
+  for (const [k, alias] of Object.entries(KOLOM)) out[k] = angka(o, alias, POLA[k]);
+  return out;
+}
+function kolomHilang(rows: Record<string, unknown>[]): string[] {
+  return Object.keys(KOLOM).filter((k) => rows.length > 0 && rows.every((r) => r[k] === null || r[k] === undefined));
+}
+const kodeNorm = (v: unknown) => { const t = String(v ?? "").trim(); return /^\d+$/.test(t) ? String(parseInt(t, 10)) : ""; };
+const namaNorm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function cariBarisSaya(ring: Record<string, unknown>[], kode: string, nama: string) {
+  if (kode) {
+    const h = ring.find((o) => ["kode_mesin", "kode", "kodeMesin", "no_id", "id", "pin"].some((k) => kodeNorm(o[k]) === kode));
+    if (h) return h;
+  }
+  const n = namaNorm(nama);
+  return n ? ring.find((o) => namaNorm(o.nama) === n) : undefined;
 }
 
 Deno.serve(async (req: Request) => {
@@ -46,10 +122,9 @@ Deno.serve(async (req: Request) => {
     if (callerErr || !callerData?.user) return json({ error: "Sesi login tidak valid. Silakan login ulang." }, 401);
 
     const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { data: prof } = await adminClient.from("profiles").select("role").eq("id", callerData.user.id).maybeSingle();
-    if (!prof || !["kepsek", "admin"].includes(prof.role)) {
-      return json({ error: "Rekap kedisiplinan hanya untuk Kepala Sekolah." }, 403);
-    }
+    const { data: prof } = await adminClient.from("profiles").select("nama, role, kode_mesin").eq("id", callerData.user.id).maybeSingle();
+    if (!prof) return json({ error: "Profil akun tidak ditemukan." }, 403);
+    const boleh = ["kepsek", "admin"].includes(prof.role);
 
     const rekap = async (path: string) => {
       const r = await fetch(`${REKAP_URL}/rest/v1${path}`, { headers: { apikey: REKAP_KEY, Authorization: `Bearer ${REKAP_KEY}` } });
@@ -69,6 +144,10 @@ Deno.serve(async (req: Request) => {
     try { body = await req.json(); } catch { /* body kosong */ }
     const aksi = String(body.aksi || "");
 
+    if ((aksi === "daftar" || aksi === "lihat") && !boleh) {
+      return json({ error: "Rekap kedisiplinan seluruh guru hanya untuk Kepala Sekolah." }, 403);
+    }
+
     if (aksi === "daftar") {
       const r = await rekap("/absen_rekap?select=id,judul,periode_awal,periode_akhir,created_at&order=created_at.desc&limit=60");
       if (!r.ok) return galat(r);
@@ -83,15 +162,43 @@ Deno.serve(async (req: Request) => {
       const baris = Array.isArray(r.data) ? r.data[0] as Record<string, unknown> | undefined : undefined;
       if (!baris) return json({ error: "Rekap tidak ditemukan." }, 404);
       const ring = Array.isArray(baris.ringkasan) ? baris.ringkasan as Record<string, unknown>[] : [];
-      // Hanya nama + predikat yang keluar dari server.
       const data = ring
-        .map((o) => ({ nama: String(o.nama ?? "").slice(0, 120), predikat: String(o.predikat ?? "–").slice(0, 30) }))
+        .map((o) => barisAman(o))
         .filter((o) => o.nama)
-        .sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+        .sort((a, b) => String(a.nama).localeCompare(String(b.nama), "id"));
       return json({
         success: true,
         judul: baris.judul, periode_awal: baris.periode_awal, periode_akhir: baris.periode_akhir, created_at: baris.created_at,
-        data,
+        data, kolom_hilang: kolomHilang(data),
+      }, 200);
+    }
+
+    if (aksi === "saya") {
+      const dr = await rekap("/absen_rekap?select=id,judul,periode_awal,periode_akhir,created_at&order=created_at.desc&limit=24");
+      if (!dr.ok) return galat(dr);
+      const daftar = (dr.data || []) as Record<string, unknown>[];
+      if (!daftar.length) return json({ success: true, daftar: [], rekap: null, data: null, alasan: "belum_ada_rekap" }, 200);
+
+      const idMinta = String(body.id ?? "");
+      if (idMinta && !/^[0-9a-zA-Z-]{1,64}$/.test(idMinta)) return json({ error: "ID rekap tidak valid." }, 400);
+      const id = idMinta || String(daftar[0].id);
+      const r = await rekap(`/absen_rekap?id=eq.${encodeURIComponent(id)}&select=judul,periode_awal,periode_akhir,created_at,ringkasan&limit=1`);
+      if (!r.ok) return galat(r);
+      const baris = Array.isArray(r.data) ? r.data[0] as Record<string, unknown> | undefined : undefined;
+      if (!baris) return json({ error: "Rekap tidak ditemukan." }, 404);
+      const ring = Array.isArray(baris.ringkasan) ? baris.ringkasan as Record<string, unknown>[] : [];
+
+      const kode = kodeNorm(prof.kode_mesin);
+      const milik = cariBarisSaya(ring, kode, String(prof.nama ?? ""));
+      const dataSaya = milik ? barisAman(milik) : null;
+      return json({
+        success: true,
+        daftar,
+        rekap: { id, judul: baris.judul, periode_awal: baris.periode_awal, periode_akhir: baris.periode_akhir, created_at: baris.created_at },
+        data: dataSaya,
+        kolom_hilang: dataSaya ? kolomHilang([dataSaya]) : [],
+        kunci_tersedia: milik ? Object.keys(milik).slice(0, 60) : [],
+        alasan: dataSaya ? null : (kode ? "tidak_ditemukan" : "kode_mesin_kosong"),
       }, 200);
     }
 
