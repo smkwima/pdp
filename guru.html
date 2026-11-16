@@ -4094,6 +4094,74 @@
       document.getElementById('legerWaliCari').addEventListener('input', function (e) { tampilkanDaftar(e.target.value); });
     }
 
+    // ---------- Leger membaca arsip Buku Induk (Isi Semester Terlewat) ----------
+    // Semester yang tidak ada di E-Rapor (tahun lama, siswa pindahan) diisi lewat
+    // Buku Induk → disimpan di bi_riwayat_semester, bukan di tabel `nilai`.
+    // Dua fungsi di bawah melengkapi leger: nilai E-Rapor TETAP didahulukan,
+    // arsip Buku Induk hanya mengisi sel semester yang masih kosong.
+    function normMapelLeger(n) {
+      var s = String(n || '').toLowerCase();
+      if (/pendidikan\s+agama/.test(s)) return 'pendidikan agama';
+      return s.replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+    async function muatArsipBukuInduk(siswaId, semesterMap) {
+      var out = [];
+      try {
+        var res = await supabaseClient
+          .from('bi_riwayat_semester')
+          .select('semester_ke, ta_nama, ta_semester, kelas_nama, nilai, nilai_pkl')
+          .eq('siswa_id', siswaId);
+        if (res.error) return out;
+        (res.data || []).forEach(function (r) {
+          var ke = Number(r.semester_ke) || null;
+          if (!ke) {
+            // semester_ke kosong: cari lewat tahun ajaran + semester di riwayat kelas
+            Object.keys(semesterMap || {}).forEach(function (k) {
+              var m = semesterMap[k];
+              if (m.taNama === r.ta_nama && m.taSemester === r.ta_semester) ke = Number(k);
+            });
+          }
+          if (ke >= 1 && ke <= 6) out.push({ ke: ke, ta: r.ta_nama, sem: r.ta_semester, kelas: r.kelas_nama, nilai: r.nilai || [], nilaiPkl: r.nilai_pkl });
+        });
+      } catch (e) { /* tabel arsip belum ada: leger tampil seperti biasa */ }
+      return out;
+    }
+    // Mengisi nilaiMap (dan menambah baris mapel bila nama tidak ada di daftar). Mengembalikan mapelList baru.
+    function terapkanArsipBukuInduk(arsip, mapelList, nilaiMap) {
+      if (!arsip || !arsip.length) return mapelList;
+      var daftar = mapelList.slice();
+      var tambahan = {};
+      function cariBaris(nama) {
+        var k = normMapelLeger(nama);
+        var hit = daftar.filter(function (m) { return normMapelLeger(m.nama) === k; });
+        if (hit.length) return hit;
+        if (!tambahan[k]) {
+          tambahan[k] = { id: 'bi:' + k, nama: nama, kode: null, jenis_mapel: null, urutan_leger: null, berlaku_untuk: 'semua', berlaku_semester: 'semua', dariArsip: true };
+          daftar.push(tambahan[k]);
+        }
+        return [tambahan[k]];
+      }
+      function isi(ke, nama, nilai) {
+        var v = Number(nilai);
+        if (nilai === null || nilai === undefined || nilai === '' || isNaN(v)) return;
+        cariBaris(nama).forEach(function (m) {
+          if (!nilaiMap[ke]) nilaiMap[ke] = {};
+          var ada = nilaiMap[ke][m.id];
+          if (ada && ada.nilai !== null && ada.nilai !== undefined) return; // nilai E-Rapor didahulukan
+          nilaiMap[ke][m.id] = { nilai: v, arsip: true };
+        });
+      }
+      arsip.forEach(function (r) {
+        var adaPkl = false;
+        (r.nilai || []).forEach(function (n) {
+          if (/praktik\s+kerja\s+lapangan|\bpkl\b/i.test(n.mapel || '')) adaPkl = true;
+          isi(r.ke, n.mapel, n.nilai);
+        });
+        if (r.ke === 6 && !adaPkl && r.nilaiPkl !== null && r.nilaiPkl !== undefined) isi(6, 'Praktik Kerja Lapangan (PKL)', r.nilaiPkl);
+      });
+      return daftar;
+    }
+
     async function renderLegerWaliDetail(siswaObj, wk) {
       content.innerHTML =
         '<div class="panel-head"><div><div class="panel-head__title">Leger Nilai — ' + escapeHtml(siswaObj.nama) + '</div>' +
@@ -4133,7 +4201,9 @@
       var tahunAjaranIdKeSemester = {};
       Object.keys(semesterMap).forEach(function (ke) { tahunAjaranIdKeSemester[semesterMap[ke].tahunAjaranId] = Number(ke); });
 
-      if (!Object.keys(semesterMap).length) {
+      var arsipBI = await muatArsipBukuInduk(siswaObj.id, semesterMap);
+
+      if (!Object.keys(semesterMap).length && !arsipBI.length) {
         area.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div>' +
           '<div class="empty-state__title">Belum ada data kelas</div>' +
           '<div class="empty-state__desc">Siswa ini belum tercatat pernah ditempatkan di kelas manapun.</div></div>';
@@ -4221,6 +4291,9 @@
       // bukan urutan abjad dan bukan urutan rapor per kelas.
       mapelList = urutkanMapelLeger(mapelList);
 
+      // Semester terlewat (diisi lewat Buku Induk) ikut dibaca; nilai E-Rapor tetap didahulukan.
+      mapelList = terapkanArsipBukuInduk(arsipBI, mapelList, nilaiMap);
+
       if (!mapelList.length) {
         area.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div>' +
           '<div class="empty-state__title">Belum ada mata pelajaran</div>' +
@@ -4232,6 +4305,10 @@
       var infoHtml = '<div class="panel-note">' +
         [1, 2, 3, 4, 5, 6].map(function (ke) {
           var m = semesterMap[ke];
+          if (!m) {
+            var ar = arsipBI.filter(function (x) { return x.ke === ke; })[0];
+            if (ar) return 'Semester ' + ke + ': ' + escapeHtml(ar.kelas || '—') + ' — TA ' + escapeHtml(ar.ta) + ' ' + escapeHtml(ar.sem) + ' <em>(arsip Buku Induk)</em>';
+          }
           return 'Semester ' + ke + ': ' + (m ? escapeHtml(m.kelasNama) + ' — TA ' + escapeHtml(m.taNama) + ' ' + escapeHtml(m.taSemester) : '<em>belum ada data</em>');
         }).join(' &nbsp;·&nbsp; ') +
         '</div>';
