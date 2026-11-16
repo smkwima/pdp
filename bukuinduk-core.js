@@ -3149,6 +3149,7 @@
     if (!ses.data.session) { g.location.href = 'index.html'; return null; }
     var user = ses.data.session.user;
     var pr = await sb().from('profiles').select('nama, role').eq('id', user.id).single();
+    if (pr.data && pr.data.role === 'pengawas') { g.location.href = 'portal.html'; return null; } // Buku Induk (data pribadi siswa) tidak untuk pengawas
     var nama = (pr.data && pr.data.nama) ? pr.data.nama : user.email;
     var ta = (await sb().from('tahun_ajaran').select('id, nama, semester').eq('is_aktif', true).maybeSingle()).data;
     BI.ctx.userId = user.id;

@@ -11,10 +11,10 @@
 <script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=2"></script>
 <script src="app-switcher.js?v=8" defer></script>
-<script src="kepsek-nav.js?v=7"></script>
+<script src="kepsek-nav.js?v=8"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=10" defer></script>
+<script src="bottomnav.js?v=11" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
@@ -136,7 +136,7 @@
   var BUCKET = 'bukti-kinerja';
   var MAKS_BERKAS = 10 * 1024 * 1024; // sama dengan batas bucket di migrasi_kinerja.sql
 
-  var meId = null, meNama = '', meRole = 'guru', pantau = false, staf = false;
+  var meId = null, meNama = '', meRole = 'guru', pantau = false, staf = false, bisaCek = true;
   var periode = '', taAktif = null;
   var items = [], guruList = [], tampilan = 'ringkas', tabelSiap = true, galat = '';
   var filter = { guru: '', kategori: '', status: '', cari: '' };
@@ -262,7 +262,7 @@
   }
   function judulHalaman(v) {
     if (v === 'ringkas') return pantau ? ['Dashboard', 'Kelengkapan dan status bukti kinerja tiap guru'] : ['Dashboard', 'Ringkasan bukti dukung kinerjamu'];
-    return pantau ? ['Bukti Dukung Kinerja', 'Pilih nama guru / staf, lalu cek bukti yang diajukan dan beri jempol'] : ['Bukti Dukung Kinerja', staf ? 'Tulis aspek bukti dukung sendiri, lalu isi link dan keterangannya' : 'Pilih aspek bukti dukung, lalu isi link dan keterangannya'];
+    return pantau ? ['Bukti Dukung Kinerja', bisaCek ? 'Pilih nama guru / staf, lalu cek bukti yang diajukan dan beri jempol' : 'Pilih nama guru / staf untuk melihat bukti yang diajukan'] : ['Bukti Dukung Kinerja', staf ? 'Tulis aspek bukti dukung sendiri, lalu isi link dan keterangannya' : 'Pilih aspek bukti dukung, lalu isi link dan keterangannya'];
   }
   function keHalaman(v) {
     tampilan = v;
@@ -425,7 +425,7 @@
     } else {
       html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Aspek</th><th>Contoh Bukti Dukung</th><th>Link</th><th>Keterangan</th><th></th></tr></thead><tbody>' +
         list.map(function (x, i) {
-          var aksi = x.status === 'diajukan' ? tombol('jempol', x.id, 'thumbs-up', 'Beri Jempol', 'kj-btn-jempol') + tombol('minta-revisi', x.id, 'undo-2', 'Minta Revisi')
+          var aksi = !bisaCek ? '' : x.status === 'diajukan' ? tombol('jempol', x.id, 'thumbs-up', 'Beri Jempol', 'kj-btn-jempol') + tombol('minta-revisi', x.id, 'undo-2', 'Minta Revisi')
             : x.status === 'disetujui' ? tombol('cabut', x.id, 'rotate-ccw', 'Cabut Jempol') : '';
           var sub = aspekSub(x);
           return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(g ? g.nama : '—') + '</b></td>' +
@@ -648,11 +648,12 @@
     if (p.error || !p.data) { location.href = 'portal.html'; return; }
     meNama = p.data.nama || s.user.email;
     meRole = p.data.role;
-    pantau = meRole === 'admin' || meRole === 'kepsek';
+    pantau = meRole === 'admin' || meRole === 'kepsek' || meRole === 'pengawas';
+    bisaCek = meRole !== 'pengawas'; // pengawas hanya melihat, tidak memberi jempol/revisi
     staf = meRole === 'staf';
     document.getElementById('userName').textContent = meNama;
-    document.getElementById('userRole').textContent = meRole === 'admin' ? 'Admin' : meRole === 'kepsek' ? 'Kepala Sekolah' : (staf ? 'Staf' : 'Guru');
-    document.getElementById('roleLabel').textContent = pantau ? (meRole === 'kepsek' ? 'Kepala Sekolah' : 'Admin') : (staf ? 'Staf' : 'Guru');
+    document.getElementById('userRole').textContent = meRole === 'admin' ? 'Admin' : meRole === 'kepsek' ? 'Kepala Sekolah' : meRole === 'pengawas' ? 'Pengawas Sekolah' : (staf ? 'Staf' : 'Guru');
+    document.getElementById('roleLabel').textContent = pantau ? (meRole === 'kepsek' ? 'Kepala Sekolah' : meRole === 'pengawas' ? 'Pengawas Sekolah' : 'Admin') : (staf ? 'Staf' : 'Guru');
     if (pantau) document.querySelector('.sidebar__brand-mark').textContent = 'Kinerja Guru';
 
     try {
@@ -669,7 +670,7 @@
       } catch (e) { guruList = []; }
     }
     await muatData();
-    var adaMenunggu = pantau && items.some(function (x) { return x.status === 'diajukan'; });
+    var adaMenunggu = pantau && bisaCek && items.some(function (x) { return x.status === 'diajukan'; });
     keHalaman(adaMenunggu ? 'bukti' : 'ringkas');
   })();
 

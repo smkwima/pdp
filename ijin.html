@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js"></script>
 <script src="app-switcher.js?v=8" defer></script>
-<script src="bottomnav.js?v=10" defer></script>
+<script src="bottomnav.js?v=11" defer></script>
 <script src="mobile.js?v=1" defer></script>
 <style>
   .ij-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 22px 24px; margin-bottom: 18px; }
@@ -550,6 +550,7 @@
     if (p.error || !p.data) { location.href = 'portal.html'; return; }
     meNama = p.data.nama || s.user.email;
     meRole = p.data.role;
+    if (meRole === 'pengawas') { location.href = 'portal.html'; return; } // pengawas tidak memakai Ijin & Dinas Luar
     pimpinan = meRole === 'admin' || meRole === 'kepsek';
     bolehHapusSemua = meRole === 'admin';
     document.getElementById('userName').textContent = meNama;

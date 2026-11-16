@@ -663,8 +663,9 @@
   }
 
   // ---------- titik masuk ----------
-  async function muat(ta, el) {
+  async function muat(ta, el, opsi) {
     if (!el) return;
+    var ringkas = !!(opsi && opsi.ringkas); // true = tampilan Pengawas: kartu saja, tanpa tindak lanjut per guru
     wadah = el;
     pasangGaya();
     D = { guru: [], erapor: null, kinerja: null, pkl: null, supervisi: null, ta: ta };
@@ -686,7 +687,7 @@
 
     var tugas = [
       muatGuru().then(function (v) { D.guru = v; }, catatGalat('daftar guru')),
-      muatRiwayat(),
+      ringkas ? Promise.resolve() : muatRiwayat(),
       muatSupervisi().then(function (v) { D.supervisi = v; renderKartuSupervisi(); }, function () { gagalKartu('dkSupervisi'); galat.push('Supervisi'); })
     ];
     if (ta) {
@@ -702,9 +703,11 @@
       var g = document.getElementById('dkGalat');
       if (g) g.innerHTML = '<div class="dk-err">Sebagian data belum bisa dimuat: ' + esc(galat.join(', ')) + '. Muat ulang halaman, atau buka modulnya langsung.</div>';
     }
-    if (D.guru.length) renderTabel();
-    renderRiwayat();
-    renderWa();
+    if (!ringkas) {
+      if (D.guru.length) renderTabel();
+      renderRiwayat();
+      renderWa();
+    }
     if (window.lucide) lucide.createIcons();
   }
 

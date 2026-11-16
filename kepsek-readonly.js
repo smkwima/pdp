@@ -21,6 +21,10 @@
   if (typeof supabaseClient === 'undefined') return;
 
   var PESAN = 'Akun Kepala Sekolah hanya dapat melihat data.';
+  var PERAN = 'kepsek'; // 'kepsek' | 'pengawas' (pengawas = lihat-saja + lebih sempit)
+  var LABEL = { kepsek: 'Kepala Sekolah', pengawas: 'Pengawas Sekolah' };
+  // Tambahan untuk pengawas: tidak boleh memberi jempol kinerja & mengirim pengingat.
+  var RPC_TULIS_PENGAWAS = /^(kinerja_cek|pengingat_)/i;
   // Fungsi database (rpc) yang MENULIS data. catat_aktivitas & fungsi baca tetap boleh.
   var RPC_TULIS = /^(admin_reset|ajukan|batalkan|hapus|proses|supervisi_isi|buat|reset|sinkron)/i;
   // Teks tombol yang berarti mengubah data.
@@ -87,7 +91,7 @@
     // Fungsi database yang menulis
     var asalRpc = supabaseClient.rpc.bind(supabaseClient);
     supabaseClient.rpc = function (nama, args, opsi) {
-      if (RPC_TULIS.test(String(nama))) return tolak();
+      if (RPC_TULIS.test(String(nama)) || (PERAN === 'pengawas' && RPC_TULIS_PENGAWAS.test(String(nama)))) return tolak();
       return asalRpc(nama, args, opsi);
     };
     // Storage (hanya bucket foto-guru = foto profil sendiri yang diizinkan)
@@ -120,7 +124,7 @@
     document.head.appendChild(st);
     var b = document.createElement('div');
     b.id = 'kroBadge';
-    b.textContent = 'Mode Kepala Sekolah';
+    b.textContent = 'Mode ' + LABEL[PERAN];
     document.body.appendChild(b);
   }
 
@@ -149,12 +153,12 @@
   function gantiLabelRole() {
     var chip = document.querySelectorAll('.user-chip__role');
     for (var i = 0; i < chip.length; i++) {
-      if (/^\s*admin\s*$/i.test(chip[i].textContent)) chip[i].textContent = 'Kepala Sekolah';
+      if (/^\s*admin\s*$/i.test(chip[i].textContent)) chip[i].textContent = LABEL[PERAN];
     }
     var sb = document.querySelectorAll('.sidebar__role');
     for (var j = 0; j < sb.length; j++) {
       var t = sb[j].lastChild;
-      if (t && t.nodeType === 3) t.textContent = t.textContent.replace(/Panel Admin|Admin\s+/i, function (m) { return /Panel/i.test(m) ? 'Panel Kepala Sekolah' : ''; });
+      if (t && t.nodeType === 3) t.textContent = t.textContent.replace(/Panel Admin|Admin\s+/i, function (m) { return /Panel/i.test(m) ? 'Panel ' + LABEL[PERAN] : ''; });
     }
   }
 
@@ -170,10 +174,16 @@
     'pkl.html': { view: [], href: [] }
   };
 
+  // Pengawas: E-Rapor hanya rekap (tanpa daftar siswa, leger, dan unduh data rapor per siswa).
+  var MENU_SEMBUNYI_PENGAWAS = { 'admin.html': { view: ['siswa', 'leger', 'unduhDataRapor'], href: [] } };
+
   function sembunyikanMenu() {
     var berkas = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
     var cfg = MENU_SEMBUNYI[berkas];
     if (!cfg) return;
+    if (PERAN === 'pengawas' && MENU_SEMBUNYI_PENGAWAS[berkas]) {
+      cfg = { view: cfg.view.concat(MENU_SEMBUNYI_PENGAWAS[berkas].view), href: cfg.href.concat(MENU_SEMBUNYI_PENGAWAS[berkas].href) };
+    }
     var nav = document.querySelector('.menu-list');
     if (!nav) return;
     var items = nav.querySelectorAll('.menu-item');
@@ -283,33 +293,40 @@
   }
 
   // ---------- deteksi role ----------
-  async function adalahKepsek() {
+  // Mengembalikan 'kepsek' | 'pengawas' | null. Cache sesi: '1' (kepsek lama) | 'pengawas' | '0'.
+  async function cariPeran() {
     try {
       var ses = await supabaseClient.auth.getSession();
       var user = ses && ses.data && ses.data.session && ses.data.session.user;
-      if (!user) return false;
+      if (!user) return null;
       var kunci = 'kepsek_ro_' + user.id;
       var cache = null;
       try { cache = sessionStorage.getItem(kunci); } catch (e) { /* abaikan */ }
-      if (cache !== null) return cache === '1';
+      if (cache !== null) return cache === '1' ? 'kepsek' : (cache === 'pengawas' ? 'pengawas' : null);
       var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      var ya = !!(pr && pr.data && pr.data.role === 'kepsek');
-      try { sessionStorage.setItem(kunci, ya ? '1' : '0'); } catch (e) { /* abaikan */ }
-      return ya;
+      var role = pr && pr.data && pr.data.role;
+      var peran = (role === 'kepsek' || role === 'pengawas') ? role : null;
+      try { sessionStorage.setItem(kunci, peran === 'kepsek' ? '1' : (peran || '0')); } catch (e) { /* abaikan */ }
+      return peran;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
   // Petunjuk role terakhir (dibagi dengan kepsek-nav.js) supaya menu & tombol tulis
   // langsung disembunyikan saat halaman dibuka, tanpa kedip menunggu cek role.
+  // Nilai: '1' = kepsek, 'pengawas' = pengawas.
   var HINT = 'kepsek_hint';
-  function adaHint() { try { return localStorage.getItem(HINT) === '1'; } catch (e) { return false; } }
+  function adaHint() {
+    try { var v = localStorage.getItem(HINT); return v === '1' ? 'kepsek' : (v === 'pengawas' ? 'pengawas' : null); } catch (e) { return null; }
+  }
 
   var sudahRO = false;
-  function aktifkanRO() {
+  function aktifkanRO(peran) {
     if (sudahRO || !document.body) return;
     sudahRO = true;
+    PERAN = peran || 'kepsek';
+    PESAN = 'Akun ' + LABEL[PERAN] + ' hanya dapat melihat data.';
     pasangPengaman();
     jagaTampilan();
   }
@@ -318,18 +335,19 @@
   if (adaHint()) {
     var moAwal = new MutationObserver(function () {
       if (sudahRO) { moAwal.disconnect(); return; }
-      if (document.body && document.querySelector('.main > .topbar')) { aktifkanRO(); moAwal.disconnect(); }
+      if (document.body && document.querySelector('.main > .topbar')) { aktifkanRO(adaHint()); moAwal.disconnect(); }
     });
     moAwal.observe(document, { childList: true, subtree: true });
   }
 
   function mulai() {
     var hint = adaHint();
-    if (hint) aktifkanRO();
-    adalahKepsek().then(function (ya) {
-      if (!ya) { try { localStorage.removeItem(HINT); } catch (e) { /* abaikan */ } return; }
-      try { localStorage.setItem(HINT, '1'); } catch (e) { /* abaikan */ }
-      aktifkanRO();
+    if (hint) aktifkanRO(hint);
+    cariPeran().then(function (peran) {
+      if (!peran) { try { localStorage.removeItem(HINT); } catch (e) { /* abaikan */ } return; }
+      try { localStorage.setItem(HINT, peran === 'pengawas' ? 'pengawas' : '1'); } catch (e) { /* abaikan */ }
+      if (sudahRO && PERAN !== peran) { location.reload(); return; } // petunjuk basi (role berubah)
+      aktifkanRO(peran);
     });
   }
   if (document.body) mulai();

@@ -32,9 +32,25 @@
     { grup: 'Akademik',           href: 'pkl.html',              ikon: 'briefcase-business',  judul: 'Nilai PKL' },
     { grup: 'Pembinaan & Mutu',   href: 'supervisi-admin.html',  ikon: 'clipboard-check',     judul: 'Supervisi' },
     { grup: 'Pembinaan & Mutu',   href: 'kinerja.html',          ikon: 'award',               judul: 'Kinerja Guru' },
+    { grup: 'Pembinaan & Mutu',   href: 'catatan-pengawas.html', ikon: 'notebook-pen',        judul: 'Catatan Pengawas' },
     { grup: 'Pembinaan & Mutu',   href: 'pelanggaran.html',      ikon: 'shield-alert',        judul: 'Catatan Pelanggaran' },
     { grup: 'Pembinaan & Mutu',   href: 'pengaduan.html',        ikon: 'megaphone',           judul: 'Pengaduan Siswa' }
   ];
+
+  // Pengawas Sekolah: hanya aplikasi pemantauan mutu (tanpa Buku Induk, Pelanggaran, Pengaduan).
+  var APLIKASI_PENGAWAS = [
+    { grup: null,                 href: 'portal.html',           ikon: 'layout-dashboard',    judul: 'Beranda' },
+    { grup: 'Akademik',           href: 'admin.html',            ikon: 'file-text',           judul: 'E-Rapor' },
+    { grup: 'Akademik',           href: 'guru-penugasan.html',   ikon: 'users-round',         judul: 'Guru & Penugasan' },
+    { grup: 'Akademik',           href: 'pkl.html',              ikon: 'briefcase-business',  judul: 'Nilai PKL' },
+    { grup: 'Pembinaan & Mutu',   href: 'supervisi-admin.html',  ikon: 'clipboard-check',     judul: 'Supervisi' },
+    { grup: 'Pembinaan & Mutu',   href: 'kinerja.html',          ikon: 'award',               judul: 'Kinerja Guru' },
+    { grup: 'Pembinaan & Mutu',   href: 'catatan-pengawas.html', ikon: 'notebook-pen',        judul: 'Catatan Pengawas' }
+  ];
+  // Halaman yang tidak boleh dibuka pengawas -> kembali ke Beranda.
+  var BLOK_PENGAWAS = ['bukuinduk-admin.html', 'bukuinduk-guru.html', 'pelanggaran.html', 'pengaduan.html', 'disiplin.html', 'ijin.html', 'penugasan-admin.html', 'log-admin.html', 'pengaturan-admin.html'];
+  var PERAN = 'kepsek';
+  var LABEL = { kepsek: 'Kepala Sekolah', pengawas: 'Pengawas Sekolah' };
 
   var berkas = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
@@ -103,11 +119,11 @@
       for (var i = anak.length - 1; i >= 0; i--) {
         if (anak[i].nodeType === 3 || (anak[i].nodeType === 1 && !/^(i|svg)$/i.test(anak[i].nodeName))) role.removeChild(anak[i]);
       }
-      role.appendChild(document.createTextNode(' Kepala Sekolah'));
+      role.appendChild(document.createTextNode(' ' + LABEL[PERAN]));
     }
 
     var h = '', grupTerakhir = '__awal__';
-    APLIKASI.forEach(function (a) {
+    (PERAN === 'pengawas' ? APLIKASI_PENGAWAS : APLIKASI).forEach(function (a) {
       if (a.grup !== grupTerakhir) {
         if (a.grup) h += '<div class="sidebar__section-label">' + esc(a.grup) + '</div>';
         grupTerakhir = a.grup;
@@ -253,21 +269,23 @@
   }
 
   // ---------- deteksi role (berbagi cache dengan kepsek-readonly.js) ----------
-  async function adalahKepsek() {
+  // Mengembalikan 'kepsek' | 'pengawas' | null. Cache sesi: '1' (kepsek) | 'pengawas' | '0'.
+  async function cariPeran() {
     try {
       var ses = await supabaseClient.auth.getSession();
       var user = ses && ses.data && ses.data.session && ses.data.session.user;
-      if (!user) return false;
+      if (!user) return null;
       var kunci = 'kepsek_ro_' + user.id;
       var cache = null;
       try { cache = sessionStorage.getItem(kunci); } catch (e) { /* abaikan */ }
-      if (cache !== null) return cache === '1';
+      if (cache !== null) return cache === '1' ? 'kepsek' : (cache === 'pengawas' ? 'pengawas' : null);
       var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      var ya = !!(pr && pr.data && pr.data.role === 'kepsek');
-      try { sessionStorage.setItem(kunci, ya ? '1' : '0'); } catch (e) { /* abaikan */ }
-      return ya;
+      var role = pr && pr.data && pr.data.role;
+      var peran = (role === 'kepsek' || role === 'pengawas') ? role : null;
+      try { sessionStorage.setItem(kunci, peran === 'kepsek' ? '1' : (peran || '0')); } catch (e) { /* abaikan */ }
+      return peran;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
@@ -276,8 +294,9 @@
   // tampil tanpa menunggu cek role, role terakhir diingat (localStorage 'kepsek_hint').
   // Cek role asli tetap berjalan; kalau ternyata beda, petunjuk dibuang & halaman dimuat ulang.
   var HINT = 'kepsek_hint';
-  function adaHint() { try { return localStorage.getItem(HINT) === '1'; } catch (e) { return false; } }
-  function setHint(ya) { try { if (ya) localStorage.setItem(HINT, '1'); else localStorage.removeItem(HINT); } catch (e) { /* abaikan */ } }
+  // Nilai petunjuk: '1' = kepsek, 'pengawas' = pengawas.
+  function adaHint() { try { var v = localStorage.getItem(HINT); return v === '1' ? 'kepsek' : (v === 'pengawas' ? 'pengawas' : null); } catch (e) { return null; } }
+  function setHint(peran) { try { if (peran) localStorage.setItem(HINT, peran === 'pengawas' ? 'pengawas' : '1'); else localStorage.removeItem(HINT); } catch (e) { /* abaikan */ } }
 
   // Sampai sidebar baru siap, menu asli disembunyikan (bukan dihapus) agar tidak sempat terlihat.
   if (adaHint()) {
@@ -292,14 +311,16 @@
     // Dengan begitu tampilan akhir sudah jadi sebelum frame pertama digambar (tidak ada "loncatan").
     var moAwal = new MutationObserver(function () {
       if (sudahAktif) { moAwal.disconnect(); return; }
-      if (document.body && document.querySelector('.main > .topbar')) { aktifkan(); moAwal.disconnect(); }
+      if (document.body && document.querySelector('.main > .topbar')) { aktifkan(adaHint()); moAwal.disconnect(); }
     });
     moAwal.observe(document, { childList: true, subtree: true });
   }
 
   var sudahAktif = false;
-  function aktifkan() {
+  function aktifkan(peran) {
     if (sudahAktif || !document.body) return;
+    PERAN = peran || 'kepsek';
+    if (PERAN === 'pengawas' && BLOK_PENGAWAS.indexOf(berkas) >= 0) { location.replace('portal.html'); return; }
     sudahAktif = true;
     document.body.classList.add('kepsek-tabs');
     pasangGaya();
@@ -310,12 +331,13 @@
 
   function mulai() {
     var hint = adaHint();
-    if (hint) aktifkan();                       // langsung, tanpa menunggu jaringan
-    adalahKepsek().then(function (ya) {
-      setHint(ya);
-      if (ya && !hint) aktifkan();
-      else if (!ya && hint) location.reload();  // petunjuk basi (mis. ganti akun)
-      else if (!ya) document.documentElement.classList.remove('kn-pre');
+    if (hint) aktifkan(hint);                   // langsung, tanpa menunggu jaringan
+    cariPeran().then(function (peran) {
+      setHint(peran);
+      if (peran && !hint) aktifkan(peran);
+      else if (peran && hint && peran !== hint) location.reload();   // role berubah (mis. ganti akun)
+      else if (!peran && hint) location.reload();                    // petunjuk basi (mis. ganti akun)
+      else if (!peran) document.documentElement.classList.remove('kn-pre');
     });
   }
   if (document.body) mulai();

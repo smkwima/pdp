@@ -57,6 +57,7 @@
   else if (berkas === 'supervisi-admin.html') { kunciAktif = 'sup'; roleDariBerkas = 'admin'; }
   else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
   else if (berkas === 'kinerja.html') { kunciAktif = 'kin'; }
+  else if (berkas === 'catatan-pengawas.html') { kunciAktif = 'cat'; }
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
   else if (berkas === 'pengaduan.html') { kunciAktif = 'pgd'; }
   else if (berkas === 'ijin.html') { kunciAktif = 'ijin'; }
@@ -66,18 +67,19 @@
   // Daftar lengkap aplikasi per peran. "bar" = boleh jadi 1 dari 2 tombol aplikasi di bar bawah;
   // "sheetSaja" = hanya ada di panel "Semua Aplikasi" (halamannya tidak memasang bar bawah).
   function daftar(role) {
-    var admin = role === 'admin' || role === 'kepsek'; // kepsek memakai halaman admin (mode lihat saja)
+    var admin = role === 'admin' || role === 'kepsek' || role === 'pengawas'; // kepsek & pengawas memakai halaman admin (mode lihat saja)
     var menu = [
       { k: 'menu',  label: 'Menu Utama',  judul: 'Menu Utama',          href: 'portal.html', warna: 'teal' },
       { k: 'bi',    label: 'Buku Induk',  judul: 'Buku Induk',          href: admin ? 'bukuinduk-admin.html' : 'bukuinduk-guru.html', warna: 'oranye' },
       { k: 'rapor', label: 'E-Rapor',     judul: 'E-Rapor',             href: admin ? 'admin.html' : 'guru.html', warna: 'hijau' },
-      { k: 'gp',    label: 'Guru',        judul: 'Guru & Penugasan',    href: role === 'kepsek' ? 'guru-penugasan.html' : 'penugasan-admin.html', warna: 'biru', hanyaPimpinan: true },
+      { k: 'gp',    label: 'Guru',        judul: 'Guru & Penugasan',    href: (role === 'kepsek' || role === 'pengawas') ? 'guru-penugasan.html' : 'penugasan-admin.html', warna: 'biru', hanyaPimpinan: true },
       { k: 'pkl',   label: 'PKL',         judul: 'Nilai PKL',           href: 'pkl.html', warna: 'biru' },
       { k: 'rpp',   label: 'RPP Maker',   judul: 'RPP Maker',           href: '#', sso: true, warna: 'ungu' },
       { k: 'sup',   label: 'Supervisi',   judul: 'Supervisi',           href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'ungu' },
       { k: 'kin',   label: 'Kinerja',     judul: admin ? 'Kinerja Guru' : 'Kinerja Saya', href: 'kinerja.html', warna: 'oranye' },
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
       { k: 'pgd',   label: 'Pengaduan',   judul: 'Pengaduan Siswa',     href: 'pengaduan.html', warna: 'merah', sheetSaja: true, hanyaPimpinan: true },
+      { k: 'cat',   label: 'Catatan',     judul: 'Catatan Pengawas',    href: 'catatan-pengawas.html', warna: 'ungu', sheetSaja: true, hanyaCatatan: true },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
@@ -88,9 +90,11 @@
       return menu.filter(function (it) { return it.k === 'kin' || it.k === 'ijin'; });
     }
     return menu.filter(function (it) {
+      if (role === 'pengawas' && ['bi', 'pel', 'pgd', 'ijin', 'disiplin', 'rpp'].indexOf(it.k) >= 0) return false; // pengawas: tanpa data siswa/pegawai pribadi
+      if (it.hanyaCatatan && role !== 'kepsek' && role !== 'pengawas') return false;
       if (it.hanyaAdmin && role !== 'admin') return false;
       if (it.hanyaKepsek && role !== 'kepsek') return false;
-      return !it.hanyaPimpinan || role === 'kepsek' || role === 'admin';
+      return !it.hanyaPimpinan || role === 'kepsek' || role === 'admin' || role === 'pengawas';
     });
   }
 
@@ -268,7 +272,7 @@
       var cache = roleTersimpan(user.id);
       if (cache) return cache;
       var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
-      var role = (pr && pr.data && (pr.data.role === 'admin' || pr.data.role === 'kepsek' || pr.data.role === 'staf')) ? pr.data.role : 'guru';
+      var role = (pr && pr.data && (pr.data.role === 'admin' || pr.data.role === 'kepsek' || pr.data.role === 'pengawas' || pr.data.role === 'staf')) ? pr.data.role : 'guru';
       if (pr && pr.data) simpanRole(user.id, role);
       return role;
     } catch (e) {

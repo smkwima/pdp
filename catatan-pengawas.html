@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catatan Pengawas — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="app-switcher.js?v=8" defer></script>
+<script src="kepsek-nav.js?v=8"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=11" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<style>
+  .cp-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .cp-filter .field { margin-bottom: 0; min-width: 150px; flex: 1; }
+  .cp-filter select, .cp-filter input, .cp-form input, .cp-form select, .cp-form textarea { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; background: var(--surface); color: inherit; }
+  .cp-filter label, .cp-form label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 5px; }
+  .cp-form .field { margin-bottom: 12px; }
+  .cp-form textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+  .cp-jenis { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+  .cp-jenis--kunjungan { background: #dbeafe; color: #1d4ed8; }
+  .cp-jenis--temuan { background: #fef3c7; color: #b45309; }
+  .cp-jenis--rekomendasi { background: #dcfce7; color: #15803d; }
+  .cp-jenis--tindak_lanjut { background: #ede9fe; color: #6d28d9; }
+  .cp-kartu { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .cp-kartu__atas { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 6px; }
+  .cp-kartu__judul { font-weight: 800; font-size: 15px; }
+  .cp-kartu__meta { font-size: 12px; color: var(--ink-soft); }
+  .cp-kartu__isi { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.6; margin: 8px 0 0; }
+  .cp-kartu__aksi { display: flex; gap: 8px; margin-top: 10px; }
+  .cp-ov { position: fixed; inset: 0; z-index: 200; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .cp-box { background: var(--surface, #fff); border-radius: 14px; width: 100%; max-width: 560px; max-height: 92vh; overflow: auto; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .25); }
+  .cp-box__h { font-size: 16px; font-weight: 800; margin-bottom: 14px; }
+  .cp-box__aksi { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .cp-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  @media print { .sidebar, .topbar, .cp-filter, .cp-toolbar, .cp-kartu__aksi, .kn-tabs { display: none !important; } .cp-kartu { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div class="sidebar__brand-text">
+        <span class="sidebar__brand-mark">Catatan Pengawas</span>
+        <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
+      </div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="notebook-pen" style="width:13px;height:13px;"></i> <span id="roleLabel">Pengawas Sekolah</span></div>
+
+    <div class="sidebar__section-label">Pembinaan</div>
+    <nav class="menu-list">
+      <a href="catatan-pengawas.html" class="menu-item menu-item--active"><i data-lucide="notebook-pen" class="menu-icon"></i><span class="menu-item__title">Catatan Pengawas</span></a>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div style="margin-bottom:8px; opacity:0.8;">SMK Widya Mandala Tambak · Banyumas</div>
+      <div style="margin-top:8px;font-size:10px;opacity:0.45;">developed by Hanif Shohibul A.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar__title">Catatan Pengawas</div>
+        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Memuat...</div><a href="portal.html" class="btn-small topbar__app"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Menu Utama</a></div>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip__text">
+          <div class="user-chip__name" id="userName">Memuat...</div>
+          <div class="user-chip__role" id="userRoleLabel">Pengawas Sekolah</div>
+          <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
+        </div>
+        <div class="user-chip__avatar" id="userAvatar">•</div>
+      </div>
+    </div>
+
+    <div class="content" id="content"><div class="panel-note">Memuat...</div></div>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  var JENIS = { kunjungan: 'Hasil Kunjungan', temuan: 'Temuan', rekomendasi: 'Rekomendasi', tindak_lanjut: 'Tindak Lanjut' };
+  var me = { id: null, nama: '', role: null };
+  var bisaTulis = false;
+  var daftar = [];
+  var filter = { jenis: '', cari: '' };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function tglId(iso) {
+    if (!iso) return '—';
+    var d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return esc(iso);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function hariIni() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function toast(teks, ok) {
+    var el = document.createElement('div');
+    el.textContent = teks;
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:9999;color:#fff;padding:10px 16px;border-radius:10px;font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90vw;text-align:center;background:' + (ok ? '#047857' : '#b91c1c') + ';';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3200);
+  }
+  function catat(ringkas) {
+    try { if (typeof catatAktivitas === 'function') catatAktivitas('catatan_pengawas', 'Catatan Pengawas', ringkas); } catch (e) { /* abaikan */ }
+  }
+
+  async function muat() {
+    var r = await supabaseClient.from('catatan_pengawas').select('*').order('tanggal', { ascending: false }).order('dibuat_pada', { ascending: false });
+    if (r.error) {
+      var tabelBelum = /catatan_pengawas|schema cache|does not exist/i.test(r.error.message || '');
+      document.getElementById('content').innerHTML = '<div class="panel-note">' + (tabelBelum
+        ? 'Tabel belum siap — jalankan <strong>migrasi_pengawas.sql</strong> di Supabase SQL Editor.'
+        : 'Gagal memuat catatan: ' + esc(r.error.message)) + '</div>';
+      return;
+    }
+    daftar = r.data || [];
+    render();
+  }
+
+  function render() {
+    var q = filter.cari.trim().toLowerCase();
+    var tampil = daftar.filter(function (x) {
+      if (filter.jenis && x.jenis !== filter.jenis) return false;
+      if (q && (String(x.judul || '') + ' ' + String(x.isi || '') + ' ' + String(x.pengawas_nama || '')).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+
+    var opsiJenis = '<option value="">Semua jenis</option>' + Object.keys(JENIS).map(function (k) {
+      return '<option value="' + k + '"' + (filter.jenis === k ? ' selected' : '') + '>' + JENIS[k] + '</option>';
+    }).join('');
+
+    var h = '<div class="cp-toolbar"><div class="panel-note" style="margin:0;">' + (bisaTulis
+        ? 'Catatan ini hanya dapat dilihat olehmu dan Kepala Sekolah.'
+        : 'Catatan dari Pengawas Sekolah (hanya baca).') + '</div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button type="button" class="btn-small" id="cpCetak"><i data-lucide="printer" style="width:14px;height:14px;"></i> Cetak</button>' +
+      (bisaTulis ? '<button type="button" class="btn-small btn-small--primary" id="cpTambah"><i data-lucide="plus" style="width:14px;height:14px;"></i> Tambah Catatan</button>' : '') +
+      '</div></div>' +
+      '<div class="cp-filter"><div class="field"><label for="cpJenis">Jenis</label><select id="cpJenis">' + opsiJenis + '</select></div>' +
+      '<div class="field" style="flex:2;min-width:220px;"><label for="cpCari">Cari</label><input type="search" id="cpCari" placeholder="Judul, isi, atau nama pengawas…" value="' + esc(filter.cari) + '"></div></div>' +
+      '<div id="cpDaftar"></div>';
+    document.getElementById('content').innerHTML = h;
+
+    var wadah = document.getElementById('cpDaftar');
+    if (!tampil.length) {
+      wadah.innerHTML = '<div class="empty-state" style="margin-top:20px;"><div class="empty-state__mark">✓</div><div class="empty-state__title">Belum ada catatan</div><div class="empty-state__desc">' +
+        (daftar.length ? 'Tidak ada catatan yang cocok dengan filter.' : (bisaTulis ? 'Tekan “Tambah Catatan” untuk menulis hasil kunjungan atau temuan.' : 'Pengawas Sekolah belum menulis catatan.')) + '</div></div>';
+    } else {
+      wadah.innerHTML = tampil.map(function (x) {
+        var milikku = bisaTulis && x.pengawas_id === me.id;
+        return '<div class="cp-kartu"><div class="cp-kartu__atas">' +
+          '<span class="cp-jenis cp-jenis--' + esc(x.jenis) + '">' + esc(JENIS[x.jenis] || x.jenis) + '</span>' +
+          '<span class="cp-kartu__judul">' + esc(x.judul) + '</span></div>' +
+          '<div class="cp-kartu__meta">' + tglId(x.tanggal) + (x.pengawas_nama ? ' · ' + esc(x.pengawas_nama) : '') + '</div>' +
+          (x.isi ? '<p class="cp-kartu__isi">' + esc(x.isi) + '</p>' : '') +
+          (milikku ? '<div class="cp-kartu__aksi"><button type="button" class="btn-small" data-ubah="' + esc(x.id) + '">Ubah</button>' +
+            '<button type="button" class="btn-small" data-hapus="' + esc(x.id) + '">Hapus</button></div>' : '') +
+          '</div>';
+      }).join('');
+    }
+    if (window.lucide) lucide.createIcons();
+
+    document.getElementById('cpJenis').addEventListener('change', function (e) { filter.jenis = e.target.value; render(); });
+    var cari = document.getElementById('cpCari');
+    cari.addEventListener('input', function (e) {
+      filter.cari = e.target.value; render();
+      var c2 = document.getElementById('cpCari'); c2.focus(); c2.setSelectionRange(c2.value.length, c2.value.length);
+    });
+    document.getElementById('cpCetak').addEventListener('click', function () { window.print(); });
+    var tb = document.getElementById('cpTambah');
+    if (tb) tb.addEventListener('click', function () { bukaForm(null); });
+    wadah.querySelectorAll('[data-ubah]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-ubah');
+        bukaForm(daftar.filter(function (x) { return x.id === id; })[0] || null);
+      });
+    });
+    wadah.querySelectorAll('[data-hapus]').forEach(function (b) {
+      b.addEventListener('click', function () { hapus(b.getAttribute('data-hapus')); });
+    });
+  }
+
+  function bukaForm(x) {
+    var ov = document.createElement('div');
+    ov.className = 'cp-ov';
+    var opsi = Object.keys(JENIS).map(function (k) {
+      return '<option value="' + k + '"' + ((x ? x.jenis : 'kunjungan') === k ? ' selected' : '') + '>' + JENIS[k] + '</option>';
+    }).join('');
+    ov.innerHTML = '<div class="cp-box" role="dialog" aria-modal="true" aria-labelledby="cpJudulDlg"><div class="cp-box__h" id="cpJudulDlg">' + (x ? 'Ubah Catatan' : 'Tambah Catatan') + '</div>' +
+      '<div class="cp-form">' +
+      '<div class="field"><label for="cfTgl">Tanggal</label><input type="date" id="cfTgl" value="' + esc(x ? String(x.tanggal).slice(0, 10) : hariIni()) + '"></div>' +
+      '<div class="field"><label for="cfJenis">Jenis</label><select id="cfJenis">' + opsi + '</select></div>' +
+      '<div class="field"><label for="cfJudul">Judul</label><input type="text" id="cfJudul" maxlength="160" placeholder="mis. Supervisi kelas X TKJ" value="' + esc(x ? x.judul : '') + '"></div>' +
+      '<div class="field"><label for="cfIsi">Isi catatan</label><textarea id="cfIsi" placeholder="Temuan, rekomendasi, atau tindak lanjut…">' + esc(x ? x.isi : '') + '</textarea></div>' +
+      '</div><div class="cp-box__aksi"><button type="button" class="btn-small" data-tutup="1">Batal</button><button type="button" class="btn-small btn-small--primary" id="cfSimpan">Simpan</button></div></div>';
+    document.body.appendChild(ov);
+    function tutup() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) { if (e.key === 'Escape') tutup(); }
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) tutup(); });
+    ov.querySelector('[data-tutup]').addEventListener('click', tutup);
+    document.getElementById('cfJudul').focus();
+    document.getElementById('cfSimpan').addEventListener('click', async function () {
+      var judul = document.getElementById('cfJudul').value.trim();
+      if (!judul) { toast('Judul wajib diisi.', false); return; }
+      var data = {
+        tanggal: document.getElementById('cfTgl').value || hariIni(),
+        jenis: document.getElementById('cfJenis').value,
+        judul: judul,
+        isi: document.getElementById('cfIsi').value.trim() || null
+      };
+      var btn = this; btn.disabled = true;
+      var r;
+      if (x) {
+        r = await supabaseClient.from('catatan_pengawas').update(data).eq('id', x.id).select();
+      } else {
+        data.pengawas_id = me.id;
+        data.pengawas_nama = me.nama;
+        r = await supabaseClient.from('catatan_pengawas').insert(data).select();
+      }
+      if (r.error || !r.data || !r.data.length) {
+        btn.disabled = false;
+        toast('Gagal menyimpan: ' + ((r.error && r.error.message) || 'tidak ada perubahan'), false);
+        return;
+      }
+      catat((x ? 'Mengubah catatan: ' : 'Menambah catatan: ') + judul);
+      tutup();
+      toast('Catatan tersimpan.', true);
+      await muat();
+    });
+  }
+
+  async function hapus(id) {
+    var x = daftar.filter(function (i) { return i.id === id; })[0];
+    if (!x || !confirm('Hapus catatan “' + x.judul + '”?')) return;
+    var r = await supabaseClient.from('catatan_pengawas').delete().eq('id', id).select();
+    if (r.error || !r.data || !r.data.length) { toast('Gagal menghapus: ' + ((r.error && r.error.message) || 'tidak diizinkan'), false); return; }
+    catat('Menghapus catatan: ' + x.judul);
+    toast('Catatan dihapus.', true);
+    await muat();
+  }
+
+  (async function () {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
+    if (pr.error || !pr.data) { window.location.href = 'portal.html'; return; }
+    // Pengawas menulis; Kepala Sekolah & Admin hanya membaca. Selain itu kembali ke Menu Utama.
+    if (['pengawas', 'kepsek', 'admin'].indexOf(pr.data.role) < 0) { window.location.href = 'portal.html'; return; }
+    me.id = user.id; me.role = pr.data.role; me.nama = pr.data.nama || user.email;
+    bisaTulis = pr.data.role === 'pengawas';
+    var label = { pengawas: 'Pengawas Sekolah', kepsek: 'Kepala Sekolah', admin: 'Admin' }[pr.data.role];
+
+    document.getElementById('userName').textContent = me.nama;
+    document.getElementById('userAvatar').textContent = me.nama.trim().charAt(0).toUpperCase();
+    document.getElementById('userRoleLabel').textContent = label;
+    document.getElementById('roleLabel').textContent = label;
+    document.getElementById('topbarMeta').textContent = bisaTulis ? 'Hasil kunjungan, temuan, rekomendasi, dan tindak lanjut' : 'Catatan dari Pengawas Sekolah (hanya baca)';
+    document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+      e.preventDefault();
+      await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi');
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    });
+
+    await muat();
+  })();
+</script>
+
+</body>
+</html>
