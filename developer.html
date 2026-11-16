@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akses Aplikasi (Developer) — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="mobile.js?v=1" defer></script>
+<style>
+  .ak-row { display:grid; grid-template-columns: 220px 1fr; gap:14px; align-items:center; padding:14px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px; }
+  .ak-row.is-kunci { background:#fff7f7; border-color:#fecaca; }
+  .ak-nama { display:flex; align-items:center; gap:12px; font-weight:600; color:#0f172a; font-size:14px; }
+  .ak-status { font-size:12px; font-weight:500; color:#16a34a; }
+  .ak-row.is-kunci .ak-status { color:#b91c1c; }
+  .ak-sw { position:relative; width:44px; height:24px; flex:none; }
+  .ak-sw input { opacity:0; width:100%; height:100%; margin:0; position:absolute; inset:0; cursor:pointer; z-index:1; }
+  .ak-sw span { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:background .15s; }
+  .ak-sw span::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
+  .ak-sw input:checked + span { background:#16a34a; }
+  .ak-sw input:checked + span::after { transform:translateX(20px); }
+  .ak-sw input:focus-visible + span { outline:2px solid #1d4ed8; outline-offset:2px; }
+  .ak-ket { width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:13px; }
+  .ak-ket:disabled { background:#f1f5f9; color:#94a3b8; }
+  .ak-flash { font-size:12px; color:#16a34a; min-height:16px; margin-top:4px; }
+  @media (max-width: 640px) { .ak-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div class="sidebar__brand-text">
+        <span class="sidebar__brand-mark">Akses Aplikasi</span>
+        <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
+      </div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="code-xml" style="width:13px;height:13px;"></i> Developer</div>
+
+    <nav class="menu-list">
+      <a href="developer.html" class="menu-item menu-item--active"><i data-lucide="lock-keyhole" class="menu-icon"></i><span class="menu-item__title">Kunci Aplikasi</span></a>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div style="margin-bottom:8px; opacity:0.8;">SMK Widya Mandala Tambak · Banyumas</div>
+      <div style="margin-top:8px;font-size:10px;opacity:0.45;">developed by Hanif Shohibul A.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar__title">Akses Aplikasi</div>
+        <div class="topbar__row"><div class="topbar__meta">Kunci atau buka aplikasi untuk semua pengguna</div></div>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip__text">
+          <div class="user-chip__name" id="userName">Memuat...</div>
+          <div class="user-chip__role">Developer</div>
+          <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
+        </div>
+        <div class="user-chip__avatar" id="userAvatar">•</div>
+      </div>
+    </div>
+
+    <div class="content" id="content"><div class="panel-note">Memuat...</div></div>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+  var content = document.getElementById('content');
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+
+  function barisHtml(a) {
+    return '<div class="ak-row' + (a.aktif ? '' : ' is-kunci') + '" data-kode="' + esc(a.kode) + '">' +
+      '<div class="ak-nama"><label class="ak-sw"><input type="checkbox" ' + (a.aktif ? 'checked' : '') + ' aria-label="Aplikasi ' + esc(a.nama) + ' aktif"><span></span></label>' +
+      '<div>' + esc(a.nama) + '<div class="ak-status">' + (a.aktif ? 'Aktif' : 'Dikunci') + '</div></div></div>' +
+      '<div><input type="text" class="ak-ket" maxlength="200" placeholder="Keterangan yang tampil saat dikunci (opsional)" value="' + esc(a.keterangan || '') + '"' + (a.aktif ? ' disabled' : '') + '>' +
+      '<div class="ak-flash"></div></div></div>';
+  }
+
+  async function simpan(baris, aktif) {
+    var kode = baris.dataset.kode;
+    var ket = baris.querySelector('.ak-ket').value.trim();
+    var flash = baris.querySelector('.ak-flash');
+    var r = await supabaseClient.from('akses_aplikasi')
+      .update({ aktif: aktif, keterangan: ket || null, diubah_pada: new Date().toISOString() })
+      .eq('kode', kode);
+    if (r.error) {
+      flash.style.color = '#b91c1c';
+      flash.textContent = 'Gagal menyimpan: ' + r.error.message;
+      return false;
+    }
+    flash.style.color = '#16a34a';
+    flash.textContent = 'Tersimpan.';
+    setTimeout(function () { flash.textContent = ''; }, 2000);
+    return true;
+  }
+
+  async function mulai() {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).maybeSingle();
+    if (!pr.data || String(pr.data.role) !== 'developer') { window.location.href = 'portal.html'; return; }
+    var nama = pr.data.nama || user.email;
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
+
+    var r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan').order('nama');
+    if (r.error) {
+      content.innerHTML = '<div class="panel-note">Tabel akses_aplikasi belum bisa dibaca. Jalankan migrasi_developer.sql di Supabase terlebih dahulu. (' + esc(r.error.message) + ')</div>';
+      return;
+    }
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Kunci Aplikasi</div>' +
+      '<div class="panel-head__desc">Matikan saklar untuk mengunci aplikasi. Guru, admin, kepala sekolah, pengawas, dan staf tidak bisa membukanya; mereka melihat gembok dan keterangan di bawah. Developer tetap bisa masuk. Perubahan langsung berlaku.</div></div></div>' +
+      '<div id="ak-list">' + r.data.map(barisHtml).join('') + '</div>';
+
+    var daftar = document.getElementById('ak-list');
+    daftar.addEventListener('change', async function (e) {
+      var baris = e.target.closest('.ak-row');
+      if (!baris) return;
+      if (e.target.type === 'checkbox') {
+        var aktif = e.target.checked;
+        var nm = baris.querySelector('.ak-nama div').firstChild.textContent;
+        if (!aktif && !confirm('Kunci aplikasi "' + nm + '"? Semua pengguna selain developer tidak akan bisa membukanya.')) { e.target.checked = true; return; }
+        e.target.disabled = true;
+        var ok = await simpan(baris, aktif);
+        e.target.disabled = false;
+        if (!ok) { e.target.checked = !aktif; return; }
+        baris.classList.toggle('is-kunci', !aktif);
+        baris.querySelector('.ak-status').textContent = aktif ? 'Aktif' : 'Dikunci';
+        baris.querySelector('.ak-ket').disabled = aktif;
+      } else if (e.target.classList.contains('ak-ket')) {
+        await simpan(baris, baris.querySelector('input[type=checkbox]').checked);
+      }
+    });
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await supabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+  });
+
+  mulai();
+</script>
+
+</body>
+</html>

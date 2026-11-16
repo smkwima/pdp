@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=2"></script>
+<script src="akses-guard.js?v=1"></script>
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="dashboard-kepsek.js?v=6"></script>
@@ -328,6 +329,11 @@
     ] : []);
   }
 
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('[data-kunci]') : null;
+    if (a) { e.preventDefault(); alert('Aplikasi dikunci.\n' + a.getAttribute('data-kunci')); }
+  });
+
   function renderSidebar(mods) {
     var h = '<div class="pt-nav"><a class="is-active" href="portal.html"><i data-lucide="layout-dashboard"></i>Beranda</a></div>';
     var grupTerakhir = '';
@@ -337,6 +343,7 @@
         h += '<div class="pt-side__label">' + esc(m.grup) + '</div><div class="pt-nav">';
         grupTerakhir = m.grup;
       }
+      if (m.kunci) { h += '<a href="#" data-kunci="' + esc(m.kunci) + '" style="opacity:.55;"><i data-lucide="lock"></i>' + esc(m.judul) + '</a>'; return; }
       h += '<a href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
     });
     if (grupTerakhir) h += '</div>';
@@ -345,6 +352,11 @@
 
   function renderModul(mods) {
     document.getElementById('grid').innerHTML = mods.map(function (m) {
+      if (m.kunci) {
+        return '<a class="pt-mod" href="#" data-kunci="' + esc(m.kunci) + '" style="opacity:.6;cursor:not-allowed;">' +
+          '<div class="pt-mod__ic c-abu"><i data-lucide="lock"></i></div>' +
+          '<div><div class="pt-mod__t">' + esc(m.judul) + ' (dikunci)</div><div class="pt-mod__d">' + esc(m.kunci) + '</div></div></a>';
+      }
       return '<a class="pt-mod" href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '>' +
         '<div class="pt-mod__ic ' + m.warna + '"><i data-lucide="' + m.ikon + '"></i></div>' +
         '<div><div class="pt-mod__t">' + esc(m.judul) + '<i data-lucide="arrow-right"></i></div><div class="pt-mod__d">' + esc(m.desc) + '</div></div></a>';
@@ -529,6 +541,7 @@
       n.style.display = ''; n.textContent = 'Akun ini belum punya role. Hubungi admin.';
       return;
     }
+    if (pr.data.role === 'developer') { window.location.href = 'developer.html'; return; }
     var admin = pr.data.role === 'admin';
     try { if (pr.data.role === 'kepsek') localStorage.setItem('kepsek_hint', '1'); else if (pr.data.role === 'pengawas') localStorage.setItem('kepsek_hint', 'pengawas'); else localStorage.removeItem('kepsek_hint'); } catch (e) { /* abaikan */ }
     var kepsek = pr.data.role === 'kepsek';
@@ -568,6 +581,14 @@
     var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'penilaian-rekan.html' || m.href === 'ijin.html' || m.judul === 'Panduan PDP'; }).map(function (m) {
       return m.href === 'kinerja.html' ? Object.assign({}, m, { desc: 'Tulis sendiri aspek bukti dukung kinerjamu, isi link dan keterangan, lalu ajukan ke Kepala Sekolah.' }) : m;
     }) : daftarModul(admin, kepsek, pengawas);
+    // Aplikasi yang dikunci developer: tetap tampil, tetapi bergembok dan tidak bisa dibuka.
+    try {
+      var ak = window.AksesAplikasi ? await AksesAplikasi.muat() : null;
+      if (ak) mods.forEach(function (m) {
+        var info = ak.kunci[AksesAplikasi.kodeDariHref(m.href, m.judul)];
+        if (info) m.kunci = info.keterangan || 'Aplikasi ini sedang dikunci.';
+      });
+    } catch (e) { /* tidak mengunci apa pun bila gagal */ }
     renderSidebar(mods);
     renderModul(mods);
     if (window.lucide) lucide.createIcons();
