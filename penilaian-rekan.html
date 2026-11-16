@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penilaian Rekan — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="app-switcher.js?v=9" defer></script>
+<script src="kepsek-nav.js?v=9"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=12" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<style>
+  .pr-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .pr-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 18px; }
+  .pr-panel h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .pr-panel h3 svg, .pr-panel h3 i { width: 17px; height: 17px; color: var(--primary); }
+  .pr-sub { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 12px; }
+  .pr-anon { display: flex; gap: 12px; align-items: flex-start; background: var(--success-tint); border: 1px solid var(--success-border); color: #065f46; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.55; }
+  .pr-anon svg, .pr-anon i { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+  .pr-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+  .pr-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .pr-toolbar .btn-small { display: inline-flex; align-items: center; gap: 6px; }
+  .pr-toolbar .btn-small svg, .pr-toolbar .btn-small i { width: 14px; height: 14px; }
+  .pr-toolbar select, .pr-toolbar input[type="search"], .pr-in { padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 600 12.5px var(--font-body); background: var(--surface); color: var(--ink); min-width: 150px; }
+  .pr-in--num { min-width: 0; width: 90px; }
+
+  /* daftar tugas */
+  .pr-card { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+  .pr-card--ok { border-left-color: var(--success); }
+  .pr-card--todo { border-left-color: var(--primary-soft); }
+  .pr-ava { width: 40px; height: 40px; border-radius: 50%; background: var(--primary-tint-strong); color: var(--primary-dim); font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pr-card__nama { font-weight: 800; font-size: 14.5px; line-height: 1.3; }
+  .pr-card__meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .pr-card__aksi { margin-left: auto; flex-shrink: 0; }
+  .pr-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--surface-tint-strong); color: var(--ink-soft); font-size: 10.5px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .pr-st { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+  .pr-st svg, .pr-st i { width: 13px; height: 13px; }
+  .pr-st--ok { background: var(--success-tint); color: var(--success); border-color: var(--success-border); }
+  .pr-st--todo { background: var(--primary-tint); color: var(--primary-dim); border-color: var(--primary-tint-strong); }
+  .pr-track { height: 10px; border-radius: 999px; background: var(--surface-tint-strong); overflow: hidden; }
+  .pr-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #34d399, var(--success)); transition: width .4s ease; }
+  .pr-fill--biru { background: linear-gradient(90deg, #60a5fa, var(--primary)); }
+
+  /* formulir */
+  .pr-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--ink-soft); margin: 4px 0 0; }
+  .pr-legend b { color: var(--ink); }
+  .pr-sec { font-family: var(--font-display); font-size: 15px; font-weight: 800; margin: 24px 2px 4px; display: flex; align-items: center; gap: 8px; }
+  .pr-sec small { font-weight: 600; color: var(--ink-soft); font-size: 12px; }
+  .pr-sec svg, .pr-sec i { width: 17px; height: 17px; color: var(--primary); }
+  .pr-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+  .pr-item.is-done { border-color: var(--success-border); }
+  .pr-item__t { font-size: 13.5px; line-height: 1.5; font-weight: 600; }
+  .pr-item__n { color: var(--ink-faint); font-weight: 800; margin-right: 6px; }
+  .pr-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .pr-opt { border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 7px 14px; font: 700 12.5px var(--font-body); cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+  .pr-opt:hover { background: var(--primary-tint); }
+  .pr-opt:focus-visible { outline: 2px solid var(--primary-soft); outline-offset: 2px; }
+  .pr-opt.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .pr-opt--x.is-on { background: #64748b; border-color: #64748b; }
+  .pr-submit { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0 6px; }
+  .pr-submit .btn-small { display: inline-flex; align-items: center; gap: 6px; }
+  .pr-count { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  /* hasil */
+  .pr-pred { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+  .pr-pred--sb { background: #dcfce7; color: #15803d; }
+  .pr-pred--b { background: #dbeafe; color: #1d4ed8; }
+  .pr-pred--c { background: #fef9c3; color: #a16207; }
+  .pr-pred--k { background: #fee2e2; color: #b91c1c; }
+  .pr-pred--na { background: var(--surface-tint-strong); color: var(--ink-soft); }
+  .pr-num { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .pr-dim { display: grid; grid-template-columns: 110px 1fr 56px; gap: 12px; align-items: center; padding: 9px 0; font-size: 13px; }
+  .pr-dim b { font-weight: 700; }
+  .pr-big { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1; }
+  .pr-modal { max-width: 520px; }
+  #prModalHost .modal-box { max-height: 90vh; overflow-y: auto; }
+  .pr-row-click { cursor: pointer; }
+  .pr-field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 700; }
+  .pr-field small { font-weight: 500; color: var(--ink-faint); line-height: 1.4; }
+  .pr-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: start; margin: 14px 0; }
+  .pr-chk { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .pr-chk input { margin-top: 3px; }
+  .pr-chk small { display: block; font-weight: 500; color: var(--ink-faint); margin-top: 2px; }
+  .pr-bar { display: grid; grid-template-columns: 1fr 120px 70px; gap: 12px; align-items: center; }
+  .pr-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 28px; z-index: 3000; max-width: 92vw; padding: 11px 18px; border-radius: 12px; background: #1f2937; color: #fff; font: 600 13px/1.45 var(--font-body); box-shadow: 0 10px 28px rgba(0, 0, 0, .28); text-align: center; }
+  .pr-toast--ok { background: #047857; }
+  .pr-skala td, .pr-skala th { font-size: 12.5px; }
+
+  @media (max-width: 860px) {
+    .pr-toast { bottom: 84px; }
+    .pr-card { flex-wrap: wrap; }
+    .pr-card__aksi { margin-left: 54px; }
+    .pr-dim { grid-template-columns: 90px 1fr 48px; }
+  }
+  @media print {
+    .sidebar, .topbar, .pr-toolbar, .kn-tabs, .bnav, .bnav-sheet, .no-print { display: none !important; }
+    .main { margin: 0 !important; }
+    .content { padding: 0 !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Penilaian Rekan</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="users" style="width:13px;height:13px;"></i> <span id="roleLabel">Guru</span></div>
+    <nav class="menu-list" id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title" id="judul">Penilaian Rekan</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip"><div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">Guru</div>
+        <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a></div></div>
+    </div>
+    <div class="content" id="content"><div class="panel-note">Memuat…</div></div>
+  </div>
+</div>
+<div id="prModalHost"></div>
+
+<script>
+  var content = document.getElementById('content');
+  var me = { id: null, nama: '', role: 'guru' };
+  var periode = '', pengaturan = null, tampilan = '', galat = '';
+  var daftar = [], progres = [], hasil = [], hasilSaya = null;
+  var form = null;                   // { id, nama, role, jawaban:{ A1: 1-4 | 'x' } }
+  var saring = { peran: '', cari: '', urut: 'skor' };
+
+  // =====================================================================
+  // INSTRUMEN — skala 1-4. Bobot: Kinerja 40%, Sikap 30%, Perilaku 30%.
+  // Kunci butir (A1..C6) HARUS sama dengan yang divalidasi di migrasi_penilaian_rekan.sql.
+  // =====================================================================
+  var SKALA = [
+    { v: 1, label: 'Kurang',       desc: 'Jarang/belum menunjukkan' },
+    { v: 2, label: 'Cukup',        desc: 'Kadang menunjukkan' },
+    { v: 3, label: 'Baik',         desc: 'Sering menunjukkan' },
+    { v: 4, label: 'Sangat Baik',  desc: 'Konsisten dan menjadi contoh' }
+  ];
+  var BOBOT = { A: 40, B: 30, C: 30 };
+  var DIM = {
+    A: { judul: 'Kinerja',  ikon: 'target',     desc: 'Hasil kerja dan tanggung jawab profesional' },
+    B: { judul: 'Sikap',    ikon: 'heart-handshake', desc: 'Watak, etos, dan komitmen terhadap sekolah' },
+    C: { judul: 'Perilaku', ikon: 'smile',      desc: 'Cara bergaul, berkomunikasi, dan memberi teladan' }
+  };
+  var INSTRUMEN = {
+    guru: {
+      nama: 'Guru',
+      butir: {
+        A: [
+          'Hadir dan memulai pembelajaran tepat waktu, serta mengisi jam pelajaran sesuai jadwal.',
+          'Menyiapkan perangkat pembelajaran (modul ajar, bahan ajar, asesmen) dengan lengkap dan tepat waktu.',
+          'Melaksanakan pembelajaran yang tertib, aktif, dan sesuai kebutuhan siswa.',
+          'Mengolah dan menyerahkan nilai serta administrasi guru (e-rapor, jurnal, presensi) sesuai batas waktu.',
+          'Menjalankan tugas tambahan (wali kelas, pembina, panitia, dsb.) dengan penuh tanggung jawab.',
+          'Mau belajar dan mengembangkan diri (pelatihan, teknologi, inovasi) serta menerapkannya.'
+        ],
+        B: [
+          'Jujur, dapat dipercaya, dan menjaga amanah.',
+          'Disiplin menaati tata tertib dan peraturan sekolah.',
+          'Loyal dan berkomitmen pada visi, misi, dan kebijakan sekolah.',
+          'Menerima kritik, saran, dan arahan dengan lapang dada.',
+          'Rendah hati dan bersedia membantu rekan ketika dibutuhkan, tanpa menunggu diminta.',
+          'Tekun, tidak mudah mengeluh, dan bertanggung jawab atas hasil pekerjaannya.'
+        ],
+        C: [
+          'Santun dan menghargai dalam bertutur kata serta bersikap kepada rekan, atasan, dan siswa.',
+          'Mau bekerja sama dan berkolaborasi dalam tim maupun kegiatan sekolah.',
+          'Berkomunikasi dengan baik dan terbuka, tidak memicu konflik atau menyebar gosip.',
+          'Menjadi teladan bagi siswa dalam berpakaian, bertutur, dan bersikap, di dalam maupun di luar sekolah.',
+          'Memperlakukan siswa dengan adil dan sabar, tanpa kekerasan atau diskriminasi.',
+          'Menjaga nama baik dan kerahasiaan sekolah, termasuk di media sosial.'
+        ]
+      }
+    },
+    staf: {
+      nama: 'Staf / Tenaga Kependidikan',
+      butir: {
+        A: [
+          'Menyelesaikan tugas dan permintaan layanan tepat waktu sesuai batas yang ditetapkan.',
+          'Teliti dan rapi dalam administrasi, pencatatan, dan pengarsipan.',
+          'Memberi layanan yang cepat dan jelas kepada guru, siswa, orang tua, dan tamu.',
+          'Menguasai tugas pokoknya, termasuk aplikasi atau peralatan pendukung pekerjaan.',
+          'Berinisiatif menyelesaikan masalah tanpa harus selalu menunggu perintah.',
+          'Menjaga dan merawat sarana, prasarana, serta data/dokumen sekolah yang menjadi tanggung jawabnya.'
+        ],
+        B: [
+          'Jujur, dapat dipercaya, dan menjaga amanah.',
+          'Disiplin menaati tata tertib dan peraturan sekolah, termasuk jam kerja.',
+          'Loyal dan berkomitmen pada visi, misi, dan kebijakan sekolah.',
+          'Menerima kritik, saran, dan arahan dengan lapang dada.',
+          'Rendah hati dan bersedia membantu rekan ketika dibutuhkan, tanpa menunggu diminta.',
+          'Tekun, tidak mudah mengeluh, dan bertanggung jawab atas hasil pekerjaannya.'
+        ],
+        C: [
+          'Santun dan menghargai dalam bertutur kata serta bersikap kepada rekan, atasan, siswa, dan tamu.',
+          'Mau bekerja sama dan berkolaborasi dalam tim maupun kegiatan sekolah.',
+          'Berkomunikasi dengan baik dan terbuka, tidak memicu konflik atau menyebar gosip.',
+          'Ramah, sopan, dan menjadi teladan dalam berpakaian serta bersikap di lingkungan sekolah.',
+          'Memperlakukan semua orang (siswa, orang tua, tamu) dengan adil dan sabar, tanpa diskriminasi.',
+          'Menjaga nama baik dan kerahasiaan sekolah, termasuk di media sosial.'
+        ]
+      }
+    }
+  };
+  var MIN_TERJAWAB = 11;   // sama dengan migrasi: minimal 11 dari 18 butir
+  var TOTAL_BUTIR = 18;
+  var ORDE = ['A', 'B', 'C'];
+
+  // ---------- Pembantu ----------
+  function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ikon() { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } }
+  function toast(pesan, ok) {
+    var el = document.createElement('div');
+    el.className = 'pr-toast' + (ok ? ' pr-toast--ok' : '');
+    el.setAttribute('role', 'status');
+    el.textContent = pesan;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, ok ? 2600 : 5200);
+  }
+  function pesanGalat(e) {
+    var m = (e && e.message) ? e.message : String(e);
+    if (/penilaian_rekan|schema cache|Could not find the function|does not exist/i.test(m) && !/Hanya |belum dibuka|sudah pernah|Penugasan|Jawab|Sudah ada|Minimal|Jumlah|Batas/i.test(m)) {
+      return 'Fitur Penilaian Rekan belum aktif. Minta admin menjalankan migrasi_penilaian_rekan.sql di Supabase → SQL Editor, lalu muat ulang halaman.';
+    }
+    return m;
+  }
+  function angka(x, d) { return (x === null || x === undefined) ? '—' : Number(x).toFixed(d === undefined ? 2 : d).replace('.', ','); }
+  function seratus(x) { return (x === null || x === undefined) ? '—' : (Number(x) / 4 * 100).toFixed(1).replace('.', ','); }
+  function kelasPred(p) { return p === 'Sangat Baik' ? 'pr-pred--sb' : p === 'Baik' ? 'pr-pred--b' : p === 'Cukup' ? 'pr-pred--c' : p === 'Kurang' ? 'pr-pred--k' : 'pr-pred--na'; }
+  function chipPred(p) { return '<span class="pr-pred ' + kelasPred(p) + '">' + esc(p || 'Belum cukup penilai') + '</span>'; }
+  function labelRole(r) { return r === 'staf' ? 'Staf' : 'Guru'; }
+  function instrumenDari(role) { return role === 'staf' ? 'staf' : 'guru'; }
+  function statKartu(label, nilai, ik) {
+    return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + ik + '"></i>' + label + '</div><div class="stat-card__value">' + nilai + '</div></div>';
+  }
+  async function rpc(nama, args) {
+    var r = await supabaseClient.rpc(nama, args || {});
+    if (r.error) throw r.error;
+    return r.data;
+  }
+  function buka() { return !!(pengaturan && pengaturan.dibuka); }
+  function modal(html, lebar) {
+    var host = document.getElementById('prModalHost');
+    host.innerHTML = '<div class="modal-overlay"><div class="modal-box pr-modal"' + (lebar ? ' style="max-width:' + lebar + 'px;"' : '') + '>' + html + '</div></div>';
+    var ov = host.firstChild;
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.getAttribute('data-tutup')) host.innerHTML = ''; });
+    ikon();
+    return ov;
+  }
+
+  // ---------- Menu ----------
+  function menuItem(v, ik, judul) {
+    return '<a href="#" class="menu-item" data-view="' + v + '"><i data-lucide="' + ik + '" class="menu-icon"></i><span class="menu-item__title">' + esc(judul) + '</span></a>';
+  }
+  function bangunMenu() {
+    var h = '<div class="sidebar__section-label">Penilaian Rekan</div>';
+    if (me.role === 'admin') h += menuItem('atur', 'settings-2', 'Pengaturan & Progres') + menuItem('instrumen', 'list-checks', 'Lihat Instrumen');
+    else if (me.role === 'kepsek') h += menuItem('hasil', 'bar-chart-3', 'Hasil Akhir') + menuItem('instrumen', 'list-checks', 'Lihat Instrumen');
+    else h += menuItem('tugas', 'user-check', 'Isi Penilaian') + (pengaturan && pengaturan.tampil_ke_guru ? menuItem('saya', 'award', 'Hasil Saya') : '') + menuItem('instrumen', 'list-checks', 'Lihat Instrumen');
+    h += '<div class="sidebar__section-label">Lainnya</div><a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>';
+    document.getElementById('menu').innerHTML = h;
+    ikon();
+  }
+  function judulHalaman(v) {
+    if (v === 'tugas')    return ['Isi Penilaian', 'Nilai rekan yang ditugaskan kepadamu. Jawabanmu anonim'];
+    if (v === 'form')     return ['Isi Penilaian', 'Jawaban anonim, tidak dapat diubah setelah dikirim'];
+    if (v === 'saya')     return ['Hasil Saya', 'Rata-rata penilaian rekan untukmu'];
+    if (v === 'atur')     return ['Pengaturan & Progres', 'Buka/tutup penilaian, atur penilai, dan pantau progres'];
+    if (v === 'hasil')    return ['Hasil Akhir', 'Rata-rata penilaian rekan. Jawaban individual tidak tersedia'];
+    return ['Instrumen Penilaian', 'Pernyataan, skala, bobot, dan predikat'];
+  }
+  function keHalaman(v) {
+    tampilan = v;
+    var aktif = v === 'form' ? 'tugas' : v;
+    document.querySelectorAll('#menu .menu-item[data-view]').forEach(function (x) { x.classList.toggle('menu-item--active', x.dataset.view === aktif); });
+    var j = judulHalaman(v);
+    document.getElementById('judul').textContent = j[0];
+    document.getElementById('metaHal').textContent = j[1] + ' · ' + periode;
+    tampil();
+    window.scrollTo(0, 0);
+  }
+  async function tampil() {
+    if (galat) { content.innerHTML = '<div class="panel-note" style="margin-top:0;">' + esc(galat) + '</div>'; return; }
+    content.innerHTML = '<div class="panel-note" style="margin-top:0;">Memuat…</div>';
+    try {
+      if (tampilan === 'tugas') await renderTugas();
+      else if (tampilan === 'form') renderForm();
+      else if (tampilan === 'saya') await renderSaya();
+      else if (tampilan === 'atur') await renderAtur();
+      else if (tampilan === 'hasil') await renderHasil();
+      else renderInstrumen();
+    } catch (e) { content.innerHTML = '<div class="panel-note" style="margin-top:0;">' + esc(pesanGalat(e)) + '</div>'; }
+    ikon();
+  }
+  async function muatPengaturan() {
+    var r = await supabaseClient.from('penilaian_rekan_pengaturan').select('*').eq('periode', periode).maybeSingle();
+    if (r.error) throw r.error;
+    pengaturan = r.data || null;
+  }
+
+  // =====================================================================
+  // GURU / STAF — daftar tugas & formulir
+  // =====================================================================
+  function banerAnonim() {
+    return '<div class="pr-anon"><i data-lucide="shield-check"></i><div><b>Jawabanmu anonim.</b> Tidak ada yang dapat melihat siapa memberi nilai apa: ' +
+      'bukan Kepala Sekolah, bukan admin, bukan rekan yang kamu nilai. Kepala Sekolah hanya menerima <b>rata-rata akhir</b> dari beberapa penilai. ' +
+      'Karena anonim, penilaian yang sudah dikirim <b>tidak dapat diubah</b>. Nilailah dengan jujur dan adil, berdasarkan yang benar-benar kamu amati.</div></div>';
+  }
+  async function renderTugas() {
+    await muatPengaturan();
+    if (!buka()) {
+      content.innerHTML = banerAnonim() + '<div class="pr-panel"><h3><i data-lucide="lock"></i>Penilaian belum dibuka</h3><p class="pr-sub" style="margin:6px 0 0;">' +
+        (pengaturan ? 'Penilaian untuk periode ini sudah ditutup atau belum dibuka oleh admin.' : 'Admin belum membuka penilaian untuk periode ini.') + ' Kamu akan mendapat daftar rekan yang perlu dinilai setelah dibuka.</p></div>';
+      return;
+    }
+    daftar = await rpc('penilaian_rekan_daftar_saya', { p_periode: periode }) || [];
+    var selesai = daftar.filter(function (x) { return x.selesai; }).length;
+    var h = banerAnonim();
+    if (!daftar.length) {
+      h += '<div class="pr-panel"><h3><i data-lucide="inbox"></i>Belum ada penugasan</h3><p class="pr-sub" style="margin:6px 0 0;">Kamu belum mendapat rekan untuk dinilai. Hubungi admin bila ini tampak keliru.</p></div>';
+      content.innerHTML = h; return;
+    }
+    var pct = Math.round(selesai / daftar.length * 100);
+    h += '<div class="pr-panel"><div class="pr-bar"><div><h3><i data-lucide="list-checks"></i>Progres penilaianmu</h3><p class="pr-sub" style="margin:4px 0 0;">' + selesai + ' dari ' + daftar.length + ' rekan sudah kamu nilai.' +
+      (selesai === daftar.length ? ' Terima kasih, semua penilaianmu sudah terkirim. 🎉' : '') + '</p></div><div class="pr-track"><div class="pr-fill" style="width:' + pct + '%"></div></div><div class="pr-num" style="text-align:right;">' + pct + '%</div></div></div>';
+    h += daftar.map(function (x) {
+      return '<div class="pr-card ' + (x.selesai ? 'pr-card--ok' : 'pr-card--todo') + '"><div class="pr-ava">' + esc((x.nama || '?').trim().charAt(0).toUpperCase()) + '</div>' +
+        '<div><div class="pr-card__nama">' + esc(x.nama) + '<span class="pr-tag">' + labelRole(x.role) + '</span></div><div class="pr-card__meta">' + (x.selesai ? 'Penilaianmu sudah terkirim' : '18 pernyataan · sekitar 3 menit') + '</div></div>' +
+        '<div class="pr-card__aksi">' + (x.selesai ? '<span class="pr-st pr-st--ok"><i data-lucide="check-circle-2"></i>Selesai</span>' :
+          '<button type="button" class="btn-small btn-small--primary" data-nilai="' + esc(x.dinilai_id) + '"><i data-lucide="pencil-line" style="width:14px;height:14px;"></i> Nilai</button>') + '</div></div>';
+    }).join('');
+    content.innerHTML = h;
+  }
+  function bukaForm(id) {
+    var x = daftar.find(function (d) { return d.dinilai_id === id; });
+    if (!x || x.selesai) return;
+    form = { id: id, nama: x.nama, role: x.role, jawaban: {} };
+    keHalaman('form');
+  }
+  function renderForm() {
+    if (!form) { keHalaman('tugas'); return; }
+    var ins = INSTRUMEN[instrumenDari(form.role)];
+    var h = '<div class="pr-toolbar no-print"><button type="button" class="btn-small" id="prKembali"><i data-lucide="arrow-left"></i> Kembali ke daftar</button></div>' + banerAnonim();
+    h += '<div class="pr-panel"><h3><i data-lucide="user-round"></i>Kamu menilai: ' + esc(form.nama) + ' <span class="pr-tag">' + labelRole(form.role) + '</span></h3>' +
+      '<p class="pr-sub">Pilih angka yang paling menggambarkan rekanmu selama periode ini. Bila kamu <b>benar-benar tidak pernah mengamatinya</b>, pilih “Tidak tahu” (jangan menebak). Semua pernyataan harus dijawab, dan minimal ' + MIN_TERJAWAB + ' dari ' + TOTAL_BUTIR + ' berisi angka.</p>' +
+      '<div class="pr-legend">' + SKALA.map(function (s) { return '<span><b>' + s.v + ' = ' + s.label + '</b> (' + s.desc + ')</span>'; }).join('') + '</div></div>';
+    ORDE.forEach(function (d) {
+      h += '<div class="pr-sec"><i data-lucide="' + DIM[d].ikon + '"></i>' + (ORDE.indexOf(d) + 1) + '. ' + DIM[d].judul + ' <small>' + DIM[d].desc + '</small></div>';
+      ins.butir[d].forEach(function (t, i) {
+        var kode = d + (i + 1);
+        h += '<div class="pr-item" id="it' + kode + '"><div class="pr-item__t"><span class="pr-item__n">' + (i + 1) + '.</span>' + esc(t) + '</div><div class="pr-opts" role="radiogroup" aria-label="Penilaian pernyataan ' + (i + 1) + '">' +
+          SKALA.map(function (s) { return '<button type="button" class="pr-opt" role="radio" aria-checked="false" data-b="' + kode + '" data-v="' + s.v + '">' + s.v + ' · ' + s.label + '</button>'; }).join('') +
+          '<button type="button" class="pr-opt pr-opt--x" role="radio" aria-checked="false" data-b="' + kode + '" data-v="x">Tidak tahu</button></div></div>';
+      });
+    });
+    h += '<div class="pr-submit"><button type="button" class="btn-small btn-small--primary" id="prKirim" disabled><i data-lucide="send"></i> Kirim Penilaian Anonim</button><span class="pr-count" id="prHitung"></span></div>' +
+      '<p class="pr-sub">Setelah dikirim, jawabanmu tidak dapat diubah maupun dilihat kembali oleh siapa pun, termasuk kamu.</p>';
+    content.innerHTML = h;
+    segarkanForm();
+  }
+  function hitungForm() {
+    var n = 0, angkaN = 0;
+    Object.keys(form.jawaban).forEach(function (k) { n++; if (form.jawaban[k] !== 'x') angkaN++; });
+    return { respon: n, berangka: angkaN };
+  }
+  function segarkanForm() {
+    var c = hitungForm();
+    document.querySelectorAll('.pr-opt').forEach(function (b) {
+      var on = String(form.jawaban[b.dataset.b]) === b.dataset.v;
+      b.classList.toggle('is-on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.pr-item').forEach(function (el) { el.classList.toggle('is-done', form.jawaban[el.id.slice(2)] !== undefined); });
+    var lengkap = c.respon === TOTAL_BUTIR && c.berangka >= MIN_TERJAWAB;
+    document.getElementById('prKirim').disabled = !lengkap;
+    var kurang = TOTAL_BUTIR - c.respon;
+    document.getElementById('prHitung').textContent = c.respon + ' / ' + TOTAL_BUTIR + ' terjawab' +
+      (kurang ? ' · ' + kurang + ' lagi' : (c.berangka < MIN_TERJAWAB ? ' · terlalu banyak “Tidak tahu” (minimal ' + MIN_TERJAWAB + ' berangka)' : ' · siap dikirim'));
+  }
+  async function kirimForm() {
+    if (!form) return;
+    if (!confirm('Kirim penilaian untuk ' + form.nama + '?\n\nJawaban bersifat anonim dan TIDAK dapat diubah setelah dikirim.')) return;
+    var btn = document.getElementById('prKirim'); btn.disabled = true;
+    var kirim = {};
+    Object.keys(form.jawaban).forEach(function (k) { if (form.jawaban[k] !== 'x') kirim[k] = Number(form.jawaban[k]); });
+    try {
+      await rpc('penilaian_rekan_kirim', { p_periode: periode, p_dinilai: form.id, p_jawaban: kirim });
+      // Sengaja TIDAK memanggil catatAktivitas() di sini: log tidak boleh mencatat siapa menilai siapa.
+      form = null;
+      toast('Penilaian terkirim secara anonim. Terima kasih!', true);
+      keHalaman('tugas');
+    } catch (e) { btn.disabled = false; toast(pesanGalat(e)); }
+  }
+
+  async function renderSaya() {
+    var d = await rpc('penilaian_rekan_hasil_saya', { p_periode: periode });
+    hasilSaya = (d && d[0]) || null;
+    var r = hasilSaya;
+    var h = '<div class="pr-anon"><i data-lucide="shield-check"></i><div>Ini adalah <b>rata-rata</b> dari penilaian rekan. Jawaban satu per satu tidak tersimpan bersama nama penilainya sehingga tidak bisa ditelusuri.</div></div>';
+    if (!r || !r.cukup) {
+      h += '<div class="pr-panel"><h3><i data-lucide="hourglass"></i>Belum bisa ditampilkan</h3><p class="pr-sub" style="margin:6px 0 0;">Hasil baru tampil setelah jumlah penilai yang masuk mencukupi' + (pengaturan ? ' (minimal ' + pengaturan.min_penilai + ' penilai)' : '') + ', supaya identitas penilai tetap terlindungi. Saat ini ' + (r ? r.jumlah_penilai : 0) + ' penilai.</p></div>';
+    } else h += kartuHasil(r);
+    content.innerHTML = h;
+  }
+  function kartuHasil(r) {
+    return '<div class="pr-panel"><div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;">' +
+      '<div><div class="pr-sub" style="margin:0 0 6px;">Skor akhir (skala 1–4) · ' + r.jumlah_penilai + ' penilai</div><div class="pr-big">' + angka(r.skor_akhir) + '</div></div>' +
+      '<div style="text-align:right;">' + chipPred(r.predikat) + '<div class="pr-sub" style="margin:8px 0 0;">Nilai 0–100: <b>' + seratus(r.skor_akhir) + '</b></div></div></div>' +
+      ['skor_kinerja', 'skor_sikap', 'skor_perilaku'].map(function (k, i) {
+        var d = ORDE[i];
+        return '<div class="pr-dim"><b>' + DIM[d].judul + '</b><div class="pr-track"><div class="pr-fill pr-fill--biru" style="width:' + Math.round((r[k] || 0) / 4 * 100) + '%"></div></div><span class="pr-num" style="text-align:right;">' + angka(r[k]) + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  // =====================================================================
+  // ADMIN — pengaturan & progres
+  // =====================================================================
+  async function renderAtur() {
+    await muatPengaturan();
+    progres = await rpc('penilaian_rekan_progres', { p_periode: periode }) || [];
+    var p = pengaturan || { dibuka: false, jumlah_penilai: 5, min_penilai: 3, tampil_ke_guru: false };
+    var tugasTot = 0, selesaiTot = 0;
+    progres.forEach(function (x) { tugasTot += x.ditugaskan; selesaiTot += x.selesai; });
+    var belumDitugaskan = progres.filter(function (x) { return !x.ditugaskan; }).length;
+    var pct = tugasTot ? Math.round(selesaiTot / tugasTot * 100) : 0;
+    var h = '<div class="pr-anon"><i data-lucide="shield-check"></i><div>Sebagai admin kamu hanya melihat <b>progres per penilai</b> (berapa tugas yang sudah selesai). Kamu tidak dapat melihat siapa menilai siapa, apalagi isi jawabannya. Hasil akhir hanya dapat dibuka Kepala Sekolah.</div></div>';
+    if (!tugasTot) h += '<div class="pr-warn"><b>Penugasan penilai belum dibuat.</b> Atur jumlah penilai per orang di bawah, lalu klik “Acak Penugasan Penilai”.</div>';
+    else if (belumDitugaskan) h += '<div class="pr-warn"><b>' + belumDitugaskan + ' akun guru/staf belum mendapat tugas menilai</b> (kemungkinan akun baru). Acak ulang penugasan bila belum ada penilaian yang masuk.</div>';
+    h += '<div class="stat-grid pr-stats">' + statKartu('Guru + Staf', progres.length, 'users') + statKartu('Total Tugas', tugasTot, 'list') + statKartu('Terkirim', selesaiTot, 'send') + statKartu('Progres', pct + '%', 'gauge') + '</div>';
+    h += '<div class="pr-panel"><h3><i data-lucide="settings-2"></i>Pengaturan periode ' + esc(periode) + '</h3><p class="pr-sub">Pengaturan ini berlaku untuk periode yang sedang aktif.</p><div class="pr-form">' +
+      '<label class="pr-chk"><input type="checkbox" id="prDibuka"' + (p.dibuka ? ' checked' : '') + '><span>Penilaian dibuka<small>Guru &amp; staf hanya bisa mengirim penilaian saat dibuka.</small></span></label>' +
+      '<label class="pr-field">Jumlah penilai per orang<input class="pr-in pr-in--num" type="number" id="prJumlah" min="1" max="60" value="' + esc(p.jumlah_penilai) + '"><small>Tiap orang menilai dan dinilai sebanyak ini. 5 sudah cukup; lebih banyak = lebih adil tapi lebih melelahkan.</small></label>' +
+      '<label class="pr-field">Minimal penilai agar hasil tampil<input class="pr-in pr-in--num" type="number" id="prMin" min="3" max="20" value="' + esc(p.min_penilai) + '"><small>Di bawah angka ini hasil disembunyikan agar penilai tidak bisa ditebak. Minimal 3.</small></label>' +
+      '<label class="pr-chk"><input type="checkbox" id="prTampil"' + (p.tampil_ke_guru ? ' checked' : '') + '><span>Tampilkan hasil ke yang dinilai<small>Bila aktif, tiap guru/staf melihat rata-rata dirinya sendiri (bukan jawaban per penilai).</small></span></label></div>' +
+      '<div class="pr-toolbar" style="margin:0;"><button type="button" class="btn-small btn-small--primary" id="prSimpan"><i data-lucide="save"></i> Simpan Pengaturan</button>' +
+      '<button type="button" class="btn-small" id="prAcak"><i data-lucide="shuffle"></i> Acak Penugasan Penilai</button></div></div>';
+    h += '<div class="pr-panel" style="padding:6px 20px 12px;"><h3 style="margin-top:12px;"><i data-lucide="activity"></i>Progres per penilai</h3><p class="pr-sub">Diurutkan dari yang paling belum selesai.</p>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Nama</th><th>Peran</th><th>Ditugaskan</th><th>Terkirim</th><th style="min-width:140px;">Progres</th></tr></thead><tbody>' +
+      progres.slice().sort(function (a, b) { return ((a.ditugaskan - a.selesai) < (b.ditugaskan - b.selesai) ? 1 : (a.ditugaskan - a.selesai) > (b.ditugaskan - b.selesai) ? -1 : String(a.nama).localeCompare(String(b.nama))); }).map(function (x) {
+        var pp = x.ditugaskan ? Math.round(x.selesai / x.ditugaskan * 100) : 0;
+        return '<tr><td>' + esc(x.nama) + '</td><td>' + labelRole(x.role) + '</td><td class="pr-num">' + x.ditugaskan + '</td><td class="pr-num">' + x.selesai + '</td><td><div class="pr-track"><div class="pr-fill" style="width:' + pp + '%"></div></div></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    content.innerHTML = h;
+  }
+  async function simpanPengaturan(btn) {
+    btn.disabled = true;
+    try {
+      pengaturan = await rpc('penilaian_rekan_atur', {
+        p_periode: periode, p_dibuka: document.getElementById('prDibuka').checked,
+        p_jumlah: parseInt(document.getElementById('prJumlah').value, 10), p_min: parseInt(document.getElementById('prMin').value, 10),
+        p_tampil: document.getElementById('prTampil').checked
+      });
+      toast('Pengaturan disimpan.', true);
+    } catch (e) { toast(pesanGalat(e)); }
+    btn.disabled = false;
+  }
+  async function acakTugas(btn) {
+    var n = parseInt(document.getElementById('prJumlah').value, 10);
+    if (!n || n < 1) { toast('Isi jumlah penilai per orang dulu.'); return; }
+    if (!confirm('Acak penugasan: setiap guru/staf akan menilai ' + n + ' rekan.\nPenugasan lama (bila ada) diganti.\n\nLanjutkan?')) return;
+    btn.disabled = true;
+    try { var total = await rpc('penilaian_rekan_acak', { p_periode: periode, p_jumlah: n }); toast(total + ' tugas penilaian dibuat.', true); await tampil(); }
+    catch (e) { btn.disabled = false; toast(pesanGalat(e)); }
+  }
+
+  // =====================================================================
+  // KEPALA SEKOLAH — hasil akhir
+  // =====================================================================
+  async function renderHasil() {
+    await muatPengaturan();
+    hasil = await rpc('penilaian_rekan_hasil', { p_periode: periode }) || [];
+    gambarHasil();
+  }
+  function gambarHasil() {
+    var cukup = hasil.filter(function (x) { return x.cukup; });
+    var rata = cukup.length ? cukup.reduce(function (a, x) { return a + Number(x.skor_akhir); }, 0) / cukup.length : null;
+    var bina = cukup.filter(function (x) { return x.predikat === 'Kurang' || x.predikat === 'Cukup'; }).length;
+    var minP = pengaturan ? pengaturan.min_penilai : 3;
+    var h = '<div class="pr-anon no-print"><i data-lucide="shield-check"></i><div>Yang tampil di sini hanya <b>hasil akhir</b> (rata-rata dari para penilai). Identitas dan jawaban individual penilai tidak tersimpan dan tidak dapat dilihat siapa pun. Hasil disembunyikan bila penilai kurang dari ' + minP + ' orang.</div></div>';
+    h += '<div class="stat-grid pr-stats">' + statKartu('Sudah Ada Hasil', cukup.length + ' / ' + hasil.length, 'check-circle-2') + statKartu('Rata-rata Sekolah', rata === null ? '—' : angka(rata), 'gauge') +
+      statKartu('Sangat Baik', cukup.filter(function (x) { return x.predikat === 'Sangat Baik'; }).length, 'star') + statKartu('Perlu Pembinaan (Cukup/Kurang)', bina, 'life-buoy') + '</div>';
+    h += '<div class="pr-toolbar"><select id="prPeran"><option value="">Guru &amp; Staf</option><option value="guru"' + (saring.peran === 'guru' ? ' selected' : '') + '>Guru</option><option value="staf"' + (saring.peran === 'staf' ? ' selected' : '') + '>Staf</option></select>' +
+      '<select id="prUrut"><option value="skor"' + (saring.urut === 'skor' ? ' selected' : '') + '>Urut: skor tertinggi</option><option value="rendah"' + (saring.urut === 'rendah' ? ' selected' : '') + '>Urut: skor terendah</option><option value="nama"' + (saring.urut === 'nama' ? ' selected' : '') + '>Urut: nama</option></select>' +
+      '<input type="search" id="prCari" placeholder="Cari nama…" value="' + esc(saring.cari) + '"><button type="button" class="btn-small" id="prCetak"><i data-lucide="printer"></i> Cetak</button></div>';
+    h += '<div class="pr-panel" style="padding:6px 20px 12px;"><div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>Peran</th><th>Penilai</th><th>Kinerja</th><th>Sikap</th><th>Perilaku</th><th>Skor Akhir</th><th>Nilai 0–100</th><th>Predikat</th></tr></thead><tbody id="prBody"></tbody></table></div>' +
+      '<p class="pr-sub" style="margin:10px 0 0;">Skala 1–4. Bobot: Kinerja ' + BOBOT.A + '%, Sikap ' + BOBOT.B + '%, Perilaku ' + BOBOT.C + '%. Predikat: 3,51–4,00 Sangat Baik · 2,51–3,50 Baik · 1,51–2,50 Cukup · ≤1,50 Kurang. Klik baris untuk melihat rincian.</p></div>';
+    content.innerHTML = h;
+    isiBaris();
+  }
+  function daftarTersaring() {
+    var q = saring.cari.trim().toLowerCase();
+    var l = hasil.filter(function (x) { return (!saring.peran || x.role === saring.peran) && (!q || String(x.nama).toLowerCase().indexOf(q) >= 0); });
+    l.sort(function (a, b) {
+      if (saring.urut === 'nama') return String(a.nama).localeCompare(String(b.nama));
+      var sa = a.cukup ? Number(a.skor_akhir) : -1, sb = b.cukup ? Number(b.skor_akhir) : -1;
+      if (a.cukup !== b.cukup) return a.cukup ? -1 : 1;     // yang belum cukup penilai selalu di bawah
+      return saring.urut === 'rendah' ? sa - sb : sb - sa;
+    });
+    return l;
+  }
+  function isiBaris() {
+    var l = daftarTersaring(), tb = document.getElementById('prBody');
+    if (!l.length) { tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:22px;">Tidak ada data.</td></tr>'; return; }
+    tb.innerHTML = l.map(function (x, i) {
+      return '<tr class="pr-row-click" data-id="' + esc(x.dinilai_id) + '"><td>' + (i + 1) + '</td><td><b>' + esc(x.nama) + '</b></td><td>' + labelRole(x.role) + '</td><td class="pr-num">' + x.jumlah_penilai + '</td>' +
+        '<td class="pr-num">' + angka(x.skor_kinerja) + '</td><td class="pr-num">' + angka(x.skor_sikap) + '</td><td class="pr-num">' + angka(x.skor_perilaku) + '</td>' +
+        '<td class="pr-num"><b>' + angka(x.skor_akhir) + '</b></td><td class="pr-num">' + seratus(x.skor_akhir) + '</td><td>' + chipPred(x.predikat) + '</td></tr>';
+    }).join('');
+  }
+  function rincianHasil(id) {
+    var r = hasil.find(function (x) { return x.dinilai_id === id; });
+    if (!r) return;
+    var isi = r.cukup ? kartuHasil(r) :
+      '<div class="pr-panel"><p class="pr-sub" style="margin:0;">Baru ' + r.jumlah_penilai + ' penilai yang masuk. Hasil ditampilkan setelah minimal ' + (pengaturan ? pengaturan.min_penilai : 3) + ' penilai, supaya identitas penilai tetap terlindungi.</p></div>';
+    modal('<div class="modal-box__head"><div class="modal-box__title">' + esc(r.nama) + ' <span class="pr-tag">' + labelRole(r.role) + '</span></div><button type="button" class="modal-box__close" data-tutup="1">×</button></div>' + isi +
+      '<div class="modal-box__actions"><button type="button" class="btn-small" data-tutup="1">Tutup</button></div>');
+  }
+
+  // =====================================================================
+  // Lihat instrumen (semua peran)
+  // =====================================================================
+  function renderInstrumen() {
+    var h = '<div class="pr-panel"><h3><i data-lucide="info"></i>Cara penilaian</h3><p class="pr-sub">Setiap guru/staf menilai beberapa rekan yang ditentukan sistem secara acak. Ada 18 pernyataan dalam 3 kelompok. Tiap pernyataan dijawab dengan skala 1–4, atau “Tidak tahu” bila benar-benar tidak pernah mengamati.</p>' +
+      '<div class="table-wrap"><table class="data-table pr-skala"><thead><tr><th>Skor</th><th>Arti</th><th>Keterangan</th></tr></thead><tbody>' +
+      SKALA.map(function (s) { return '<tr><td class="pr-num">' + s.v + '</td><td><b>' + s.label + '</b></td><td>' + s.desc + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<p class="pr-sub" style="margin:12px 0 0;"><b>Perhitungan:</b> rata-rata tiap kelompok dihitung per penilai, lalu dirata-ratakan. Skor akhir = Kinerja ' + BOBOT.A + '% + Sikap ' + BOBOT.B + '% + Perilaku ' + BOBOT.C + '%. ' +
+      '<b>Predikat:</b> 3,51–4,00 Sangat Baik · 2,51–3,50 Baik · 1,51–2,50 Cukup · ≤1,50 Kurang.</p></div>';
+    ['guru', 'staf'].forEach(function (k) {
+      var ins = INSTRUMEN[k];
+      h += '<div class="pr-sec"><i data-lucide="' + (k === 'guru' ? 'graduation-cap' : 'briefcase') + '"></i>Instrumen untuk ' + esc(ins.nama) + '</div>';
+      ORDE.forEach(function (d) {
+        h += '<div class="pr-panel" style="padding:14px 20px;"><h3><i data-lucide="' + DIM[d].ikon + '"></i>' + DIM[d].judul + ' <span class="pr-tag">' + BOBOT[d] + '%</span></h3><p class="pr-sub" style="margin-bottom:8px;">' + DIM[d].desc + '</p><ol style="margin:0;padding-left:20px;font-size:13px;line-height:1.7;">' +
+          ins.butir[d].map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol></div>';
+      });
+    });
+    content.innerHTML = h;
+  }
+
+  // ---------- Peristiwa ----------
+  document.getElementById('menu').addEventListener('click', function (e) {
+    var a = e.target.closest('.menu-item[data-view]'); if (!a) return;
+    e.preventDefault(); keHalaman(a.dataset.view);
+  });
+  content.addEventListener('click', function (e) {
+    var t;
+    if ((t = e.target.closest('[data-nilai]'))) return bukaForm(t.dataset.nilai);
+    if (e.target.closest('#prKembali')) { form = null; return keHalaman('tugas'); }
+    if ((t = e.target.closest('.pr-opt'))) { if (!form) return; form.jawaban[t.dataset.b] = t.dataset.v === 'x' ? 'x' : Number(t.dataset.v); return segarkanForm(); }
+    if (e.target.closest('#prKirim')) return kirimForm();
+    if ((t = e.target.closest('#prSimpan'))) return simpanPengaturan(t);
+    if ((t = e.target.closest('#prAcak'))) return acakTugas(t);
+    if (e.target.closest('#prCetak')) return window.print();
+    if ((t = e.target.closest('tr.pr-row-click'))) return rincianHasil(t.dataset.id);
+  });
+  content.addEventListener('change', function (e) {
+    if (e.target.id === 'prPeran') { saring.peran = e.target.value; isiBaris(); }
+    else if (e.target.id === 'prUrut') { saring.urut = e.target.value; isiBaris(); }
+  });
+  content.addEventListener('input', function (e) { if (e.target.id === 'prCari') { saring.cari = e.target.value; isiBaris(); } });
+  window.addEventListener('beforeunload', function (e) {
+    if (tampilan === 'form' && form && Object.keys(form.jawaban).length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ---------- Mulai ----------
+  (async function () {
+    var s = (await supabaseClient.auth.getSession()).data.session;
+    if (!s) { location.href = 'index.html'; return; }
+    me.id = s.user.id;
+    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', me.id).single();
+    if (p.error || !p.data) { location.href = 'portal.html'; return; }
+    me.nama = p.data.nama || s.user.email;
+    me.role = p.data.role;
+    if (['guru', 'staf', 'admin', 'kepsek'].indexOf(me.role) < 0) { location.href = 'portal.html'; return; } // siswa & pengawas tidak ikut
+    var LABEL = { admin: 'Admin', kepsek: 'Kepala Sekolah', guru: 'Guru', staf: 'Staf' };
+    document.getElementById('userName').textContent = me.nama;
+    document.getElementById('userRole').textContent = LABEL[me.role];
+    document.getElementById('roleLabel').textContent = LABEL[me.role];
+
+    try {
+      var ta = await supabaseClient.from('tahun_ajaran').select('id, nama, semester').eq('is_aktif', true).maybeSingle();
+      periode = ta && ta.data ? ta.data.nama + ' · ' + ta.data.semester : 'Tahun berjalan';
+    } catch (e) { periode = 'Tahun berjalan'; }
+
+    try { await muatPengaturan(); }
+    catch (e) { galat = pesanGalat(e); }
+    bangunMenu();
+    keHalaman(me.role === 'admin' ? 'atur' : me.role === 'kepsek' ? 'hasil' : 'tugas');
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    try { if (typeof catatAktivitas === 'function') await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi'); } catch (x) { /* abaikan */ }
+    await supabaseClient.auth.signOut();
+    location.href = 'index.html';
+  });
+  ikon();
+</script>
+</body>
+</html>

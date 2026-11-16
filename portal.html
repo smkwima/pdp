@@ -13,12 +13,13 @@
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="dashboard-kepsek.js?v=6"></script>
-<script src="bottomnav.js?v=11" defer></script>
+<script src="bottomnav.js?v=12" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=2" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
 <script src="disiplin-saya.js?v=1"></script>
+<script src="penilaian-saya.js?v=1"></script>
 <style>
   body { background: var(--bg); min-height: 100vh; }
 
@@ -81,7 +82,8 @@
   .pt-hero__ta b { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
 
   .pt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
-  .pt-hero__disp { flex-basis: 100%; }
+  .pt-hero__disp { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+  .pt-hero__disp:not([style*="none"]) { display: flex; }
   .pt-stat { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
   .pt-stat__ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .pt-stat__ic i, .pt-stat__ic svg { width: 22px; height: 22px; }
@@ -271,6 +273,7 @@
         'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
         'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.',
         'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.',
+        'Penilaian Rekan': 'Lihat hasil akhir penilaian kinerja, sikap, dan perilaku antarrekan (anonim).',
         'Ijin & Dinas Luar': 'Lihat pengajuan sakit, ijin dan dinas luar guru & staf.',
         'Pengaduan Siswa': 'Lihat laporan bullying dan pelanggaran dari siswa beserta nama pelapor (rahasia).'
       };
@@ -304,6 +307,8 @@
         desc: admin ? 'Atur jadwal, form dan data supervisi akademik guru.' : 'Lihat jadwal, isi form supervisi, dan jawab wawancara supervisi.' },
       { grup: 'Pembinaan & Mutu', href: 'kinerja.html', warna: 'c-oranye', ikon: 'award', judul: admin ? 'Kinerja Guru' : 'Kinerja Saya',
         desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
+      { grup: 'Pembinaan & Mutu', href: 'penilaian-rekan.html', warna: 'c-ungu', ikon: 'users', judul: 'Penilaian Rekan',
+        desc: admin ? 'Buka/tutup penilaian, acak penilai, dan pantau progres. Jawaban anonim.' : 'Nilai kinerja, sikap, dan perilaku rekan secara anonim.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
         desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' },
       admin ? { grup: 'Pembinaan & Mutu', href: 'pengaduan.html', warna: 'c-merah', ikon: 'megaphone', judul: 'Pengaduan Siswa',
@@ -421,6 +426,11 @@
       if (window.lucide) lucide.createIcons();
     }
     if (window.DisiplinSaya) DisiplinSaya.muat(); // dimuat paralel; gagal tidak mengganggu kartu lain
+    if (window.PenilaianSaya) { // muncul hanya bila admin mencentang "Tampilkan hasil ke yang dinilai"
+      var psW = document.getElementById('dsWadah');
+      psW.insertAdjacentHTML('beforeend', PenilaianSaya.kartu());
+      PenilaianSaya.muat(function () { psW.style.display = ''; });
+    }
     if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
 
     var peng = [], wali = null, waliKelasObj = null;
@@ -555,7 +565,7 @@
       } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
     })();
 
-    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'ijin.html' || m.judul === 'Panduan PDP'; }).map(function (m) {
+    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'penilaian-rekan.html' || m.href === 'ijin.html' || m.judul === 'Panduan PDP'; }).map(function (m) {
       return m.href === 'kinerja.html' ? Object.assign({}, m, { desc: 'Tulis sendiri aspek bukti dukung kinerjamu, isi link dan keterangan, lalu ajukan ke Kepala Sekolah.' }) : m;
     }) : daftarModul(admin, kepsek, pengawas);
     renderSidebar(mods);

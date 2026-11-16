@@ -4,7 +4,7 @@
  * "Menu Utama / E-Rapor / Buku Induk / Catatan Pelanggaran / ...").
  *
  *  - Satu tombol "Aplikasi" -> panel berisi SEMUA aplikasi sesuai peran:
- *      Guru  : Menu Utama, E-Rapor, Buku Induk, Nilai PKL, Supervisi, Kinerja Saya, Catatan Pelanggaran
+ *      Guru  : Menu Utama, E-Rapor, Buku Induk, Nilai PKL, Supervisi, Kinerja Saya, Penilaian Rekan, Catatan Pelanggaran
  *      Admin : semua milik guru versi admin + Guru & Penugasan + Pengaturan Sekolah + Log Aktivitas
  *  - Aplikasi yang sedang dibuka diberi tanda.
  *  - Kepala Sekolah tidak diubah (memakai kepsek-nav.js).
@@ -28,11 +28,13 @@
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi.html',       judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal & form supervisi' },
     { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Ajukan bukti kinerja ke Kepala Sekolah' },
+    { href: 'penilaian-rekan.html',  judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_STAF = [
     { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Tulis & ajukan bukti kinerja ke Kepala Sekolah' },
+    { href: 'penilaian-rekan.html', judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_ADMIN = [
@@ -44,6 +46,7 @@
     { href: '#', sso: true, judul: 'RPP Maker', ikon: 'sparkles', warna: 'ungu', desc: 'Susun RPM, LKPD, ATP & Prota/Prosem' },
     { href: 'supervisi-admin.html',   judul: 'Supervisi',           ikon: 'clipboard-check',    warna: 'ungu',   desc: 'Jadwal, form & data supervisi' },
     { href: 'kinerja.html',           judul: 'Kinerja Guru',        ikon: 'award',              warna: 'oranye', desc: 'Pantau & beri jempol bukti kinerja' },
+    { href: 'penilaian-rekan.html',   judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Atur penilaian anonim & pantau progres' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'pengaduan.html',         judul: 'Pengaduan Siswa',     ikon: 'megaphone',          warna: 'merah',  desc: 'Laporan bullying & pelanggaran dari siswa' },
     { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },

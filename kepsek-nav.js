@@ -16,7 +16,7 @@
  *   - Untuk role lain skrip ini tidak melakukan apa-apa.
  *
  * Dimuat di: admin.html, bukuinduk-admin.html, pkl.html,
- * supervisi-admin.html, guru-penugasan.html, pelanggaran.html, pengaduan.html, kinerja.html (setelah supabase-client.js).
+ * supervisi-admin.html, guru-penugasan.html, pelanggaran.html, pengaduan.html, kinerja.html, penilaian-rekan.html (setelah supabase-client.js).
  * (portal.html sudah memakai sidebar aplikasi sendiri.)
  * -----------------------------------------------------------------
  */
@@ -32,6 +32,7 @@
     { grup: 'Akademik',           href: 'pkl.html',              ikon: 'briefcase-business',  judul: 'Nilai PKL' },
     { grup: 'Pembinaan & Mutu',   href: 'supervisi-admin.html',  ikon: 'clipboard-check',     judul: 'Supervisi' },
     { grup: 'Pembinaan & Mutu',   href: 'kinerja.html',          ikon: 'award',               judul: 'Kinerja Guru' },
+    { grup: 'Pembinaan & Mutu',   href: 'penilaian-rekan.html',  ikon: 'users',               judul: 'Penilaian Rekan' },
     { grup: 'Pembinaan & Mutu',   href: 'catatan-pengawas.html', ikon: 'notebook-pen',        judul: 'Catatan Pengawas' },
     { grup: 'Pembinaan & Mutu',   href: 'pelanggaran.html',      ikon: 'shield-alert',        judul: 'Catatan Pelanggaran' },
     { grup: 'Pembinaan & Mutu',   href: 'pengaduan.html',        ikon: 'megaphone',           judul: 'Pengaduan Siswa' }
@@ -48,7 +49,7 @@
     { grup: 'Pembinaan & Mutu',   href: 'catatan-pengawas.html', ikon: 'notebook-pen',        judul: 'Catatan Pengawas' }
   ];
   // Halaman yang tidak boleh dibuka pengawas -> kembali ke Beranda.
-  var BLOK_PENGAWAS = ['bukuinduk-admin.html', 'bukuinduk-guru.html', 'pelanggaran.html', 'pengaduan.html', 'disiplin.html', 'ijin.html', 'penugasan-admin.html', 'log-admin.html', 'pengaturan-admin.html'];
+  var BLOK_PENGAWAS = ['bukuinduk-admin.html', 'bukuinduk-guru.html', 'penilaian-rekan.html', 'pelanggaran.html', 'pengaduan.html', 'disiplin.html', 'ijin.html', 'penugasan-admin.html', 'log-admin.html', 'pengaturan-admin.html'];
   var PERAN = 'kepsek';
   var LABEL = { kepsek: 'Kepala Sekolah', pengawas: 'Pengawas Sekolah' };
 

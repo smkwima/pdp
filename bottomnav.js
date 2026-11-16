@@ -35,6 +35,7 @@
   IKON.set = '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>';
   IKON.log = '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>';
 
+  IKON.rekan = '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>';
   IKON.rekap = '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>';
   IKON.ijin = '<path d="M4.18 4.18A2 2 0 0 0 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 1.82-1.18"/><path d="M21 15.5V6a2 2 0 0 0-2-2H9.5"/><path d="M16 2v4"/><path d="M3 10h7"/><path d="M21 10h-5.5"/><path d="m2 2 20 20"/><path d="M8 2v4"/>';
   IKON.disiplin = IKON.rekap;
@@ -57,6 +58,7 @@
   else if (berkas === 'supervisi-admin.html') { kunciAktif = 'sup'; roleDariBerkas = 'admin'; }
   else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
   else if (berkas === 'kinerja.html') { kunciAktif = 'kin'; }
+  else if (berkas === 'penilaian-rekan.html') { kunciAktif = 'rekan'; }
   else if (berkas === 'catatan-pengawas.html') { kunciAktif = 'cat'; }
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
   else if (berkas === 'pengaduan.html') { kunciAktif = 'pgd'; }
@@ -77,6 +79,7 @@
       { k: 'rpp',   label: 'RPP Maker',   judul: 'RPP Maker',           href: '#', sso: true, warna: 'ungu' },
       { k: 'sup',   label: 'Supervisi',   judul: 'Supervisi',           href: admin ? 'supervisi-admin.html' : 'supervisi.html', warna: 'ungu' },
       { k: 'kin',   label: 'Kinerja',     judul: admin ? 'Kinerja Guru' : 'Kinerja Saya', href: 'kinerja.html', warna: 'oranye' },
+      { k: 'rekan', label: 'Rekan',       judul: 'Penilaian Rekan',     href: 'penilaian-rekan.html', warna: 'ungu' },
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
       { k: 'pgd',   label: 'Pengaduan',   judul: 'Pengaduan Siswa',     href: 'pengaduan.html', warna: 'merah', sheetSaja: true, hanyaPimpinan: true },
       { k: 'cat',   label: 'Catatan',     judul: 'Catatan Pengawas',    href: 'catatan-pengawas.html', warna: 'ungu', sheetSaja: true, hanyaCatatan: true },
@@ -87,10 +90,10 @@
       { k: 'log',   label: 'Log',         judul: 'Log Aktivitas',       href: 'log-admin.html', warna: 'slate', sheetSaja: true, hanyaAdmin: true }
     ];
     if (role === 'staf') { // staf: HANYA Kinerja Saya dan Ijin & Dinas Luar
-      return menu.filter(function (it) { return it.k === 'kin' || it.k === 'ijin'; });
+      return menu.filter(function (it) { return it.k === 'kin' || it.k === 'rekan' || it.k === 'ijin'; });
     }
     return menu.filter(function (it) {
-      if (role === 'pengawas' && ['bi', 'pel', 'pgd', 'ijin', 'disiplin', 'rpp'].indexOf(it.k) >= 0) return false; // pengawas: tanpa data siswa/pegawai pribadi
+      if (role === 'pengawas' && ['bi', 'pel', 'pgd', 'ijin', 'disiplin', 'rpp', 'rekan'].indexOf(it.k) >= 0) return false; // pengawas: tanpa data siswa/pegawai pribadi
       if (it.hanyaCatatan && role !== 'kepsek' && role !== 'pengawas') return false;
       if (it.hanyaAdmin && role !== 'admin') return false;
       if (it.hanyaKepsek && role !== 'kepsek') return false;
