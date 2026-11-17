@@ -1722,6 +1722,26 @@
         if (!confirm('Data semester 1 siswa kelas ini belum ada di arsip Buku Induk (belum disinkron dari E-Rapor / diisi lewat Isi Semester Terlewat).\n\nCover & Daftar Siswa akan memakai PERKIRAAN: Kelas ' + kelasNama1 + ', Tahun Ajaran ' + (taNama1 || '-') + '.\n\nLanjutkan cetak?')) { w.close(); return; }
       }
       var kelasCetak = Object.assign({}, kelas, { nama: kelasNama1 });
+      // Siswa yang sudah pindah/keluar/lulus mungkin tidak punya data kelas di tahun ajaran berjalan.
+      // Tambahkan lewat arsip semester 1 (tahun ajaran & kelas yang sama) supaya tetap terdaftar.
+      if (!perkiraan) {
+        try {
+          var sudahAda = {}; list.forEach(function (x) { sudahAda[x.id] = true; });
+          var rwK = await pageAll(function (a, b) { return sb().from('bi_riwayat_semester').select('id, siswa_id').eq('semester_ke', 1).eq('ta_nama', taNama1).eq('kelas_nama', kelasNama1).order('id').range(a, b); });
+          var idTambah = [], dilihat = {};
+          rwK.forEach(function (r) { if (!sudahAda[r.siswa_id] && !dilihat[r.siswa_id]) { dilihat[r.siswa_id] = true; idTambah.push(r.siswa_id); } });
+          if (idTambah.length) {
+            var swT = await inChunks(idTambah, function (p, a, b) { return sb().from('siswa').select('*').in('id', p).order('id').range(a, b); });
+            var dtT = await inChunks(idTambah, function (p, a, b) { return sb().from('bi_siswa_detail').select('siswa_id,diterima_sebagai,pindahan_dari').in('siswa_id', p).order('siswa_id').range(a, b); });
+            var dtMap = {}; dtT.forEach(function (d) { dtMap[d.siswa_id] = d; });
+            swT.forEach(function (x) {
+              if (x.status === 'aktif') return; // siswa aktif yang pindah rombel tidak dimasukkan ke kelas ini
+              var d = dtMap[x.id] || {};
+              list = list.concat([Object.assign({}, x, { diterima_sebagai: d.diterima_sebagai || null, pindahan_dari: d.pindahan_dari || null })]);
+            });
+          }
+        } catch (e) { /* gagal memuat tambahan -> tetap cetak daftar yang ada */ }
+      }
       var urut = list.slice().sort(function (a, b) { return (a.nama || '').localeCompare(b.nama || ''); });
       var taTeks = taNama1 ? 'Tahun Ajaran ' + taNama1 : '';
       var cover = BI.htmlCover(kelasCetak, profil, logo, taTeks);
@@ -1738,11 +1758,11 @@
       var ttdKepsek = '<div class="ttd" style="justify-content:flex-end;"><div>' + esc(profil.kota_ttd || 'Tambak') + ', ' + tglTtdTeks + '<br>Kepala Sekolah,<div class="sp"></div><b><u>' + esc(profil.kepala_sekolah || '...............................') + '</u></b>' +
         (profil.nip_kepala_sekolah ? '<br>NIP. ' + esc(profil.nip_kepala_sekolah) : '') + '</div></div>';
       var baris = urut.map(function (s, i) {
-        return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(s.nama) + '</td><td class="c">' + esc(s.nis || '') + '</td><td class="c">' + esc(s.nisn || '') + '</td><td class="c">' + keteranganMasuk(s) + '</td></tr>';
+        return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(s.nama) + '</td><td class="c">' + esc(s.nis || '') + '</td><td class="c">' + esc(s.nisn || '') + '</td><td class="c">' + keteranganMasuk(s) + '</td><td class="c">' + esc(LABEL_OPSI[s.status] || s.status || '') + '</td></tr>';
       }).join('');
       var daftar = '<div class="hal">' + kopHtml(profil, logo) +
         '<div class="judul"><div class="t">DAFTAR SISWA</div><div class="n">Kelas <b>' + esc(kelasNama1) + '</b>' + (taTeks ? ' &nbsp;|&nbsp; ' + esc(taTeks) : '') + ' &nbsp;|&nbsp; Jumlah <b>' + urut.length + '</b> siswa</div></div>' +
-        '<table class="ds"><thead><tr><th style="width:8%;">No</th><th>Nama</th><th style="width:17%;">NIS</th><th style="width:20%;">NISN</th><th style="width:15%;">Keterangan</th></tr></thead><tbody>' + baris + '</tbody></table>' + ttdKepsek +
+        '<table class="ds"><thead><tr><th style="width:7%;">No</th><th>Nama</th><th style="width:14%;">NIS</th><th style="width:17%;">NISN</th><th style="width:12%;">Keterangan</th><th style="width:14%;">Status</th></tr></thead><tbody>' + baris + '</tbody></table>' + ttdKepsek +
         '<div class="ft"><span>Daftar Siswa Kelas ' + esc(kelasNama1) + '</span><span>Dicetak ' + tglCetak + '</span></div></div>';
 
       w.document.open();
@@ -2580,7 +2600,8 @@
       return kelasList.find(function (k) { return k.id === kelasPilih; }) || null;
     }
     function siswaKelas() {
-      return list.filter(function (s) { return s.status === 'aktif' && s.kelas && s.kelas.id === (kelasAktif() || {}).id; });
+      // Semua status ikut (aktif, pindah, keluar, lulus) - siswa yang pindah/keluar tetap tercatat di Daftar Siswa.
+      return list.filter(function (s) { return s.kelas && s.kelas.id === (kelasAktif() || {}).id; });
     }
     function tampil() {
       var f = list.filter(function (s) {
@@ -2608,7 +2629,7 @@
       (!opts.kelasId ? '<div class="field" style="margin-bottom:0;"><label>Kelas</label><select id="cetKelas"><option value="">— pilih kelas —</option>' + kelasList.map(function (k) { return '<option value="' + k.id + '">' + esc(k.nama) + '</option>'; }).join('') + '</select></div>' :
         '<div class="field" style="margin-bottom:0;"><label>Kelas</label><div style="padding:8px 0;font-weight:600;">' + esc(kelasWali ? kelasWali.nama : '—') + '</div></div>') +
       '<button class="btn-small btn-small--primary" id="cetCover">🖨 Cetak Cover + Daftar Siswa</button></div>' +
-      '<div class="panel-note" style="margin-top:-4px;">Cover: judul, kelas, program keahlian, tahun ajaran — kelas dan tahun ajaran diambil dari <b>semester 1</b> siswa (bukan kelas saat ini). Daftar Siswa: No, Nama, NIS, NISN, Keterangan (Baru / Pindahan, dari isian "Diterima Sebagai"). Hanya siswa aktif di kelas tersebut. Tanda tangan hanya Kepala Sekolah, tanggalnya mengikuti tanggal diterima siswa baru.</div>' +
+      '<div class="panel-note" style="margin-top:-4px;">Cover: judul, kelas, program keahlian, tahun ajaran — kelas dan tahun ajaran diambil dari <b>semester 1</b> siswa (bukan kelas saat ini). Daftar Siswa: No, Nama, NIS, NISN, Keterangan (Baru / Pindahan, dari isian "Diterima Sebagai"), dan Status (Aktif / Pindah / Keluar / Lulus). Siswa yang pindah atau keluar tetap tercantum. Tanda tangan hanya Kepala Sekolah, tanggalnya mengikuti tanggal diterima siswa baru.</div>' +
 
       '<div class="section-title" style="margin-top:22px;">3 & 4. Biodata dan Nilai <span style="font-weight:400;font-size:12px;color:var(--ink-soft);">(centang siswa yang ingin dicetak)</span></div>' +
       '<div class="toolbar" style="align-items:flex-end;">' +
