@@ -1,13 +1,19 @@
 /* =========================================================
  * AKSES APLIKASI (dikunci / dibuka oleh role Developer)
- * Dipasang SETELAH supabase-client.js di halaman aplikasi dan portal.
+ * Dipasang SETELAH supabase-client.js di halaman aplikasi, portal, dan siswa.
  *
  * - Halaman aplikasi: kalau aplikasinya dikunci dan pengguna bukan
  *   developer, isi halaman diganti layar "Aplikasi dikunci".
+ * - MODE PEMELIHARAAN (tabel pengaturan_sistem): bila aktif, SEMUA halaman
+ *   (aplikasi, portal, siswa) menampilkan layar pemeliharaan untuk semua
+ *   pengguna kecuali developer. Layar memeriksa ulang tiap 60 detik dan
+ *   memuat ulang otomatis saat pemeliharaan selesai.
+ * - PENGUMUMAN: banner di bagian atas halaman, bisa ditutup per sesi,
+ *   hilang otomatis setelah waktu berakhir.
  * - Portal / menu bawah: AksesAplikasi.muat() memberi daftar status
  *   supaya kartu aplikasi bisa ditampilkan dengan gembok.
  * - Aman bila migrasi belum dijalankan: kalau tabel tidak terbaca,
- *   semua aplikasi dianggap aktif (tidak ada yang terkunci).
+ *   tidak ada yang terkunci dan tidak ada banner.
  * Kode aplikasi harus sama dengan tabel akses_aplikasi (migrasi_developer.sql).
  * ========================================================= */
 (function () {
@@ -27,6 +33,8 @@
     'pengaturan-admin.html': 'set',
     'log-admin.html': 'log'
   };
+  // Halaman tanpa kode aplikasi, tetapi tetap ikut mode pemeliharaan & pengumuman.
+  var HALAMAN_UMUM = { 'portal.html': 1, 'siswa.html': 1 };
   // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker tidak punya halaman, href '#').
   var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
 
@@ -40,22 +48,28 @@
   }
 
   var cache = null;
-  // Hasil: { peran: 'guru'|..., kunci: { kode: { nama, keterangan } } }  (hanya yang dikunci)
+  // Hasil: { peran, kunci: { kode: { nama, keterangan } } (hanya yang dikunci), sistem: baris pengaturan_sistem | null }
   async function muat() {
     if (cache) return cache;
     cache = (async function () {
-      var hasil = { peran: null, kunci: {} };
+      var hasil = { peran: null, kunci: {}, sistem: null };
       try {
         var ses = await supabaseClient.auth.getSession();
         var user = ses.data && ses.data.session && ses.data.session.user;
         if (!user) return hasil;
         var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).maybeSingle();
         hasil.peran = pr.data ? String(pr.data.role) : null;
-        var r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan');
-        if (r.error || !r.data) return hasil; // tabel belum ada -> semua aktif
-        r.data.forEach(function (a) {
-          if (a.aktif === false) hasil.kunci[a.kode] = { nama: a.nama, keterangan: a.keterangan || '' };
-        });
+        var hs = await Promise.all([
+          supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan'),
+          supabaseClient.from('pengaturan_sistem').select('*').eq('id', 1).maybeSingle()
+        ]);
+        var r = hs[0], s = hs[1];
+        if (!r.error && r.data) { // tabel belum ada -> semua aktif
+          r.data.forEach(function (a) {
+            if (a.aktif === false) hasil.kunci[a.kode] = { nama: a.nama, keterangan: a.keterangan || '' };
+          });
+        }
+        if (!s.error && s.data) hasil.sistem = s.data;
       } catch (e) { /* gagal baca: jangan mengunci siapa pun */ }
       return hasil;
     })();
@@ -63,33 +77,120 @@
   }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function sesudahBodySiap(fn) {
+    if (document.body) fn(); else document.addEventListener('DOMContentLoaded', fn);
+  }
+  function tglIndo(iso) {
+    try {
+      return new Date(iso).toLocaleString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
 
   function tampilkanTerkunci(info) {
-    if (!document.body) { document.addEventListener('DOMContentLoaded', function () { tampilkanTerkunci(info); }); return; }
-    document.title = 'Aplikasi dikunci — ' + info.nama;
-    document.body.innerHTML =
-      '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:\'Plus Jakarta Sans\',system-ui,sans-serif;">' +
-      '<div style="max-width:420px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px 28px;text-align:center;">' +
-      '<div style="width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:26px;">🔒</div>' +
-      '<div style="font-size:19px;font-weight:700;color:#0f172a;margin-bottom:8px;">' + esc(info.nama) + ' sedang dikunci</div>' +
-      '<div style="font-size:14px;line-height:1.6;color:#475569;margin-bottom:22px;">' + esc(info.keterangan || 'Aplikasi ini sementara tidak dapat diakses. Hubungi admin atau developer untuk informasi lebih lanjut.') + '</div>' +
-      '<a href="portal.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:600;font-size:14px;text-decoration:none;">Kembali ke Menu Utama</a>' +
-      '</div></div>';
-    document.documentElement.style.visibility = '';
+    sesudahBodySiap(function () {
+      document.title = 'Aplikasi dikunci — ' + info.nama;
+      document.body.innerHTML =
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:\'Plus Jakarta Sans\',system-ui,sans-serif;">' +
+        '<div style="max-width:420px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px 28px;text-align:center;">' +
+        '<div style="width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:26px;">🔒</div>' +
+        '<div style="font-size:19px;font-weight:700;color:#0f172a;margin-bottom:8px;">' + esc(info.nama) + ' sedang dikunci</div>' +
+        '<div style="font-size:14px;line-height:1.6;color:#475569;margin-bottom:22px;">' + esc(info.keterangan || 'Aplikasi ini sementara tidak dapat diakses. Hubungi admin atau developer untuk informasi lebih lanjut.') + '</div>' +
+        '<a href="portal.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:600;font-size:14px;text-decoration:none;">Kembali ke Menu Utama</a>' +
+        '</div></div>';
+      document.documentElement.style.visibility = '';
+    });
+  }
+
+  // ---- MODE PEMELIHARAAN: layar penuh di atas segalanya (menutup juga pop up yang muncul belakangan) ----
+  function tampilkanPemeliharaan(s) {
+    sesudahBodySiap(function () {
+      document.title = 'Pemeliharaan sistem';
+      document.body.style.overflow = 'hidden';
+      var el = document.createElement('div');
+      el.id = 'pdp-pemeliharaan';
+      el.setAttribute('role', 'alert');
+      el.style.cssText = 'position:fixed;inset:0;z-index:2147483647;overflow:auto;display:flex;align-items:center;justify-content:center;padding:24px;background:#f1f5f9;font-family:\'Plus Jakarta Sans\',system-ui,sans-serif;';
+      var selesai = s.pemeliharaan_selesai ? '<div style="font-size:13px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:20px;">Perkiraan selesai: ' + esc(tglIndo(s.pemeliharaan_selesai)) + '</div>' : '';
+      el.innerHTML =
+        '<div style="max-width:440px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px 28px;text-align:center;">' +
+        '<div style="width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:26px;">🛠️</div>' +
+        '<div style="font-size:19px;font-weight:700;color:#0f172a;margin-bottom:8px;">Sistem sedang dalam pemeliharaan</div>' +
+        '<div style="font-size:14px;line-height:1.6;color:#475569;margin-bottom:18px;white-space:pre-line;">' + esc(s.pemeliharaan_pesan || 'Portal sementara tidak dapat diakses untuk perbaikan dan pembaruan. Silakan coba beberapa saat lagi.') + '</div>' +
+        selesai +
+        '<div style="font-size:12px;color:#94a3b8;margin-bottom:18px;">Halaman ini memeriksa ulang otomatis dan akan terbuka sendiri saat pemeliharaan selesai.</div>' +
+        '<button type="button" id="pdp-pem-muat" style="padding:10px 18px;border-radius:10px;border:0;background:#1d4ed8;color:#fff;font:600 14px inherit;cursor:pointer;margin:0 4px 6px;">Muat ulang</button>' +
+        '<button type="button" id="pdp-pem-keluar" style="padding:10px 18px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#334155;font:600 14px inherit;cursor:pointer;margin:0 4px 6px;">Keluar</button>' +
+        '</div>';
+      document.body.appendChild(el);
+      document.documentElement.style.visibility = '';
+      document.getElementById('pdp-pem-muat').onclick = function () { location.reload(); };
+      document.getElementById('pdp-pem-keluar').onclick = async function () {
+        try { await supabaseClient.auth.signOut(); } catch (e) { /* abaikan */ }
+        location.href = 'index.html';
+      };
+      // Periksa ulang tiap 60 detik; muat ulang begitu pemeliharaan dimatikan.
+      setInterval(async function () {
+        try {
+          var r = await supabaseClient.from('pengaturan_sistem').select('pemeliharaan_aktif').eq('id', 1).maybeSingle();
+          if (!r.error && r.data && r.data.pemeliharaan_aktif === false) location.reload();
+        } catch (e) { /* coba lagi pada putaran berikutnya */ }
+      }, 60000);
+    });
+  }
+
+  // ---- BANNER (pengumuman, dan penanda untuk developer saat pemeliharaan aktif) ----
+  var GAYA_BANNER = {
+    info:       { bg: '#eff6ff', bd: '#bfdbfe', fg: '#1e40af', ikon: 'ℹ️' },
+    peringatan: { bg: '#fffbeb', bd: '#fde68a', fg: '#92400e', ikon: '⚠️' },
+    penting:    { bg: '#fef2f2', bd: '#fecaca', fg: '#991b1b', ikon: '📢' }
+  };
+  function sisipBanner(jenis, teks, kunciTutup) {
+    sesudahBodySiap(function () {
+      if (document.getElementById('pdp-banner')) return;
+      var g = GAYA_BANNER[jenis] || GAYA_BANNER.info;
+      var el = document.createElement('div');
+      el.id = 'pdp-banner';
+      el.setAttribute('role', 'status');
+      el.style.cssText = 'position:relative;z-index:50;display:flex;align-items:flex-start;gap:10px;padding:10px 16px;background:' + g.bg + ';border-bottom:1px solid ' + g.bd + ';color:' + g.fg + ';font:500 13px/1.5 \'Plus Jakarta Sans\',system-ui,sans-serif;';
+      el.innerHTML = '<span aria-hidden="true">' + g.ikon + '</span><div style="flex:1;white-space:pre-line;">' + esc(teks) + '</div>' +
+        (kunciTutup ? '<button type="button" aria-label="Tutup pengumuman" style="border:0;background:transparent;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button>' : '');
+      if (kunciTutup) {
+        el.querySelector('button').onclick = function () {
+          try { sessionStorage.setItem(kunciTutup, '1'); } catch (e) { /* abaikan */ }
+          el.remove();
+        };
+      }
+      document.body.insertBefore(el, document.body.firstChild);
+    });
+  }
+  function tampilkanPengumuman(s) {
+    if (!s || !s.pengumuman_aktif || !s.pengumuman_teks) return;
+    if (s.pengumuman_berakhir && new Date(s.pengumuman_berakhir) <= new Date()) return;
+    var kunci = 'pdp_pengumuman_' + (s.diubah_pada || '');
+    try { if (sessionStorage.getItem(kunci)) return; } catch (e) { /* tanpa penyimpanan: tampilkan saja */ }
+    sisipBanner(s.pengumuman_jenis, s.pengumuman_teks, kunci);
   }
 
   async function jaga() {
-    var kode = KODE_DARI_BERKAS[berkasSekarang()];
-    if (!kode) return; // bukan halaman aplikasi (login, portal, siswa, developer)
+    var berkas = berkasSekarang();
+    var kode = KODE_DARI_BERKAS[berkas];
+    if (!kode && !HALAMAN_UMUM[berkas]) return; // login, developer, dll. tidak dijaga
     document.documentElement.style.visibility = 'hidden'; // cegah halaman berkedip sebelum dicek
     var aman = setTimeout(function () { document.documentElement.style.visibility = ''; }, 4000);
     try {
       var d = await muat();
-      var info = d.kunci[kode];
-      if (info && d.peran !== 'developer') { tampilkanTerkunci(info); return; }
+      var developer = d.peran === 'developer';
+      if (d.sistem && d.sistem.pemeliharaan_aktif && !developer) { tampilkanPemeliharaan(d.sistem); return; }
+      var info = kode && d.kunci[kode];
+      if (info && !developer) { tampilkanTerkunci(info); return; }
+      if (d.sistem && d.sistem.pemeliharaan_aktif && developer) {
+        sisipBanner('peringatan', 'Mode pemeliharaan sedang AKTIF. Hanya Anda (developer) yang bisa membuka halaman ini; pengguna lain melihat layar pemeliharaan.', null);
+      } else {
+        tampilkanPengumuman(d.sistem);
+      }
     } finally {
       clearTimeout(aman);
-      document.documentElement.style.visibility = '';
+      if (!document.getElementById('pdp-pemeliharaan')) document.documentElement.style.visibility = '';
     }
   }
 

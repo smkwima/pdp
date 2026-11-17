@@ -27,6 +27,35 @@
   .ak-ket { width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:13px; }
   .ak-ket:disabled { background:#f1f5f9; color:#94a3b8; }
   .ak-flash { font-size:12px; color:#16a34a; min-height:16px; margin-top:4px; }
+  .dv-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:14px; }
+  .dv-card h3 { margin:0 0 4px; font-size:15px; color:#0f172a; }
+  .dv-card p.dv-desc { margin:0 0 14px; font-size:13px; color:#64748b; line-height:1.55; }
+  .dv-field { margin-bottom:12px; }
+  .dv-field label { display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:5px; }
+  .dv-field textarea, .dv-field input[type=datetime-local], .dv-field select { width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:13px; background:#fff; }
+  .dv-field textarea { min-height:78px; resize:vertical; }
+  .dv-btn { padding:9px 16px; border:0; border-radius:8px; background:#1d4ed8; color:#fff; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .dv-btn:disabled { opacity:.6; cursor:default; }
+  .dv-btn--ghost { background:#fff; color:#334155; border:1px solid #cbd5e1; }
+  .dv-switchrow { display:flex; align-items:center; gap:12px; margin-bottom:14px; font-weight:600; font-size:14px; color:#0f172a; }
+  .dv-switchrow .ak-status { margin-top:2px; }
+  .dv-preview { margin-top:12px; border-radius:8px; padding:10px 14px; font-size:13px; line-height:1.5; border:1px solid; white-space:pre-line; }
+  .dv-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-bottom:14px; }
+  .dv-grid .dv-card { margin-bottom:0; }
+  .dv-big { font-size:24px; font-weight:800; color:#0f172a; letter-spacing:-.01em; }
+  .dv-sub { font-size:12px; color:#64748b; margin-top:2px; }
+  .dv-bar { height:8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:10px; }
+  .dv-bar > i { display:block; height:100%; background:#16a34a; border-radius:999px; }
+  .dv-bar.warn > i { background:#f59e0b; } .dv-bar.bad > i { background:#dc2626; }
+  .dv-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; background:#94a3b8; }
+  .dv-dot.ok { background:#16a34a; } .dv-dot.warn { background:#f59e0b; } .dv-dot.bad { background:#dc2626; }
+  .dv-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .dv-tbl th, .dv-tbl td { text-align:left; padding:8px 6px; border-bottom:1px solid #f1f5f9; }
+  .dv-tbl th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+  .dv-tbl td.n, .dv-tbl th.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .dv-tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .dv-tools label { font-size:13px; color:#475569; display:flex; align-items:center; gap:6px; }
+  .dv-scroll { overflow-x:auto; }
   @media (max-width: 640px) { .ak-row { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -45,7 +74,9 @@
     <div class="sidebar__role"><i data-lucide="code-xml" style="width:13px;height:13px;"></i> Developer</div>
 
     <nav class="menu-list">
-      <a href="developer.html" class="menu-item menu-item--active"><i data-lucide="lock-keyhole" class="menu-icon"></i><span class="menu-item__title">Kunci Aplikasi</span></a>
+      <a href="#kunci" data-tab="kunci" class="menu-item menu-item--active"><i data-lucide="lock-keyhole" class="menu-icon"></i><span class="menu-item__title">Kunci Aplikasi</span></a>
+      <a href="#pemeliharaan" data-tab="pemeliharaan" class="menu-item"><i data-lucide="wrench" class="menu-icon"></i><span class="menu-item__title">Pemeliharaan &amp; Pengumuman</span></a>
+      <a href="#kesehatan" data-tab="kesehatan" class="menu-item"><i data-lucide="activity" class="menu-icon"></i><span class="menu-item__title">Kesehatan Sistem</span></a>
     </nav>
 
     <div class="sidebar__footer">
@@ -57,8 +88,8 @@
   <div class="main">
     <div class="topbar">
       <div>
-        <div class="topbar__title">Akses Aplikasi</div>
-        <div class="topbar__row"><div class="topbar__meta">Kunci atau buka aplikasi untuk semua pengguna</div></div>
+        <div class="topbar__title" id="judulHal">Akses Aplikasi</div>
+        <div class="topbar__row"><div class="topbar__meta" id="metaHal">Kunci atau buka aplikasi untuk semua pengguna</div></div>
       </div>
       <div class="user-chip">
         <div class="user-chip__text">
@@ -83,6 +114,45 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
 
+  // ---------- util ----------
+  var BATAS_DB_MB = 500;        // batas database paket Free Supabase; ubah bila paket berbeda
+  var BATAS_STORAGE_MB = 1024;  // batas storage paket Free Supabase
+  var FUNGSI = [
+    { nama: 'admin-create-guru', ket: 'Buat akun guru oleh admin' },
+    { nama: 'ijin-absen',        ket: 'Ijin & Dinas Luar → Rekap Absen' },
+    { nama: 'rekap-disiplin',    ket: 'Rekap kedisiplinan' },
+    { nama: 'sync-kode-mesin',   ket: 'Sinkron kode mesin absen' }
+  ];
+  var JENIS_PENGUMUMAN = {
+    info:       { bg: '#eff6ff', bd: '#bfdbfe', fg: '#1e40af', ikon: 'ℹ️', nama: 'Informasi' },
+    peringatan: { bg: '#fffbeb', bd: '#fde68a', fg: '#92400e', ikon: '⚠️', nama: 'Peringatan' },
+    penting:    { bg: '#fef2f2', bd: '#fecaca', fg: '#991b1b', ikon: '📢', nama: 'Penting' }
+  };
+  var userId = null;
+  var kesehatanTimer = null;
+
+  function fmtBytes(b) {
+    b = Number(b) || 0;
+    if (b < 1024) return b + ' B';
+    var u = ['KB', 'MB', 'GB', 'TB'], i = -1;
+    do { b /= 1024; i++; } while (b >= 1024 && i < u.length - 1);
+    return b.toFixed(b >= 100 ? 0 : 1) + ' ' + u[i];
+  }
+  function fmtAngka(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
+  function keLokal(iso) {
+    if (!iso) return '';
+    var d = new Date(iso); if (isNaN(d)) return '';
+    function p(n) { return String(n).padStart(2, '0'); }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function keIso(v) { return v ? new Date(v).toISOString() : null; }
+  function flashDi(el, ok, teks) {
+    el.style.color = ok ? '#16a34a' : '#b91c1c';
+    el.textContent = teks;
+    if (ok) setTimeout(function () { el.textContent = ''; }, 2500);
+  }
+
+  // ---------- TAB 1: Kunci Aplikasi (tidak berubah) ----------
   function barisHtml(a) {
     return '<div class="ak-row' + (a.aktif ? '' : ' is-kunci') + '" data-kode="' + esc(a.kode) + '">' +
       '<div class="ak-nama"><label class="ak-sw"><input type="checkbox" ' + (a.aktif ? 'checked' : '') + ' aria-label="Aplikasi ' + esc(a.nama) + ' aktif"><span></span></label>' +
@@ -98,27 +168,12 @@
     var r = await supabaseClient.from('akses_aplikasi')
       .update({ aktif: aktif, keterangan: ket || null, diubah_pada: new Date().toISOString() })
       .eq('kode', kode);
-    if (r.error) {
-      flash.style.color = '#b91c1c';
-      flash.textContent = 'Gagal menyimpan: ' + r.error.message;
-      return false;
-    }
-    flash.style.color = '#16a34a';
-    flash.textContent = 'Tersimpan.';
-    setTimeout(function () { flash.textContent = ''; }, 2000);
+    if (r.error) { flashDi(flash, false, 'Gagal menyimpan: ' + r.error.message); return false; }
+    flashDi(flash, true, 'Tersimpan.');
     return true;
   }
 
-  async function mulai() {
-    var ses = await supabaseClient.auth.getSession();
-    if (!ses.data.session) { window.location.href = 'index.html'; return; }
-    var user = ses.data.session.user;
-    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).maybeSingle();
-    if (!pr.data || String(pr.data.role) !== 'developer') { window.location.href = 'portal.html'; return; }
-    var nama = pr.data.nama || user.email;
-    document.getElementById('userName').textContent = nama;
-    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
-
+  async function renderKunci() {
     var r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan').order('nama');
     if (r.error) {
       content.innerHTML = '<div class="panel-note">Tabel akses_aplikasi belum bisa dibaca. Jalankan migrasi_developer.sql di Supabase terlebih dahulu. (' + esc(r.error.message) + ')</div>';
@@ -148,6 +203,254 @@
         await simpan(baris, baris.querySelector('input[type=checkbox]').checked);
       }
     });
+  }
+
+  // ---------- TAB 2: Pemeliharaan & Pengumuman ----------
+  async function simpanSistem(patch) {
+    patch.diubah_pada = new Date().toISOString();
+    patch.diubah_oleh = userId;
+    return await supabaseClient.from('pengaturan_sistem').update(patch).eq('id', 1);
+  }
+
+  function pratinjau(jenis, teks) {
+    var g = JENIS_PENGUMUMAN[jenis] || JENIS_PENGUMUMAN.info;
+    return '<div class="dv-preview" style="background:' + g.bg + ';border-color:' + g.bd + ';color:' + g.fg + ';">' + g.ikon + ' ' + esc(teks || 'Teks pengumuman akan tampil di sini.') + '</div>';
+  }
+
+  async function renderPemeliharaan() {
+    var r = await supabaseClient.from('pengaturan_sistem').select('*').eq('id', 1).maybeSingle();
+    if (r.error || !r.data) {
+      content.innerHTML = '<div class="panel-note">Tabel pengaturan_sistem belum bisa dibaca. Jalankan migrasi_sistem.sql di Supabase terlebih dahulu.' + (r.error ? ' (' + esc(r.error.message) + ')' : '') + '</div>';
+      return;
+    }
+    var s = r.data;
+    var opsiJenis = Object.keys(JENIS_PENGUMUMAN).map(function (k) {
+      return '<option value="' + k + '"' + (s.pengumuman_jenis === k ? ' selected' : '') + '>' + JENIS_PENGUMUMAN[k].nama + '</option>';
+    }).join('');
+
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Pemeliharaan &amp; Pengumuman</div>' +
+      '<div class="panel-head__desc">Atur penutupan seluruh portal untuk perbaikan, dan tampilkan pengumuman ke semua pengguna.</div></div></div>' +
+
+      '<div class="dv-card" id="cardPem">' +
+        '<h3>Mode Pemeliharaan</h3>' +
+        '<p class="dv-desc">Saat aktif, <b>semua halaman</b> (portal, aplikasi, dan halaman siswa) diganti layar pemeliharaan untuk semua pengguna kecuali developer. Halaman login tetap terbuka supaya Anda bisa masuk. Layar pengguna memeriksa ulang tiap 60 detik dan terbuka sendiri saat mode dimatikan.</p>' +
+        '<div class="dv-switchrow"><label class="ak-sw"><input type="checkbox" id="pemAktif" ' + (s.pemeliharaan_aktif ? 'checked' : '') + ' aria-label="Mode pemeliharaan aktif"><span></span></label>' +
+        '<div><div id="pemLabel">' + (s.pemeliharaan_aktif ? 'Pemeliharaan AKTIF' : 'Pemeliharaan nonaktif') + '</div></div></div>' +
+        '<div class="dv-field"><label for="pemPesan">Pesan untuk pengguna</label><textarea id="pemPesan" maxlength="500" placeholder="Contoh: Sedang pembaruan database. Mohon tunggu, data Anda aman.">' + esc(s.pemeliharaan_pesan || '') + '</textarea></div>' +
+        '<div class="dv-field"><label for="pemSelesai">Perkiraan selesai (opsional, hanya ditampilkan)</label><input type="datetime-local" id="pemSelesai" value="' + keLokal(s.pemeliharaan_selesai) + '"></div>' +
+        '<button type="button" class="dv-btn" id="pemSimpan">Simpan pesan</button> <span class="ak-flash" id="pemFlash" style="display:inline-block;margin-left:8px;"></span>' +
+      '</div>' +
+
+      '<div class="dv-card" id="cardPeng">' +
+        '<h3>Pengumuman</h3>' +
+        '<p class="dv-desc">Banner tampil di bagian atas portal dan halaman aplikasi. Pengguna bisa menutupnya (muncul lagi di sesi berikutnya selama pengumuman masih aktif). Dapat berakhir otomatis.</p>' +
+        '<div class="dv-switchrow"><label class="ak-sw"><input type="checkbox" id="pengAktif" ' + (s.pengumuman_aktif ? 'checked' : '') + ' aria-label="Pengumuman aktif"><span></span></label>' +
+        '<div><div id="pengLabel">' + (s.pengumuman_aktif ? 'Pengumuman tampil' : 'Pengumuman disembunyikan') + '</div></div></div>' +
+        '<div class="dv-field"><label for="pengJenis">Jenis</label><select id="pengJenis">' + opsiJenis + '</select></div>' +
+        '<div class="dv-field"><label for="pengTeks">Isi pengumuman</label><textarea id="pengTeks" maxlength="300" placeholder="Contoh: Besok pukul 19.00–21.00 sistem dalam pemeliharaan.">' + esc(s.pengumuman_teks || '') + '</textarea></div>' +
+        '<div class="dv-field"><label for="pengBerakhir">Berakhir pada (opsional; kosong = sampai dimatikan)</label><input type="datetime-local" id="pengBerakhir" value="' + keLokal(s.pengumuman_berakhir) + '"></div>' +
+        '<div id="pengPratinjau">' + pratinjau(s.pengumuman_jenis, s.pengumuman_teks) + '</div>' +
+        '<div style="margin-top:14px;"><button type="button" class="dv-btn" id="pengSimpan">Simpan pengumuman</button> <span class="ak-flash" id="pengFlash" style="display:inline-block;margin-left:8px;"></span></div>' +
+      '</div>';
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    // Saklar pemeliharaan: langsung berlaku, dengan konfirmasi saat dinyalakan.
+    $('pemAktif').addEventListener('change', async function (e) {
+      var aktif = e.target.checked;
+      if (aktif && !confirm('Aktifkan mode pemeliharaan? Semua pengguna selain developer akan langsung melihat layar pemeliharaan dan tidak bisa bekerja.')) { e.target.checked = false; return; }
+      e.target.disabled = true;
+      var res = await simpanSistem({
+        pemeliharaan_aktif: aktif,
+        pemeliharaan_pesan: $('pemPesan').value.trim() || null,
+        pemeliharaan_selesai: keIso($('pemSelesai').value)
+      });
+      e.target.disabled = false;
+      if (res.error) { e.target.checked = !aktif; flashDi($('pemFlash'), false, 'Gagal: ' + res.error.message); return; }
+      $('pemLabel').textContent = aktif ? 'Pemeliharaan AKTIF' : 'Pemeliharaan nonaktif';
+      flashDi($('pemFlash'), true, aktif ? 'Pemeliharaan diaktifkan.' : 'Pemeliharaan dimatikan.');
+    });
+    $('pemSimpan').addEventListener('click', async function () {
+      var res = await simpanSistem({
+        pemeliharaan_pesan: $('pemPesan').value.trim() || null,
+        pemeliharaan_selesai: keIso($('pemSelesai').value)
+      });
+      flashDi($('pemFlash'), !res.error, res.error ? 'Gagal: ' + res.error.message : 'Tersimpan.');
+    });
+
+    // Pengumuman
+    function segarkanPratinjau() { $('pengPratinjau').innerHTML = pratinjau($('pengJenis').value, $('pengTeks').value.trim()); }
+    $('pengJenis').addEventListener('change', segarkanPratinjau);
+    $('pengTeks').addEventListener('input', segarkanPratinjau);
+    $('pengAktif').addEventListener('change', function (e) {
+      $('pengLabel').textContent = e.target.checked ? 'Pengumuman tampil' : 'Pengumuman disembunyikan';
+    });
+    $('pengSimpan').addEventListener('click', async function () {
+      var aktif = $('pengAktif').checked, teks = $('pengTeks').value.trim();
+      if (aktif && !teks) { flashDi($('pengFlash'), false, 'Isi pengumuman belum diisi.'); return; }
+      var berakhir = keIso($('pengBerakhir').value);
+      if (aktif && berakhir && new Date(berakhir) <= new Date()) { flashDi($('pengFlash'), false, 'Waktu berakhir sudah lewat.'); return; }
+      var tombol = $('pengSimpan'); tombol.disabled = true;
+      var res = await simpanSistem({ pengumuman_aktif: aktif, pengumuman_jenis: $('pengJenis').value, pengumuman_teks: teks || null, pengumuman_berakhir: berakhir });
+      tombol.disabled = false;
+      flashDi($('pengFlash'), !res.error, res.error ? 'Gagal: ' + res.error.message : 'Tersimpan.');
+    });
+  }
+
+  // ---------- TAB 3: Kesehatan Sistem ----------
+  function statusMs(ms) { return ms == null ? 'warn' : (ms < 600 ? 'ok' : (ms < 1800 ? 'warn' : 'bad')); }
+  function kelasBar(persen) { return persen >= 95 ? 'bad' : (persen >= 80 ? 'warn' : ''); }
+
+  async function cekFungsi(nama, token) {
+    var t0 = performance.now();
+    var ctl = new AbortController();
+    var batas = setTimeout(function () { ctl.abort(); }, 8000);
+    try {
+      // GET aman: setiap function hanya menerima POST dan membalas 405 tanpa menjalankan apa pun.
+      var res = await fetch(SUPABASE_URL + '/functions/v1/' + nama, {
+        method: 'GET', signal: ctl.signal,
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token }
+      });
+      var ms = Math.round(performance.now() - t0);
+      if (res.status === 404) return { s: 'bad', t: 'Belum di-deploy (404)', ms: ms };
+      if (res.status >= 500) return { s: 'bad', t: 'Galat server (' + res.status + ')', ms: ms };
+      return { s: statusMs(ms) === 'bad' ? 'warn' : 'ok', t: 'Aktif', ms: ms };
+    } catch (e) {
+      return { s: 'warn', t: e.name === 'AbortError' ? 'Tidak merespons (>8 dtk)' : 'Tidak dapat diperiksa dari browser (jaringan/CORS)', ms: null };
+    } finally { clearTimeout(batas); }
+  }
+
+  function kartuUkuran(judul, bytes, batasMb, ket) {
+    var batas = batasMb * 1024 * 1024;
+    var persen = Math.min(100, Math.round(bytes / batas * 1000) / 10);
+    return '<div class="dv-card"><h3>' + judul + '</h3><div class="dv-big">' + fmtBytes(bytes) + '</div>' +
+      '<div class="dv-sub">' + persen + '% dari ' + fmtBytes(batas) + (ket ? ' · ' + ket : '') + '</div>' +
+      '<div class="dv-bar ' + kelasBar(persen) + '"><i style="width:' + persen + '%"></i></div></div>';
+  }
+
+  async function renderKesehatan() {
+    clearInterval(kesehatanTimer);
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Kesehatan Sistem</div>' +
+      '<div class="panel-head__desc">Ringkasan koneksi, penggunaan database dan storage, akun, serta status Edge Function. Angka batas mengikuti paket Free Supabase (ubah di BATAS_DB_MB / BATAS_STORAGE_MB pada developer.html bila paket berbeda).</div></div></div>' +
+      '<div class="dv-tools"><button type="button" class="dv-btn" id="khCek">Periksa sekarang</button>' +
+      '<label><input type="checkbox" id="khAuto"> Segarkan otomatis tiap 30 detik</label><span class="dv-sub" id="khWaktu"></span></div>' +
+      '<div id="khIsi"><div class="panel-note">Memeriksa...</div></div>';
+
+    var isi = document.getElementById('khIsi');
+
+    async function periksa() {
+      var tombol = document.getElementById('khCek');
+      if (!tombol) return;
+      tombol.disabled = true;
+      var ses = await supabaseClient.auth.getSession();
+      var token = ses.data.session ? ses.data.session.access_token : '';
+
+      // Latensi API: satu query ringan
+      var t0 = performance.now();
+      var ping = await supabaseClient.from('akses_aplikasi').select('kode').limit(1);
+      var msApi = Math.round(performance.now() - t0);
+
+      var hs = await Promise.all([
+        supabaseClient.rpc('dev_kesehatan'),
+        Promise.all(FUNGSI.map(function (f) { return cekFungsi(f.nama, token); }))
+      ]);
+      var rpc = hs[0], fn = hs[1];
+      if (!document.getElementById('khIsi')) return; // pengguna sudah pindah tab
+
+      var html = '';
+      if (rpc.error || !rpc.data) {
+        html += '<div class="panel-note">Statistik database belum bisa dibaca. Jalankan migrasi_sistem.sql di Supabase terlebih dahulu. (' + esc(rpc.error ? rpc.error.message : 'tanpa data') + ')</div>';
+      }
+      var d = rpc.data || {};
+
+      // Ringkasan atas
+      var storageTotal = (d.storage || []).reduce(function (a, b) { return a + (Number(b.ukuran) || 0); }, 0);
+      html += '<div class="dv-grid">' +
+        '<div class="dv-card"><h3>Koneksi API</h3><div class="dv-big"><span class="dv-dot ' + (ping.error ? 'bad' : statusMs(msApi)) + '"></span>' + (ping.error ? 'Gagal' : msApi + ' ms') + '</div>' +
+        '<div class="dv-sub">' + (ping.error ? esc(ping.error.message) : 'Waktu tempuh query dari browser Anda') + '</div>' +
+        (d.versi ? '<div class="dv-sub">' + esc(d.versi) + ' · ' + fmtAngka(d.koneksi) + ' koneksi DB</div>' : '') + '</div>' +
+        (d.db_bytes != null ? kartuUkuran('Database', d.db_bytes, BATAS_DB_MB, '') : '') +
+        (d.storage ? kartuUkuran('Storage', storageTotal, BATAS_STORAGE_MB, fmtAngka((d.storage || []).reduce(function (a, b) { return a + (Number(b.berkas) || 0); }, 0)) + ' berkas') : '') +
+        '</div>';
+
+      // Akun
+      if (d.login || d.peran) {
+        var peranTxt = Object.keys(d.peran || {}).sort().map(function (k) { return esc(k) + ': <b>' + fmtAngka(d.peran[k]) + '</b>'; }).join(' · ');
+        var lg = d.login || {};
+        html += '<div class="dv-card"><h3>Akun Pengguna</h3>' +
+          '<div class="dv-sub" style="margin-bottom:8px;">' + (peranTxt || 'Belum ada data peran') + '</div>' +
+          (lg.total != null ? '<div>Total akun terdaftar (termasuk siswa): <b>' + fmtAngka(lg.total) + '</b> · Login 24 jam terakhir: <b>' + fmtAngka(lg.aktif_24_jam) + '</b> · 7 hari terakhir: <b>' + fmtAngka(lg.aktif_7_hari) + '</b></div>' : '') +
+          '</div>';
+      }
+
+      // Edge Functions
+      html += '<div class="dv-card"><h3>Edge Functions</h3><p class="dv-desc">Diperiksa dengan permintaan GET yang tidak menjalankan fungsi (dijawab 405). "Aktif" berarti function ter-deploy dan merespons; ini bukan jaminan logikanya bebas galat.</p><div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Function</th><th>Fungsi</th><th>Status</th><th class="n">Respons</th></tr></thead><tbody>' +
+        FUNGSI.map(function (f, i) {
+          var x = fn[i];
+          return '<tr><td><code>' + esc(f.nama) + '</code></td><td>' + esc(f.ket) + '</td><td><span class="dv-dot ' + x.s + '"></span>' + esc(x.t) + '</td><td class="n">' + (x.ms == null ? '—' : x.ms + ' ms') + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+
+      // Storage per bucket
+      if (d.storage && d.storage.length) {
+        html += '<div class="dv-card"><h3>Storage per Bucket</h3><div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Bucket</th><th class="n">Berkas</th><th class="n">Ukuran</th></tr></thead><tbody>' +
+          d.storage.map(function (b) { return '<tr><td>' + esc(b.bucket) + '</td><td class="n">' + fmtAngka(b.berkas) + '</td><td class="n">' + fmtBytes(b.ukuran) + '</td></tr>'; }).join('') +
+          '</tbody></table></div></div>';
+      }
+
+      // Tabel terbesar
+      if (d.tabel && d.tabel.length) {
+        html += '<div class="dv-card"><h3>Tabel Terbesar</h3><p class="dv-desc">Jumlah baris adalah perkiraan dari statistik Postgres, bukan hitungan pasti.</p><div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Tabel</th><th class="n">Perkiraan baris</th><th class="n">Ukuran</th></tr></thead><tbody>' +
+          d.tabel.map(function (t) { return '<tr><td><code>' + esc(t.tabel) + '</code></td><td class="n">' + fmtAngka(t.baris) + '</td><td class="n">' + fmtBytes(t.ukuran) + '</td></tr>'; }).join('') +
+          '</tbody></table></div></div>';
+      }
+
+      isi.innerHTML = html;
+      document.getElementById('khWaktu').textContent = 'Diperiksa ' + new Date().toLocaleTimeString('id-ID');
+      tombol.disabled = false;
+    }
+
+    document.getElementById('khCek').addEventListener('click', periksa);
+    document.getElementById('khAuto').addEventListener('change', function (e) {
+      clearInterval(kesehatanTimer);
+      if (e.target.checked) kesehatanTimer = setInterval(periksa, 30000);
+    });
+    periksa();
+  }
+
+  // ---------- Navigasi tab ----------
+  var TAB = {
+    kunci:        { judul: 'Akses Aplikasi',            meta: 'Kunci atau buka aplikasi untuk semua pengguna', render: renderKunci },
+    pemeliharaan: { judul: 'Pemeliharaan & Pengumuman', meta: 'Tutup seluruh portal atau umumkan sesuatu ke pengguna', render: renderPemeliharaan },
+    kesehatan:    { judul: 'Kesehatan Sistem',          meta: 'Pantau koneksi, kapasitas, dan Edge Function', render: renderKesehatan }
+  };
+  async function bukaTab() {
+    var nama = (location.hash || '').replace('#', '');
+    if (!TAB[nama]) nama = 'kunci';
+    clearInterval(kesehatanTimer);
+    document.querySelectorAll('.menu-list [data-tab]').forEach(function (a) {
+      a.classList.toggle('menu-item--active', a.dataset.tab === nama);
+    });
+    document.getElementById('judulHal').textContent = TAB[nama].judul;
+    document.getElementById('metaHal').textContent = TAB[nama].meta;
+    content.innerHTML = '<div class="panel-note">Memuat...</div>';
+    await TAB[nama].render();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  async function mulai() {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+    userId = user.id;
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).maybeSingle();
+    if (!pr.data || String(pr.data.role) !== 'developer') { window.location.href = 'portal.html'; return; }
+    var nama = pr.data.nama || user.email;
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
+    window.addEventListener('hashchange', bukaTab);
+    bukaTab();
   }
 
   document.getElementById('logoutBtn').addEventListener('click', async function (e) {
