@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=3"></script>
 <script src="mobile.js?v=1" defer></script>
 <style>
   .ak-row { display:grid; grid-template-columns: 220px 1fr; gap:14px; align-items:center; padding:14px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px; }
@@ -56,6 +56,26 @@
   .dv-tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
   .dv-tools label { font-size:13px; color:#475569; display:flex; align-items:center; gap:6px; }
   .dv-scroll { overflow-x:auto; }
+  .dv-btn--sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+  .dv-btn--bahaya { background:#b91c1c; }
+  .dv-btn--ungu { background:#6d28d9; }
+  .dv-filter { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .dv-filter input[type=search], .dv-filter select { padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:13px; background:#fff; }
+  .dv-filter input[type=search] { flex:1; min-width:200px; }
+  .dv-badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; background:#e2e8f0; color:#334155; }
+  .dv-badge--admin { background:#fee2e2; color:#991b1b; } .dv-badge--guru { background:#dbeafe; color:#1e40af; }
+  .dv-badge--kepsek { background:#ede9fe; color:#5b21b6; } .dv-badge--siswa { background:#dcfce7; color:#166534; }
+  .dv-badge--off { background:#fee2e2; color:#991b1b; }
+  .dv-aksi { display:flex; gap:6px; flex-wrap:wrap; }
+  .dv-pager { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; font-size:12px; color:#64748b; flex-wrap:wrap; }
+  .dv-modal { position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .dv-modal__box { background:#fff; border-radius:14px; max-width:460px; width:100%; max-height:90vh; overflow:auto; padding:22px; }
+  .dv-modal__box h3 { margin:0 0 10px; font-size:16px; color:#0f172a; }
+  .dv-modal__isi { font-size:13px; line-height:1.6; color:#334155; }
+  .dv-modal__isi ul { margin:8px 0 12px 18px; padding:0; }
+  .dv-modal__err { color:#b91c1c; font-size:12px; min-height:16px; margin-top:8px; }
+  .dv-modal__aksi { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+  .dv-sandi { font:700 16px ui-monospace,monospace; background:#f1f5f9; border:1px dashed #94a3b8; border-radius:8px; padding:10px 12px; margin:8px 0; word-break:break-all; user-select:all; }
   @media (max-width: 640px) { .ak-row { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -77,6 +97,7 @@
       <a href="#kunci" data-tab="kunci" class="menu-item menu-item--active"><i data-lucide="lock-keyhole" class="menu-icon"></i><span class="menu-item__title">Kunci Aplikasi</span></a>
       <a href="#pemeliharaan" data-tab="pemeliharaan" class="menu-item"><i data-lucide="wrench" class="menu-icon"></i><span class="menu-item__title">Pemeliharaan &amp; Pengumuman</span></a>
       <a href="#kesehatan" data-tab="kesehatan" class="menu-item"><i data-lucide="activity" class="menu-icon"></i><span class="menu-item__title">Kesehatan Sistem</span></a>
+      <a href="#akun" data-tab="akun" class="menu-item"><i data-lucide="users" class="menu-icon"></i><span class="menu-item__title">Manajemen Akun</span></a>
     </nav>
 
     <div class="sidebar__footer">
@@ -121,7 +142,8 @@
     { nama: 'admin-create-guru', ket: 'Buat akun guru oleh admin' },
     { nama: 'ijin-absen',        ket: 'Ijin & Dinas Luar → Rekap Absen' },
     { nama: 'rekap-disiplin',    ket: 'Rekap kedisiplinan' },
-    { nama: 'sync-kode-mesin',   ket: 'Sinkron kode mesin absen' }
+    { nama: 'sync-kode-mesin',   ket: 'Sinkron kode mesin absen' },
+    { nama: 'dev-akun',          ket: 'Manajemen akun & Lihat sebagai (developer)' }
   ];
   var JENIS_PENGUMUMAN = {
     info:       { bg: '#eff6ff', bd: '#bfdbfe', fg: '#1e40af', ikon: 'ℹ️', nama: 'Informasi' },
@@ -419,10 +441,271 @@
     periksa();
   }
 
+  // ---------- TAB 4: Manajemen Akun & Lihat Sebagai ----------
+  var devNama = null;
+  var PERAN_LABEL = { admin: 'Admin', guru: 'Guru', kepsek: 'Kepala Sekolah', staf: 'Staf', pengawas: 'Pengawas', developer: 'Developer', siswa: 'Siswa', 'tanpa-profil': 'Tanpa profil' };
+  var PERAN_BISA_DIUBAH = ['admin', 'guru', 'kepsek', 'staf', 'pengawas'];
+  var PERAN_BISA_DILIHAT = ['guru', 'kepsek', 'staf', 'pengawas', 'siswa']; // harus sama dengan PERAN_BOLEH_DILIHAT di dev-akun/index.ts
+  var AKSI_LABEL = { reset_sandi: 'Reset kata sandi', ubah_peran: 'Ubah peran', nonaktifkan: 'Nonaktifkan akun', aktifkan: 'Aktifkan akun', paksa_keluar: 'Paksa keluar', lihat_sebagai: 'Lihat sebagai (mulai)', lihat_sebagai_selesai: 'Lihat sebagai (selesai)' };
+  var akun = { cari: '', peran: '', hal: 0, batas: 25, total: 0, baris: [] };
+
+  function waktuRelatif(iso) {
+    if (!iso) return 'Belum pernah';
+    var d = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (d < 60) return 'Baru saja';
+    if (d < 3600) return Math.floor(d / 60) + ' menit lalu';
+    if (d < 86400) return Math.floor(d / 3600) + ' jam lalu';
+    if (d < 86400 * 30) return Math.floor(d / 86400) + ' hari lalu';
+    return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function waktuLengkap(iso) { return iso ? new Date(iso).toLocaleString('id-ID') : ''; }
+  function sandiAcak(n) {
+    var cs = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789', a = new Uint32Array(n), s = '';
+    crypto.getRandomValues(a);
+    for (var i = 0; i < n; i++) s += cs[a[i] % cs.length];
+    return s;
+  }
+
+  // Modal sederhana. onOk mengembalikan: null (tutup) | {galat:'...'} | {sukses:'<html>'} (tampilkan hasil).
+  function bukaModal(opsi) {
+    var lat = document.createElement('div');
+    lat.className = 'dv-modal';
+    lat.innerHTML = '<div class="dv-modal__box" role="dialog" aria-modal="true" aria-label="' + esc(opsi.judul) + '"><h3>' + esc(opsi.judul) + '</h3>' +
+      '<div class="dv-modal__isi">' + opsi.isi + '</div><div class="dv-modal__err" role="alert"></div>' +
+      '<div class="dv-modal__aksi"><button type="button" class="dv-btn dv-btn--ghost" data-tutup>Batal</button>' +
+      '<button type="button" class="dv-btn ' + (opsi.ok_kelas || '') + '" data-ok>' + esc(opsi.ok_teks || 'Simpan') + '</button></div></div>';
+    document.body.appendChild(lat);
+    var selesai = false;
+    function tutup() {
+      document.removeEventListener('keydown', tombolKeyboard);
+      lat.remove();
+      if (selesai && opsi.setelah) opsi.setelah();
+    }
+    function tombolKeyboard(e) { if (e.key === 'Escape') tutup(); }
+    document.addEventListener('keydown', tombolKeyboard);
+    lat.addEventListener('click', function (e) { if (e.target === lat) tutup(); });
+    lat.querySelector('[data-tutup]').addEventListener('click', tutup);
+    var okBtn = lat.querySelector('[data-ok]'), err = lat.querySelector('.dv-modal__err');
+    okBtn.addEventListener('click', async function () {
+      err.textContent = '';
+      okBtn.disabled = true;
+      var h = await opsi.onOk(lat);
+      okBtn.disabled = false;
+      if (!h) { selesai = true; tutup(); return; }
+      if (h.galat) { err.textContent = h.galat; return; }
+      if (h.sukses) {
+        selesai = true;
+        lat.querySelector('.dv-modal__isi').innerHTML = h.sukses;
+        okBtn.style.display = 'none';
+        lat.querySelector('[data-tutup]').textContent = 'Tutup';
+      }
+    });
+    var pertama = lat.querySelector('input, textarea, select');
+    if (pertama) pertama.focus();
+    return lat;
+  }
+
+  async function panggilAkun(payload) {
+    var ses = await supabaseClient.auth.getSession();
+    var token = ses.data.session ? ses.data.session.access_token : '';
+    try {
+      var res = await fetch(SUPABASE_URL + '/functions/v1/dev-akun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      var j = await res.json().catch(function () { return {}; });
+      if (!res.ok) return { galat: j.error || ('Galat ' + res.status) };
+      return { data: j };
+    } catch (e) {
+      return { galat: 'Gagal terhubung ke function dev-akun. Pastikan sudah di-deploy dan statusnya Active.' };
+    }
+  }
+
+  // --- aksi per akun ---
+  function aksiResetSandi(a) {
+    bukaModal({
+      judul: 'Reset kata sandi', ok_teks: 'Ganti kata sandi', setelah: muatAkun,
+      isi: 'Ganti kata sandi untuk <b>' + esc(a.nama) + '</b> (' + esc(PERAN_LABEL[a.peran] || a.peran) + '). Pengguna yang sedang login tetap login sampai sesinya habis; gunakan <i>Paksa keluar</i> bila perlu.' +
+        '<div class="dv-field" style="margin-top:12px;"><label for="mdSandi">Kata sandi baru (minimal 8 karakter)</label><div style="display:flex;gap:8px;"><input type="text" id="mdSandi" autocomplete="off" style="flex:1;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-size:13px;"><button type="button" class="dv-btn dv-btn--ghost dv-btn--sm" id="mdAcak">Buat acak</button></div></div>',
+      onOk: async function (el) {
+        var pw = el.querySelector('#mdSandi').value;
+        if (pw.length < 8) return { galat: 'Kata sandi minimal 8 karakter.' };
+        var r = await panggilAkun({ action: 'reset_sandi', user_id: a.id, password: pw });
+        if (r.galat) return r;
+        return { sukses: 'Kata sandi <b>' + esc(a.nama) + '</b> sudah diganti. Sampaikan kata sandi ini kepada yang bersangkutan, lalu minta diganti:<div class="dv-sandi">' + esc(pw) + '</div>' + (r.data.log_tercatat === false ? '<div style="color:#b45309;">Peringatan: tindakan ini gagal dicatat ke log.</div>' : '') };
+      }
+    }).querySelector('#mdAcak').addEventListener('click', function (e) {
+      e.target.closest('.dv-modal').querySelector('#mdSandi').value = sandiAcak(10);
+    });
+  }
+
+  function aksiUbahPeran(a) {
+    var opsi = PERAN_BISA_DIUBAH.filter(function (p) { return p !== a.peran; }).map(function (p) { return '<option value="' + p + '">' + esc(PERAN_LABEL[p]) + '</option>'; }).join('');
+    bukaModal({
+      judul: 'Ubah peran', ok_teks: 'Ubah peran', setelah: muatAkun,
+      isi: 'Peran <b>' + esc(a.nama) + '</b> saat ini: <b>' + esc(PERAN_LABEL[a.peran] || a.peran) + '</b>. Peran developer tidak bisa diberikan dari sini.' +
+        '<div class="dv-field" style="margin-top:12px;"><label for="mdPeran">Peran baru</label><select id="mdPeran">' + opsi + '</select></div>' +
+        '<div style="color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;">Hanya kolom peran yang berubah. Data lain (penugasan, wali kelas, kode mesin) tidak ikut berubah; periksa kembali bila perlu.</div>',
+      onOk: async function (el) {
+        var r = await panggilAkun({ action: 'ubah_peran', user_id: a.id, peran: el.querySelector('#mdPeran').value });
+        return r.galat ? r : null;
+      }
+    });
+  }
+
+  function aksiNonaktif(a) {
+    var matikan = !a.nonaktif;
+    bukaModal({
+      judul: matikan ? 'Nonaktifkan akun' : 'Aktifkan akun', ok_teks: matikan ? 'Nonaktifkan' : 'Aktifkan', ok_kelas: matikan ? 'dv-btn--bahaya' : '', setelah: muatAkun,
+      isi: matikan
+        ? '<b>' + esc(a.nama) + '</b> tidak akan bisa login lagi dan semua sesinya dicabut. Data tidak dihapus. Token yang sudah terbit bisa masih berlaku singkat (maksimal sekitar 1 jam).'
+        : '<b>' + esc(a.nama) + '</b> akan bisa login kembali dengan kata sandi yang ada.',
+      onOk: async function () {
+        var r = await panggilAkun({ action: matikan ? 'nonaktifkan' : 'aktifkan', user_id: a.id });
+        return r.galat ? r : null;
+      }
+    });
+  }
+
+  function aksiPaksaKeluar(a) {
+    bukaModal({
+      judul: 'Paksa keluar', ok_teks: 'Cabut semua sesi', setelah: muatAkun,
+      isi: 'Semua sesi login <b>' + esc(a.nama) + '</b> di semua perangkat dicabut. Yang bersangkutan harus login ulang (sesi yang masih berjalan bisa bertahan sampai tokennya habis, maksimal sekitar 1 jam).',
+      onOk: async function () {
+        var r = await panggilAkun({ action: 'paksa_keluar', user_id: a.id });
+        return r.galat ? r : null;
+      }
+    });
+  }
+
+  function aksiLihatSebagai(a) {
+    bukaModal({
+      judul: 'Lihat sebagai ' + a.nama, ok_teks: 'Mulai melihat', ok_kelas: 'dv-btn--ungu',
+      isi: 'Anda akan membuka portal persis seperti <b>' + esc(a.nama) + '</b> (' + esc(PERAN_LABEL[a.peran] || a.peran) + ').' +
+        '<ul><li><b>Hanya baca.</b> Simpan, unggah, dan kirim diblokir. NIK / No. KK tidak bisa dibuka.</li>' +
+        '<li>Berakhir otomatis dalam <b>30 menit</b>, atau tekan <i>Akhiri</i> di bar ungu paling atas.</li>' +
+        '<li>Tercatat di log beserta alasan Anda, dan <b>terlihat oleh admin</b>.</li>' +
+        '<li>Waktu "login terakhir" akun ini ikut berubah (nilai sebelumnya tersimpan di log).</li></ul>' +
+        '<div class="dv-field"><label for="mdAlasan">Alasan (wajib, minimal 5 karakter)</label><textarea id="mdAlasan" maxlength="200" placeholder="Contoh: Bu Ani melapor tombol Cetak Rapor tidak muncul."></textarea></div>',
+      onOk: async function (el) {
+        var alasan = el.querySelector('#mdAlasan').value.trim();
+        if (alasan.length < 5) return { galat: 'Alasan wajib diisi (minimal 5 karakter).' };
+        var r = await panggilAkun({ action: 'lihat_sebagai', user_id: a.id, alasan: alasan });
+        if (r.galat) return r;
+        var ses = await supabaseClient.auth.getSession();
+        if (!ses.data.session) return { galat: 'Sesi developer tidak ditemukan. Login ulang.' };
+        // Simpan sesi developer agar bisa dipulihkan saat mode selesai.
+        localStorage.setItem('pdp_lihat_asal', JSON.stringify({
+          access_token: ses.data.session.access_token, refresh_token: ses.data.session.refresh_token, dev_id: userId
+        }));
+        var v = await supabaseClient.auth.verifyOtp({ token_hash: r.data.token_hash, type: 'magiclink' });
+        if (v.error) v = await supabaseClient.auth.verifyOtp({ token_hash: r.data.token_hash, type: 'email' });
+        if (v.error || !v.data || !v.data.session) {
+          localStorage.removeItem('pdp_lihat_asal');
+          return { galat: 'Gagal membuka sesi: ' + (v.error ? v.error.message : 'tanpa sesi') };
+        }
+        localStorage.setItem('pdp_lihat_sebagai', JSON.stringify({
+          user_id: a.id, nama: r.data.nama || a.nama, peran: r.data.peran || a.peran,
+          mulai: Date.now(), sampai: new Date(r.data.sampai).getTime(), dev_id: userId, dev_nama: devNama
+        }));
+        location.href = (r.data.peran === 'siswa') ? 'siswa.html' : 'portal.html';
+        return { sukses: 'Membuka portal...' };
+      }
+    });
+  }
+
+  // --- daftar akun ---
+  function barisAkunHtml(a) {
+    var peran = a.peran || 'tanpa-profil';
+    var tombol = '';
+    if (peran !== 'developer') {
+      if (PERAN_BISA_DILIHAT.indexOf(peran) >= 0 && !a.nonaktif) tombol += '<button type="button" class="dv-btn dv-btn--sm dv-btn--ungu" data-aksi="lihat">Lihat sebagai</button>';
+      tombol += '<button type="button" class="dv-btn dv-btn--sm dv-btn--ghost" data-aksi="sandi">Reset sandi</button>';
+      if (PERAN_BISA_DIUBAH.indexOf(peran) >= 0) tombol += '<button type="button" class="dv-btn dv-btn--sm dv-btn--ghost" data-aksi="peran">Ubah peran</button>';
+      tombol += '<button type="button" class="dv-btn dv-btn--sm dv-btn--ghost" data-aksi="keluar">Paksa keluar</button>';
+      tombol += '<button type="button" class="dv-btn dv-btn--sm ' + (a.nonaktif ? '' : 'dv-btn--bahaya') + '" data-aksi="nonaktif">' + (a.nonaktif ? 'Aktifkan' : 'Nonaktifkan') + '</button>';
+    } else {
+      tombol = '<span class="dv-sub">Akun developer dikelola lewat SQL.</span>';
+    }
+    return '<tr data-id="' + esc(a.id) + '"><td><b>' + esc(a.nama) + '</b><div class="dv-sub">' + esc(a.identitas || '') + '</div></td>' +
+      '<td><span class="dv-badge dv-badge--' + esc(peran) + '">' + esc(PERAN_LABEL[peran] || peran) + '</span>' + (a.nonaktif ? ' <span class="dv-badge dv-badge--off">Nonaktif</span>' : '') + '</td>' +
+      '<td title="' + esc(waktuLengkap(a.login_terakhir)) + '">' + esc(waktuRelatif(a.login_terakhir)) + '</td>' +
+      '<td><div class="dv-aksi">' + tombol + '</div></td></tr>';
+  }
+
+  async function muatAkun() {
+    var wadah = document.getElementById('akunWadah');
+    if (!wadah) return;
+    wadah.innerHTML = '<div class="panel-note">Memuat...</div>';
+    var r = await supabaseClient.rpc('dev_daftar_akun', { p_cari: akun.cari || null, p_peran: akun.peran || null, p_batas: akun.batas, p_offset: akun.hal * akun.batas });
+    if (r.error) {
+      wadah.innerHTML = '<div class="panel-note">Daftar akun belum bisa dibaca. Jalankan migrasi_akun.sql di Supabase terlebih dahulu. (' + esc(r.error.message) + ')</div>';
+      return;
+    }
+    akun.baris = r.data || [];
+    akun.total = akun.baris.length ? Number(akun.baris[0].jumlah_total) : 0;
+    wadah.innerHTML = akun.baris.length
+      ? '<div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Nama</th><th>Peran</th><th>Login terakhir</th><th>Tindakan</th></tr></thead><tbody>' + akun.baris.map(barisAkunHtml).join('') + '</tbody></table></div>'
+      : '<div class="panel-note">Tidak ada akun yang cocok.</div>';
+    var dari = akun.total ? akun.hal * akun.batas + 1 : 0, sampai = akun.hal * akun.batas + akun.baris.length;
+    var pager = document.getElementById('akunPager');
+    pager.innerHTML = '<span>Menampilkan ' + dari + '–' + sampai + ' dari ' + fmtAngka(akun.total) + ' akun</span><span>' +
+      '<button type="button" class="dv-btn dv-btn--sm dv-btn--ghost" id="akunSebelum"' + (akun.hal === 0 ? ' disabled' : '') + '>Sebelumnya</button> ' +
+      '<button type="button" class="dv-btn dv-btn--sm dv-btn--ghost" id="akunBerikut"' + (sampai >= akun.total ? ' disabled' : '') + '>Berikutnya</button></span>';
+    document.getElementById('akunSebelum').onclick = function () { akun.hal--; muatAkun(); };
+    document.getElementById('akunBerikut').onclick = function () { akun.hal++; muatAkun(); };
+  }
+
+  async function muatRiwayat() {
+    var el = document.getElementById('akunRiwayat');
+    if (!el) return;
+    var r = await supabaseClient.from('log_developer').select('waktu, developer_nama, aksi, target_nama, target_peran, alasan, rincian').order('waktu', { ascending: false }).limit(30);
+    if (r.error) { el.innerHTML = '<div class="dv-sub">Riwayat belum bisa dibaca (' + esc(r.error.message) + ').</div>'; return; }
+    if (!r.data.length) { el.innerHTML = '<div class="dv-sub">Belum ada tindakan tercatat.</div>'; return; }
+    el.innerHTML = '<div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Waktu</th><th>Developer</th><th>Tindakan</th><th>Akun</th><th>Keterangan</th></tr></thead><tbody>' +
+      r.data.map(function (x) {
+        var ket = x.alasan || '';
+        if (x.aksi === 'ubah_peran' && x.rincian) ket = (PERAN_LABEL[x.rincian.dari] || x.rincian.dari) + ' → ' + (PERAN_LABEL[x.rincian.ke] || x.rincian.ke);
+        if (x.aksi === 'lihat_sebagai_selesai' && x.rincian && x.rincian.durasi_detik != null) ket = 'Durasi ' + Math.ceil(x.rincian.durasi_detik / 60) + ' menit';
+        if (x.aksi === 'lihat_sebagai' && x.rincian && x.rincian.login_terakhir_sebelumnya) ket += ' · login terakhir sebelumnya: ' + waktuLengkap(x.rincian.login_terakhir_sebelumnya);
+        return '<tr><td>' + esc(waktuLengkap(x.waktu)) + '</td><td>' + esc(x.developer_nama || '—') + '</td><td>' + esc(AKSI_LABEL[x.aksi] || x.aksi) + '</td><td>' + esc(x.target_nama || '—') + '</td><td>' + esc(ket) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  async function renderAkun() {
+    var opsiPeran = '<option value="">Semua peran</option>' + ['admin', 'guru', 'kepsek', 'staf', 'pengawas', 'siswa', 'developer', 'tanpa-profil'].map(function (p) { return '<option value="' + p + '"' + (akun.peran === p ? ' selected' : '') + '>' + esc(PERAN_LABEL[p]) + '</option>'; }).join('');
+    content.innerHTML =
+      '<div class="panel-head"><div><div class="panel-head__title">Manajemen Akun</div>' +
+      '<div class="panel-head__desc">Cari akun, lihat login terakhir, reset kata sandi, ubah peran, nonaktifkan, paksa keluar, atau lihat portal sebagai pengguna tersebut. Semua tindakan tercatat dan terlihat oleh admin.</div></div></div>' +
+      '<div class="dv-filter"><input type="search" id="akunCari" placeholder="Cari nama, email, atau NIS..." value="' + esc(akun.cari) + '" aria-label="Cari akun"><select id="akunPeran" aria-label="Filter peran">' + opsiPeran + '</select></div>' +
+      '<div class="dv-card"><div id="akunWadah"></div><div class="dv-pager" id="akunPager"></div></div>' +
+      '<div class="dv-card"><h3>Riwayat tindakan developer</h3><p class="dv-desc">30 tindakan terakhir. Catatan ini tidak bisa diubah atau dihapus dari aplikasi.</p><div id="akunRiwayat"><div class="dv-sub">Memuat...</div></div></div>';
+
+    var timer = null;
+    document.getElementById('akunCari').addEventListener('input', function (e) {
+      clearTimeout(timer);
+      timer = setTimeout(function () { akun.cari = e.target.value.trim(); akun.hal = 0; muatAkun(); }, 350);
+    });
+    document.getElementById('akunPeran').addEventListener('change', function (e) { akun.peran = e.target.value; akun.hal = 0; muatAkun(); });
+    document.getElementById('akunWadah').addEventListener('click', function (e) {
+      var tbl = e.target.closest('[data-aksi]');
+      if (!tbl) return;
+      var tr = tbl.closest('tr[data-id]');
+      var a = akun.baris.filter(function (x) { return x.id === tr.dataset.id; })[0];
+      if (!a) return;
+      var fn = { lihat: aksiLihatSebagai, sandi: aksiResetSandi, peran: aksiUbahPeran, keluar: aksiPaksaKeluar, nonaktif: aksiNonaktif }[tbl.dataset.aksi];
+      if (fn) fn(a);
+    });
+    await muatAkun();
+    muatRiwayat();
+  }
+
   // ---------- Navigasi tab ----------
   var TAB = {
     kunci:        { judul: 'Akses Aplikasi',            meta: 'Kunci atau buka aplikasi untuk semua pengguna', render: renderKunci },
     pemeliharaan: { judul: 'Pemeliharaan & Pengumuman', meta: 'Tutup seluruh portal atau umumkan sesuatu ke pengguna', render: renderPemeliharaan },
+    akun:         { judul: 'Manajemen Akun',          meta: 'Kelola akun pengguna dan lihat portal sebagai mereka', render: renderAkun },
     kesehatan:    { judul: 'Kesehatan Sistem',          meta: 'Pantau koneksi, kapasitas, dan Edge Function', render: renderKesehatan }
   };
   async function bukaTab() {
@@ -447,6 +730,7 @@
     var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).maybeSingle();
     if (!pr.data || String(pr.data.role) !== 'developer') { window.location.href = 'portal.html'; return; }
     var nama = pr.data.nama || user.email;
+    devNama = pr.data.nama || null;
     document.getElementById('userName').textContent = nama;
     document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
     window.addEventListener('hashchange', bukaTab);
