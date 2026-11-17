@@ -51,12 +51,11 @@
     { href: 'pengaduan.html',         judul: 'Pengaduan Siswa',     ikon: 'megaphone',          warna: 'merah',  desc: 'Laporan bullying & pelanggaran dari siswa' },
     { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },
     { href: 'https://wima15.github.io/rekap-presensi/', luar: true,  judul: 'Rekap Absen Fingerprint', ikon: 'fingerprint',      warna: 'hijau',  desc: 'Rekap kehadiran guru & staf (tab baru)' },
-    { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' },
-    { href: 'log-admin.html',         judul: 'Log Aktivitas',       ikon: 'history',            warna: 'slate',  desc: 'Siapa melakukan apa & kapan' }
+    { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' }
   ];
 
   // Halaman yang pasti milik satu peran (dipakai agar menu langsung tampil tanpa menunggu cek role).
-  var HALAMAN_ADMIN = ['admin.html', 'penugasan-admin.html', 'bukuinduk-admin.html', 'supervisi-admin.html', 'pengaturan-admin.html', 'log-admin.html'];
+  var HALAMAN_ADMIN = ['admin.html', 'penugasan-admin.html', 'bukuinduk-admin.html', 'supervisi-admin.html', 'pengaturan-admin.html'];
   // pengaduan.html dipakai admin & kepsek -> role ditentukan dari akun, bukan dari nama berkas.
   var HALAMAN_GURU = ['guru.html', 'bukuinduk-guru.html', 'supervisi.html'];
 

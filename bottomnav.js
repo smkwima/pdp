@@ -86,8 +86,7 @@
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
-      { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true },
-      { k: 'log',   label: 'Log',         judul: 'Log Aktivitas',       href: 'log-admin.html', warna: 'slate', sheetSaja: true, hanyaAdmin: true }
+      { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true }
     ];
     if (role === 'staf') { // staf: HANYA Kinerja Saya dan Ijin & Dinas Luar
       return menu.filter(function (it) { return it.k === 'kin' || it.k === 'rekan' || it.k === 'ijin'; });
