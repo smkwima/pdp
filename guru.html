@@ -3251,7 +3251,7 @@
       // kelas ini lewat mapel_kelas.
       var mapelSemuaRes = await supabaseClient
         .from('mata_pelajaran')
-        .select('id, nama, kode, jenis_mapel, urutan_rapor, berlaku_untuk, berlaku_semester, agama_spesifik');
+        .select('id, nama, kode, jenis_mapel, urutan_rapor, berlaku_untuk, berlaku_semester, agama_spesifik, kkm');
       var mapelKelasRes = await supabaseClient
         .from('mapel_kelas')
         .select('mapel_id')
@@ -3286,6 +3286,21 @@
         nilaiMap[r.siswa_id][r.mapel_id] = r;
       });
 
+      // KKM acuan highlight = KKM yang diatur GURU MAPEL di Input Nilai Mapel
+      // (tabel pengaturan_penilaian, per mapel+kelas+tahun ajaran). Kalau guru
+      // belum mengaturnya (atau wali kelas belum punya izin baca — lihat
+      // migrasi_kkm_wali_kelas.sql), jatuh ke KKM bawaan mapel dari Admin, lalu 75.
+      var kkmGuruMap = {};
+      var kkmGuruRes = await supabaseClient
+        .from('pengaturan_penilaian')
+        .select('mapel_id, kkm, updated_at')
+        .eq('kelas_id', wk.kelas.id)
+        .eq('tahun_ajaran_id', tahunAktif.id)
+        .order('updated_at', { ascending: true });
+      (kkmGuruRes.data || []).forEach(function (r) {
+        if (r.kkm !== null && r.kkm !== undefined) kkmGuruMap[r.mapel_id] = Number(r.kkm);
+      });
+
       // Gaya lama: satu mapel PAI generik dipakai bareng semua siswa
       // lintas agama, namanya "diganti" saat dicetak (lihat namaMapelUntukSiswa).
       // Gaya baru: mapel sudah eksplisit per agama lewat agama_spesifik —
@@ -3298,6 +3313,7 @@
       var headerMapel = mapelList.map(function (m) {
         return '<th title="' + escapeHtml(m.nama) + '">' + escapeHtml(labelMapel(m)) + (isPendidikanAgama(m.nama) && !m.agama_spesifik ? ' *' : '') + '</th>';
       }).join('');
+      var jumlahDibawahKkm = 0;
       var rowsHtml = siswaList.map(function (s, i) {
         var cells = mapelList.map(function (m) {
           if (m.agama_spesifik && s.agama !== m.agama_spesifik) {
@@ -3308,7 +3324,17 @@
           var labelAgama = (isPendidikanAgama(m.nama) && !m.agama_spesifik)
             ? '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:2px;">' + escapeHtml(s.agama || 'agama belum diisi') + '</div>'
             : '';
-          return '<td style="text-align:center;">' + labelAgama + nilaiTampil + '</td>';
+          // Nilai di bawah KKM mapel (default 75 bila KKM belum diisi) diberi
+          // highlight merah supaya wali kelas langsung melihatnya.
+          var kkmMapelRekap = (kkmGuruMap[m.id] !== undefined) ? kkmGuruMap[m.id]
+            : ((m.kkm !== null && m.kkm !== undefined) ? Number(m.kkm) : 75);
+          var nilaiAngka = (n.nilai === undefined || n.nilai === null || n.nilai === '') ? NaN : Number(n.nilai);
+          var dibawahKkmRekap = !isNaN(nilaiAngka) && nilaiAngka < kkmMapelRekap;
+          if (dibawahKkmRekap) jumlahDibawahKkm++;
+          var gayaSel = dibawahKkmRekap
+            ? 'text-align:center;background:var(--danger-tint);color:var(--danger);font-weight:700;box-shadow:inset 0 0 0 1px var(--danger-border);'
+            : 'text-align:center;';
+          return '<td style="' + gayaSel + '"' + (dibawahKkmRekap ? ' title="Di bawah KKM (' + kkmMapelRekap + ')"' : '') + '>' + labelAgama + nilaiTampil + '</td>';
         }).join('');
         return '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(s.nama) + '</td>' + cells + '</tr>';
       }).join('');
@@ -3319,6 +3345,7 @@
         '<button class="btn-small" id="btnExportRekapNilai">⬇ Unduh Rekap Nilai (Excel)</button></div>' +
         '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th>' + headerMapel + '</tr></thead>' +
         '<tbody>' + rowsHtml + '</tbody></table></div>' +
+        '<div class="panel-note"><span style="display:inline-block;padding:1px 8px;border-radius:4px;background:var(--danger-tint);color:var(--danger);font-weight:700;box-shadow:inset 0 0 0 1px var(--danger-border);">Merah</span> Nilai berwarna merah = di bawah KKM yang diatur guru mapel (arahkan kursor ke nilai untuk melihat KKM-nya; bila guru belum mengaturnya dipakai KKM bawaan mapel). Total: <strong>' + jumlahDibawahKkm + '</strong> nilai di bawah KKM.</div>' +
         (adaMapelAgamaGenerik ? '<div class="panel-note">* Nama mapel otomatis menyesuaikan agama tiap siswa saat dicetak di rapor (contoh: siswa Buddha → "Pendidikan Agama Buddha dan Budi Pekerti").</div>' : '');
 
       var btnExport = document.getElementById('btnExportRekapNilai');
