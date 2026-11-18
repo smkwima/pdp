@@ -236,17 +236,26 @@
       // 2) Pengumuman Kepala Sekolah (pengumuman_sekolah; tabel belum ada -> dilewati)
       try {
         var rk = await supabaseClient.from('pengumuman_sekolah')
-          .select('id, jenis, judul, teks, pengirim_nama, berakhir_pada, diubah_pada')
+          .select('id, jenis, judul, teks, pengirim_nama, berakhir_pada, diubah_pada, penerima')
           .eq('aktif', true).order('dibuat_pada', { ascending: false }).limit(10);
         dbg.pengumuman_kepsek = rk.error ? 'GALAT/belum ada tabel: ' + rk.error.message : (rk.data ? rk.data.length + ' aktif' : '0');
         if (!rk.error && rk.data) {
           var tampil = {};
+          var uidSaya = null;
+          try {
+            var ss = await supabaseClient.auth.getSession();
+            uidSaya = ss.data && ss.data.session && ss.data.session.user ? ss.data.session.user.id : null;
+          } catch (e) { /* abaikan */ }
           rk.data.forEach(function (p) {
             if (!belumBerakhir(p.berakhir_pada)) return;
+            // Pengumuman bertarget hanya untuk penerimanya (Kepala Sekolah bisa membacanya semua di database,
+            // tetapi bannernya hanya tampil kalau ia termasuk penerima).
+            var bertarget = Array.isArray(p.penerima);
+            if (bertarget && (!uidSaya || p.penerima.indexOf(uidSaya) < 0)) return;
             var kunci = 'pdp_pengs_' + p.id + '_' + (p.diubah_pada || '');
             if (sudahDitutup(kunci)) return;
             tampil['ks-' + p.id] = true;
-            var label = 'Pengumuman ' + (p.pengirim_nama ? 'dari ' + p.pengirim_nama : 'Kepala Sekolah') + (p.judul ? ' · ' + p.judul : '');
+            var label = 'Pengumuman ' + (bertarget ? 'untuk Anda ' : '') + (p.pengirim_nama ? 'dari ' + p.pengirim_nama : 'Kepala Sekolah') + (p.judul ? ' · ' + p.judul : '');
             var lama = document.getElementById('pdp-banner-ks-' + p.id);
             // pasang ulang hanya bila belum ada atau isinya berubah
             if (!lama || lama.getAttribute('data-ver') !== String(p.diubah_pada)) {

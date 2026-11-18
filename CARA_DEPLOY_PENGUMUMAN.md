@@ -29,3 +29,9 @@
 3. Muat ulang paksa (Ctrl+F5) di perangkat guru; di aplikasi Android/PWA tutup dan buka ulang.
 4. Banner yang pernah ditutup pengguna tidak muncul lagi di sesi yang sama; mengubah/menyimpan ulang
    pengumuman memunculkannya kembali.
+
+## Penerima tertentu (pembaruan)
+- Di dialog pengumuman Kepala Sekolah ada pilihan **Penerima**: *Semua pengguna* atau *Guru / staf tertentu*
+  (daftar bisa dicari). Pengumuman bertarget hanya tampil di akun penerimanya, berlabel "untuk Anda".
+- Jalankan ulang `migrasi_pengumuman.sql` (menambah kolom `penerima`, memperbarui RLS dan fungsi
+  `pengumuman_simpan`). Pengumuman lama tetap untuk semua pengguna.

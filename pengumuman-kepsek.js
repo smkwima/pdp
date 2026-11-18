@@ -24,7 +24,7 @@
   };
   var MAKS_TEKS = 600, MAKS_JUDUL = 80;
 
-  var wadah = null, daftar = [], galatTabel = null;
+  var wadah = null, daftar = [], galatTabel = null, orang = null, namaById = {};
 
   function esc(s) {
     return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
@@ -81,6 +81,15 @@
       '.pu-pre{border:1px solid;border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.5;white-space:pre-line;}' +
       '.pu-err{display:none;font-size:12.5px;line-height:1.5;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:9px 11px;}' +
       '.pu-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid var(--border,#e5e7eb);}' +
+      '.pu-rad{display:flex;gap:16px;flex-wrap:wrap;font-size:13.5px;}' +
+      '.pu-rad label{display:flex;align-items:center;gap:6px;cursor:pointer;}' +
+      '.pu-pilih{border:1px solid var(--border,#d1d5db);border-radius:10px;padding:10px;display:grid;gap:8px;}' +
+      '.pu-pilih__bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}' +
+      '.pu-pilih__bar .pu-in{flex:1;min-width:140px;padding:6px 9px;font-size:13px;}' +
+      '.pu-pilih__list{max-height:210px;overflow:auto;display:grid;gap:2px;}' +
+      '.pu-org{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;font-size:13px;cursor:pointer;}' +
+      '.pu-org:hover{background:rgba(0,0,0,.04);}' +
+      '.pu-org small{margin-left:auto;color:var(--ink-soft,#6b7280);font-size:11px;}' +
       '.pu-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:300;background:#14532d;color:#fff;padding:10px 16px;border-radius:10px;font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90vw;text-align:center;}';
     document.head.appendChild(st);
   }
@@ -114,6 +123,24 @@
     } catch (e) { galatTabel = pesanGalat(e); daftar = []; }
   }
 
+  function infoPenerima(p) {
+    if (!Array.isArray(p.penerima)) return 'Untuk semua pengguna';
+    var nama = p.penerima.map(function (id) { return namaById[id]; }).filter(Boolean);
+    if (!nama.length) return 'Untuk ' + p.penerima.length + ' penerima';
+    return 'Untuk ' + (nama.length <= 3 ? nama.join(', ') : nama.slice(0, 3).join(', ') + ' +' + (p.penerima.length - 3) + ' lainnya');
+  }
+
+  // Daftar guru & staf untuk memilih penerima (dimuat sekali).
+  async function muatOrang() {
+    if (orang) return orang;
+    try {
+      var r = await supabaseClient.from('profiles').select('id, nama, role').in('role', ['guru', 'staf']).order('nama');
+      orang = (!r.error && r.data) ? r.data : [];
+      orang.forEach(function (o) { namaById[o.id] = o.nama; });
+    } catch (e) { orang = []; }
+    return orang;
+  }
+
   function barisHtml(p) {
     var j = JENIS[p.jenis] || JENIS.info;
     var mati = !p.aktif || berakhir(p);
@@ -121,7 +148,7 @@
     return '<div class="pu-item' + (mati ? ' is-mati' : '') + '" data-id="' + esc(p.id) + '" style="background:' + j.bg + ';border-color:' + j.bd + ';color:' + j.fg + ';">' +
       '<div class="pu-item__t">' + j.ikon + ' ' + (p.judul ? '<b>' + esc(p.judul) + '</b>\n' : '') + esc(p.teks) + '</div>' +
       '<div class="pu-item__m"><span class="pu-badge' + (mati ? '' : ' pu-badge--on') + '">' + status + '</span>' +
-      '<span>Dibuat ' + esc(tgl(p.dibuat_pada)) + (p.berakhir_pada ? ' · berakhir ' + esc(tgl(p.berakhir_pada)) : '') + '</span>' +
+      '<span>' + esc(infoPenerima(p)) + ' · dibuat ' + esc(tgl(p.dibuat_pada)) + (p.berakhir_pada ? ' · berakhir ' + esc(tgl(p.berakhir_pada)) : '') + '</span>' +
       '<span class="pu-aksi" data-kepsek-ok="1">' +
         '<button type="button" class="pu-btn pu-btn--s" data-aksi="toggle" data-kepsek-ok="1">' + (p.aktif ? 'Nonaktifkan' : 'Aktifkan') + '</button>' +
         '<button type="button" class="pu-btn pu-btn--s" data-aksi="edit" data-kepsek-ok="1">Ubah</button>' +
@@ -132,7 +159,7 @@
   function render() {
     if (!wadah) return;
     var isi = '<div class="pu-card" data-kepsek-ok="1">' +
-      '<div class="pu-top"><p>Pengumuman yang Anda buat tampil sebagai banner di atas portal dan halaman aplikasi seluruh guru, staf, dan siswa. Pengguna dapat menutupnya; banner muncul lagi di sesi berikutnya selama masih aktif.</p>' +
+      '<div class="pu-top"><p>Pengumuman yang Anda buat tampil sebagai banner di portal dan halaman aplikasi. Kirim ke semua pengguna, atau pilih guru/staf tertentu. Pengguna dapat menutupnya; banner muncul lagi di sesi berikutnya selama masih aktif.</p>' +
       '<button type="button" class="pu-btn pu-btn--p" id="puBaru" data-kepsek-ok="1">+ Buat pengumuman</button></div>';
     if (galatTabel) {
       isi += '<div class="pu-note">' + esc(galatTabel) + '</div>';
@@ -165,14 +192,15 @@
     var h = await supabaseClient.rpc('pengumuman_simpan', {
       p_id: p.id || null,
       p_jenis: ubah.jenis, p_judul: ubah.judul || null, p_teks: ubah.teks,
-      p_berakhir: ubah.berakhir_pada || null, p_aktif: ubah.aktif
+      p_berakhir: ubah.berakhir_pada || null, p_aktif: ubah.aktif,
+      p_penerima: (ubah.penerima && ubah.penerima.length) ? ubah.penerima : null
     });
     return h.error ? h.error : null;
   }
 
   async function ubahAktif(p, tombol) {
     tombol.disabled = true;
-    var err = await simpanKeServer(p, { jenis: p.jenis, judul: p.judul, teks: p.teks, berakhir_pada: p.berakhir_pada, aktif: !p.aktif });
+    var err = await simpanKeServer(p, { jenis: p.jenis, judul: p.judul, teks: p.teks, berakhir_pada: p.berakhir_pada, aktif: !p.aktif, penerima: p.penerima });
     if (err) { tombol.disabled = false; toast(pesanGalat(err)); return; }
     await segarkan();
     toast(p.aktif ? 'Pengumuman dinonaktifkan.' : 'Pengumuman diaktifkan.');
@@ -187,7 +215,7 @@
     toast('Pengumuman dihapus.');
   }
 
-  async function segarkan() { await muatDaftar(); render(); }
+  async function segarkan() { await muatDaftar(); await muatOrang(); render(); }
 
   // ---------- dialog buat / ubah ----------
   function dialog(p) {
@@ -209,6 +237,14 @@
         '<div><label class="pu-l" for="puJudul">Judul <small>(opsional)</small></label><input class="pu-in" id="puJudul" maxlength="' + MAKS_JUDUL + '" value="' + esc(d.judul || '') + '" placeholder="Contoh: Rapat dewan guru"></div>' +
         '<div><label class="pu-l" for="puTeks">Isi pengumuman</label><textarea class="pu-ta" id="puTeks" maxlength="' + MAKS_TEKS + '" placeholder="Contoh: Rapat dewan guru hari Senin pukul 13.00 di ruang guru. Mohon hadir tepat waktu.">' + esc(d.teks || '') + '</textarea><div class="pu-hit" id="puHit"></div></div>' +
         '<div><label class="pu-l" for="puAkhir">Berakhir pada <small>(opsional; kosong = tampil sampai dinonaktifkan)</small></label><input class="pu-in" type="datetime-local" id="puAkhir" value="' + esc(keLokal(d.berakhir_pada)) + '"></div>' +
+        '<div><span class="pu-l">Penerima</span>' +
+          '<div class="pu-rad"><label><input type="radio" name="puTarget" value="semua"' + (Array.isArray(d.penerima) ? '' : ' checked') + '> Semua pengguna</label>' +
+          '<label><input type="radio" name="puTarget" value="tertentu"' + (Array.isArray(d.penerima) ? ' checked' : '') + '> Guru / staf tertentu</label></div>' +
+          '<div class="pu-pilih" id="puPilih" style="margin-top:8px;display:' + (Array.isArray(d.penerima) ? 'grid' : 'none') + ';">' +
+            '<div class="pu-pilih__bar"><input class="pu-in" id="puCari" type="search" placeholder="Cari nama..." aria-label="Cari nama">' +
+            '<button type="button" class="pu-btn pu-btn--s" id="puSemuaOrg">Pilih semua tampil</button><button type="button" class="pu-btn pu-btn--s" id="puKosong">Kosongkan</button></div>' +
+            '<div class="pu-pilih__list" id="puDaftarOrang"></div><div class="pu-hit" id="puJumlah" style="text-align:left;"></div>' +
+          '</div></div>' +
         '<label class="pu-cek"><input type="checkbox" id="puAktif"' + (d.aktif ? ' checked' : '') + '> Tampilkan sekarang</label>' +
         '<div><span class="pu-l">Pratinjau</span><div id="puPre"></div></div>' +
         '<div class="pu-err" id="puErr" role="alert"></div>' +
@@ -235,6 +271,37 @@
     pratinjau();
     $('puTeks').focus();
 
+    // ----- pilihan penerima -----
+    var terpilih = {};
+    (Array.isArray(d.penerima) ? d.penerima : []).forEach(function (id) { terpilih[id] = true; });
+    function jumlahTerpilih() { return Object.keys(terpilih).length; }
+    function gambarOrang() {
+      var kata = ($('puCari').value || '').toLowerCase().trim();
+      var tampil = (orang || []).filter(function (o) { return !kata || String(o.nama || '').toLowerCase().indexOf(kata) >= 0; });
+      $('puDaftarOrang').innerHTML = tampil.length ? tampil.map(function (o) {
+        return '<label class="pu-org"><input type="checkbox" data-id="' + esc(o.id) + '"' + (terpilih[o.id] ? ' checked' : '') + '> ' + esc(o.nama || '(tanpa nama)') +
+          '<small>' + (o.role === 'staf' ? 'Staf' : 'Guru') + '</small></label>';
+      }).join('') : '<div class="pu-note" style="margin:0;color:var(--ink-soft,#6b7280);background:transparent;border:0;">' + ((orang || []).length ? 'Tidak ada nama yang cocok.' : 'Daftar guru/staf tidak dapat dimuat.') + '</div>';
+      $('puJumlah').textContent = jumlahTerpilih() + ' penerima dipilih';
+      $('puDaftarOrang').querySelectorAll('input[data-id]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+          if (cb.checked) terpilih[cb.getAttribute('data-id')] = true; else delete terpilih[cb.getAttribute('data-id')];
+          $('puJumlah').textContent = jumlahTerpilih() + ' penerima dipilih';
+        });
+      });
+    }
+    function modeTertentu() { return ov.querySelector('input[name="puTarget"]:checked').value === 'tertentu'; }
+    ov.querySelectorAll('input[name="puTarget"]').forEach(function (r) {
+      r.addEventListener('change', function () { $('puPilih').style.display = modeTertentu() ? 'grid' : 'none'; });
+    });
+    $('puCari').addEventListener('input', gambarOrang);
+    $('puSemuaOrg').addEventListener('click', function () {
+      $('puDaftarOrang').querySelectorAll('input[data-id]').forEach(function (cb) { cb.checked = true; terpilih[cb.getAttribute('data-id')] = true; });
+      $('puJumlah').textContent = jumlahTerpilih() + ' penerima dipilih';
+    });
+    $('puKosong').addEventListener('click', function () { terpilih = {}; gambarOrang(); });
+    muatOrang().then(gambarOrang);
+
     function galat(t) { var e = $('puErr'); e.textContent = t; e.style.display = 'block'; }
 
     $('puSimpan').addEventListener('click', async function () {
@@ -243,9 +310,14 @@
       var aktif = $('puAktif').checked;
       $('puErr').style.display = 'none';
       if (!teks) { galat('Isi pengumuman belum diisi.'); return; }
+      var penerima = null;
+      if (modeTertentu()) {
+        penerima = Object.keys(terpilih);
+        if (!penerima.length) { galat('Pilih minimal satu guru atau staf penerima, atau ubah ke "Semua pengguna".'); return; }
+      }
       if (aktif && akhir && new Date(akhir) <= new Date()) { galat('Waktu berakhir sudah lewat. Kosongkan atau pilih waktu yang akan datang.'); return; }
       var tombol = $('puSimpan'); tombol.disabled = true; tombol.textContent = 'Menyimpan...';
-      var err = await simpanKeServer(p || {}, { jenis: $('puJenis').value, judul: $('puJudul').value.trim(), teks: teks, berakhir_pada: akhir, aktif: aktif });
+      var err = await simpanKeServer(p || {}, { jenis: $('puJenis').value, judul: $('puJudul').value.trim(), teks: teks, berakhir_pada: akhir, aktif: aktif, penerima: penerima });
       if (err) { tombol.disabled = false; tombol.textContent = baru ? 'Terbitkan' : 'Simpan'; galat(pesanGalat(err)); return; }
       tutup();
       await segarkan();
