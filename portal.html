@@ -10,14 +10,15 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=3"></script>
-<script src="akses-guard.js?v=2"></script>
+<script src="akses-guard.js?v=3"></script>
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
+<script src="pengumuman-kepsek.js?v=1"></script>
 <script src="dashboard-kepsek.js?v=6"></script>
 <script src="bottomnav.js?v=13" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
-<script src="pengingat-guru.js?v=2" defer></script>
+<script src="pengingat-guru.js?v=3" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
 <script src="disiplin-saya.js?v=1"></script>
 <script src="penilaian-saya.js?v=1"></script>
@@ -223,6 +224,9 @@
       </section>
 
       <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec" id="secPeng" style="display:none;">Pengumuman Sekolah</div>
+      <div id="pkPengWadah"></div>
 
       <div class="pt-sec" id="secDk" style="display:none;">Pantauan Progres Guru</div>
       <div id="dkWadah"></div>
@@ -608,6 +612,11 @@
 
     // Dashboard ringkasan satu layar khusus Kepala Sekolah (dashboard-kepsek.js); dimuat paralel.
     // Pengawas: kartu progres saja (tanpa daftar per guru, tombol Ingatkan, riwayat, dan WhatsApp).
+    // Pengumuman sekolah: hanya Kepala Sekolah yang dapat membuat (pengumuman_kepsek.js).
+    if (kepsek && window.PengumumanKepsek) {
+      document.getElementById('secPeng').style.display = '';
+      PengumumanKepsek.muat(document.getElementById('pkPengWadah'));
+    }
     if ((kepsek || pengawas) && window.DashboardKepsek) {
       document.getElementById('secDk').style.display = '';
       DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });

@@ -232,7 +232,12 @@
   async function simpanSistem(patch) {
     patch.diubah_pada = new Date().toISOString();
     patch.diubah_oleh = userId;
-    return await supabaseClient.from('pengaturan_sistem').update(patch).eq('id', 1);
+    var res = await supabaseClient.from('pengaturan_sistem').update(patch).eq('id', 1).select('id');
+    // RLS yang menolak update TIDAK memberi galat, hanya 0 baris berubah. Jangan lapor "Tersimpan" kalau begitu.
+    if (!res.error && (!res.data || !res.data.length)) {
+      res = { data: null, error: { message: 'tidak ada data yang berubah. Pastikan akun ini berperan developer dan migrasi_sistem.sql sudah dijalankan (baris id = 1 harus ada).' } };
+    }
+    return res;
   }
 
   function pratinjau(jenis, teks) {
@@ -267,7 +272,7 @@
 
       '<div class="dv-card" id="cardPeng">' +
         '<h3>Pengumuman</h3>' +
-        '<p class="dv-desc">Banner tampil di bagian atas portal dan halaman aplikasi. Pengguna bisa menutupnya (muncul lagi di sesi berikutnya selama pengumuman masih aktif). Dapat berakhir otomatis.</p>' +
+        '<p class="dv-desc">Banner tampil di bagian atas portal dan halaman aplikasi. Pengguna bisa menutupnya (muncul lagi di sesi berikutnya selama pengumuman masih aktif). Dapat berakhir otomatis. Perubahan baru berlaku setelah klik <b>Simpan pengumuman</b>, dan muncul di pengguna dalam kurang lebih 2 menit tanpa perlu memuat ulang. Kepala Sekolah punya pengumuman sendiri; keduanya tampil bersamaan.</p>' +
         '<div class="dv-switchrow"><label class="ak-sw"><input type="checkbox" id="pengAktif" ' + (s.pengumuman_aktif ? 'checked' : '') + ' aria-label="Pengumuman aktif"><span></span></label>' +
         '<div><div id="pengLabel">' + (s.pengumuman_aktif ? 'Pengumuman tampil' : 'Pengumuman disembunyikan') + '</div></div></div>' +
         '<div class="dv-field"><label for="pengJenis">Jenis</label><select id="pengJenis">' + opsiJenis + '</select></div>' +
@@ -307,7 +312,7 @@
     $('pengJenis').addEventListener('change', segarkanPratinjau);
     $('pengTeks').addEventListener('input', segarkanPratinjau);
     $('pengAktif').addEventListener('change', function (e) {
-      $('pengLabel').textContent = e.target.checked ? 'Pengumuman tampil' : 'Pengumuman disembunyikan';
+      $('pengLabel').textContent = (e.target.checked ? 'Pengumuman tampil' : 'Pengumuman disembunyikan') + ' — belum disimpan, klik "Simpan pengumuman"';
     });
     $('pengSimpan').addEventListener('click', async function () {
       var aktif = $('pengAktif').checked, teks = $('pengTeks').value.trim();
@@ -318,6 +323,7 @@
       var res = await simpanSistem({ pengumuman_aktif: aktif, pengumuman_jenis: $('pengJenis').value, pengumuman_teks: teks || null, pengumuman_berakhir: berakhir });
       tombol.disabled = false;
       flashDi($('pengFlash'), !res.error, res.error ? 'Gagal: ' + res.error.message : 'Tersimpan.');
+      if (!res.error) $('pengLabel').textContent = aktif ? 'Pengumuman tampil' : 'Pengumuman disembunyikan';
     });
   }
 

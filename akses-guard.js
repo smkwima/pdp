@@ -8,8 +8,9 @@
  *   (aplikasi, portal, siswa) menampilkan layar pemeliharaan untuk semua
  *   pengguna kecuali developer. Layar memeriksa ulang tiap 60 detik dan
  *   memuat ulang otomatis saat pemeliharaan selesai.
- * - PENGUMUMAN: banner di bagian atas halaman, bisa ditutup per sesi,
- *   hilang otomatis setelah waktu berakhir.
+ * - PENGUMUMAN: banner di bagian atas halaman (dari Developer dan dari Kepala
+ *   Sekolah, bisa tampil bersamaan), bisa ditutup per sesi, hilang otomatis
+ *   setelah waktu berakhir, dan diperbarui sendiri tiap 2 menit.
  * - Portal / menu bawah: AksesAplikasi.muat() memberi daftar status
  *   supaya kartu aplikasi bisa ditampilkan dengan gembok.
  * - Aman bila migrasi belum dijalankan: kalau tabel tidak terbaca,
@@ -39,7 +40,9 @@
   var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
 
   function berkasSekarang() {
-    return (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    var b = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    if (b.indexOf('.') < 0) b += '.html'; // hosting dengan URL bersih: /portal -> portal.html
+    return b;
   }
   function kodeDariHref(href, judul) {
     if (judul && KODE_DARI_JUDUL[judul]) return KODE_DARI_JUDUL[judul];
@@ -138,21 +141,35 @@
     });
   }
 
-  // ---- BANNER (pengumuman, dan penanda untuk developer saat pemeliharaan aktif) ----
+  // ---- BANNER (pengumuman developer, pengumuman kepala sekolah, dan penanda untuk developer saat pemeliharaan aktif) ----
   var GAYA_BANNER = {
     info:       { bg: '#eff6ff', bd: '#bfdbfe', fg: '#1e40af', ikon: 'ℹ️' },
     peringatan: { bg: '#fffbeb', bd: '#fde68a', fg: '#92400e', ikon: '⚠️' },
     penting:    { bg: '#fef2f2', bd: '#fecaca', fg: '#991b1b', ikon: '📢' }
   };
-  function sisipBanner(jenis, teks, kunciTutup) {
+  function wadahBanner() {
+    var w = document.getElementById('pdp-banner-wrap');
+    if (w) return w;
+    w = document.createElement('div');
+    w.id = 'pdp-banner-wrap';
+    w.style.cssText = 'position:relative;z-index:50;';
+    document.body.insertBefore(w, document.body.firstChild);
+    return w;
+  }
+  // id: penanda unik banner (satu elemen per id). label: judul kecil tebal di depan teks (opsional).
+  function pasangBanner(id, jenis, teks, kunciTutup, label) {
     sesudahBodySiap(function () {
-      if (document.getElementById('pdp-banner')) return;
+      var elId = 'pdp-banner-' + id;
+      var lama = document.getElementById(elId);
+      if (lama) lama.remove();
       var g = GAYA_BANNER[jenis] || GAYA_BANNER.info;
       var el = document.createElement('div');
-      el.id = 'pdp-banner';
+      el.id = elId;
+      el.className = 'pdp-banner';
       el.setAttribute('role', 'status');
-      el.style.cssText = 'position:relative;z-index:50;display:flex;align-items:flex-start;gap:10px;padding:10px 16px;background:' + g.bg + ';border-bottom:1px solid ' + g.bd + ';color:' + g.fg + ';font:500 13px/1.5 \'Plus Jakarta Sans\',system-ui,sans-serif;';
-      el.innerHTML = '<span aria-hidden="true">' + g.ikon + '</span><div style="flex:1;white-space:pre-line;">' + esc(teks) + '</div>' +
+      el.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 16px;background:' + g.bg + ';border-bottom:1px solid ' + g.bd + ';color:' + g.fg + ';font:500 13px/1.5 \'Plus Jakarta Sans\',system-ui,sans-serif;';
+      el.innerHTML = '<span aria-hidden="true">' + g.ikon + '</span><div style="flex:1;white-space:pre-line;">' +
+        (label ? '<strong>' + esc(label) + '</strong>\n' : '') + esc(teks) + '</div>' +
         (kunciTutup ? '<button type="button" aria-label="Tutup pengumuman" style="border:0;background:transparent;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button>' : '');
       if (kunciTutup) {
         el.querySelector('button').onclick = function () {
@@ -160,21 +177,88 @@
           el.remove();
         };
       }
-      document.body.insertBefore(el, document.body.firstChild);
+      wadahBanner().appendChild(el);
     });
   }
-  function tampilkanPengumuman(s) {
-    if (!s || !s.pengumuman_aktif || !s.pengumuman_teks) return;
-    if (s.pengumuman_berakhir && new Date(s.pengumuman_berakhir) <= new Date()) return;
-    var kunci = 'pdp_pengumuman_' + (s.diubah_pada || '');
-    try { if (sessionStorage.getItem(kunci)) return; } catch (e) { /* tanpa penyimpanan: tampilkan saja */ }
-    sisipBanner(s.pengumuman_jenis, s.pengumuman_teks, kunci);
+  function hapusBanner(id) {
+    var el = document.getElementById('pdp-banner-' + id);
+    if (el) el.remove();
+  }
+  function sudahDitutup(kunci) {
+    try { return !!sessionStorage.getItem(kunci); } catch (e) { return false; } // tanpa penyimpanan: tampilkan saja
+  }
+  function belumBerakhir(iso) {
+    return !iso || new Date(iso) > new Date();
+  }
+
+  // Ambil data TERBARU dari database (bukan dari cache muat()) lalu pasang / lepas banner.
+  // Dipanggil saat halaman dibuka, tiap 2 menit, dan saat tab kembali aktif, sehingga
+  // pengumuman baru muncul (dan yang dimatikan hilang) tanpa harus memuat ulang halaman.
+  var sedangSegar = false;
+  async function segarkanPengumuman() {
+    if (sedangSegar) return;
+    sedangSegar = true;
+    try {
+      // 1) Pengumuman Developer (pengaturan_sistem)
+      try {
+        var rs = await supabaseClient.from('pengaturan_sistem').select('*').eq('id', 1).maybeSingle();
+        var s = (!rs.error && rs.data) ? rs.data : null;
+        if (s && s.pengumuman_aktif && s.pengumuman_teks && belumBerakhir(s.pengumuman_berakhir) &&
+            !sudahDitutup('pdp_pengumuman_' + (s.diubah_pada || ''))) {
+          pasangBanner('dev', s.pengumuman_jenis, s.pengumuman_teks, 'pdp_pengumuman_' + (s.diubah_pada || ''), null);
+        } else {
+          hapusBanner('dev');
+        }
+      } catch (e) { /* biarkan banner apa adanya */ }
+
+      // 2) Pengumuman Kepala Sekolah (pengumuman_sekolah; tabel belum ada -> dilewati)
+      try {
+        var rk = await supabaseClient.from('pengumuman_sekolah')
+          .select('id, jenis, judul, teks, pengirim_nama, berakhir_pada, diubah_pada')
+          .eq('aktif', true).order('dibuat_pada', { ascending: false }).limit(10);
+        if (!rk.error && rk.data) {
+          var tampil = {};
+          rk.data.forEach(function (p) {
+            if (!belumBerakhir(p.berakhir_pada)) return;
+            var kunci = 'pdp_pengs_' + p.id + '_' + (p.diubah_pada || '');
+            if (sudahDitutup(kunci)) return;
+            tampil['ks-' + p.id] = true;
+            var label = 'Pengumuman ' + (p.pengirim_nama ? 'dari ' + p.pengirim_nama : 'Kepala Sekolah') + (p.judul ? ' · ' + p.judul : '');
+            var lama = document.getElementById('pdp-banner-ks-' + p.id);
+            // pasang ulang hanya bila belum ada atau isinya berubah
+            if (!lama || lama.getAttribute('data-ver') !== String(p.diubah_pada)) {
+              pasangBanner('ks-' + p.id, p.jenis, p.teks, kunci, label);
+              sesudahBodySiap(function () {
+                var e2 = document.getElementById('pdp-banner-ks-' + p.id);
+                if (e2) e2.setAttribute('data-ver', String(p.diubah_pada));
+              });
+            }
+          });
+          // lepas banner kepala sekolah yang sudah dimatikan / dihapus / berakhir
+          var ada = document.querySelectorAll('[id^="pdp-banner-ks-"]');
+          for (var i = 0; i < ada.length; i++) {
+            if (!tampil[ada[i].id.replace('pdp-banner-', '')]) ada[i].remove();
+          }
+        }
+      } catch (e) { /* biarkan banner apa adanya */ }
+    } finally {
+      sedangSegar = false;
+    }
+  }
+
+  var timerPengumuman = null;
+  function mulaiPengumuman() {
+    segarkanPengumuman();
+    if (timerPengumuman) return;
+    timerPengumuman = setInterval(function () { if (!document.hidden) segarkanPengumuman(); }, 120000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) segarkanPengumuman(); });
   }
 
   async function jaga() {
     var berkas = berkasSekarang();
     var kode = KODE_DARI_BERKAS[berkas];
     if (!kode && !HALAMAN_UMUM[berkas]) return; // login, developer, dll. tidak dijaga
+    var bolehBanner = false;
     document.documentElement.style.visibility = 'hidden'; // cegah halaman berkedip sebelum dicek
     var aman = setTimeout(function () { document.documentElement.style.visibility = ''; }, 4000);
     try {
@@ -184,14 +268,16 @@
       var info = kode && d.kunci[kode];
       if (info && !developer) { tampilkanTerkunci(info); return; }
       if (d.sistem && d.sistem.pemeliharaan_aktif && developer) {
-        sisipBanner('peringatan', 'Mode pemeliharaan sedang AKTIF. Hanya Anda (developer) yang bisa membuka halaman ini; pengguna lain melihat layar pemeliharaan.', null);
+        pasangBanner('pemeliharaan', 'peringatan', 'Mode pemeliharaan sedang AKTIF. Hanya Anda (developer) yang bisa membuka halaman ini; pengguna lain melihat layar pemeliharaan.', null, null);
       } else {
-        tampilkanPengumuman(d.sistem);
+        bolehBanner = true;
       }
     } finally {
       clearTimeout(aman);
       if (!document.getElementById('pdp-pemeliharaan')) document.documentElement.style.visibility = '';
     }
+    // Banner dimuat setelah halaman ditampilkan, supaya tidak menunda tampilan.
+    if (bolehBanner) mulaiPengumuman();
   }
 
   window.AksesAplikasi = { muat: muat, kodeDariHref: kodeDariHref };

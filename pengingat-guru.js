@@ -2,7 +2,8 @@
  * -----------------------------------------------------------------
  * LONCENG NOTIFIKASI untuk akun GURU: menampilkan pengingat yang
  * dikirim Kepala Sekolah / admin (tabel pengingat_guru, lihat
- * migrasi_pengingat.sql).
+ * migrasi_pengingat.sql). Hanya pengingat yang BELUM dibaca yang tampil;
+ * begitu ditandai dibaca, pengingat hilang dari lonceng guru.
  *
  * Pasang di halaman yang dibuka guru (setelah supabase-client.js):
  *   <script src="pengingat-guru.js?v=1" defer></script>
@@ -142,12 +143,14 @@
     bel.setAttribute('aria-label', n ? 'Notifikasi pengingat, ' + n + ' belum dibaca' : 'Notifikasi pengingat');
     document.getElementById('pgSemua').disabled = n === 0;
 
+    // Pengingat yang sudah ditandai dibaca langsung hilang dari lonceng guru.
     var list = document.getElementById('pgList');
-    if (!daftar.length) {
-      list.innerHTML = '<div class="pg-kosong">Belum ada pengingat. Pengingat dari Kepala Sekolah akan muncul di sini.</div>';
+    var tampil = belumDibaca();
+    if (!tampil.length) {
+      list.innerHTML = '<div class="pg-kosong">Tidak ada pengingat baru. Pengingat dari Kepala Sekolah yang belum dibaca akan muncul di sini.</div>';
       return;
     }
-    list.innerHTML = daftar.map(function (p) {
+    list.innerHTML = tampil.map(function (p) {
       var m = MODUL[p.modul] || MODUL.umum;
       return '<button type="button" class="pg-item' + (p.dibaca_pada ? '' : ' pg-baru') + '" data-id="' + esc(p.id) + '" data-guard-ignore>' +
         '<div class="pg-item__top">' + (p.dibaca_pada ? '' : '<span class="pg-dot" aria-label="Belum dibaca"></span>') +
@@ -192,7 +195,10 @@
     var lokal = new Date().toISOString();
     daftar.forEach(function (p) { if (!ids || ids.indexOf(p.id) >= 0) p.dibaca_pada = p.dibaca_pada || lokal; });
     render();
-    try { await supabaseClient.rpc('pengingat_tandai_dibaca', { p_ids: ids || null }); } catch (e) { /* abaikan; dimuat ulang berikutnya */ }
+    try {
+      var hr = await supabaseClient.rpc('pengingat_tandai_dibaca', { p_ids: ids || null });
+      if (hr && hr.error) muat(); // gagal tersimpan di server: tampilkan lagi apa adanya
+    } catch (e) { /* abaikan; dimuat ulang berikutnya */ }
   }
   function tandaiSemua() { tandai(null); }
 
@@ -224,7 +230,7 @@
     try {
       var r = await supabaseClient.from('pengingat_guru')
         .select('id, modul, judul, pesan, tautan, pengirim_nama, dibuat_pada, dibaca_pada')
-        .eq('guru_id', uid).order('dibuat_pada', { ascending: false }).limit(30);
+        .eq('guru_id', uid).is('dibaca_pada', null).order('dibuat_pada', { ascending: false }).limit(30);
       if (r.error) return; // tabel belum ada / ditolak: diam saja
       daftar = r.data || [];
       render();
