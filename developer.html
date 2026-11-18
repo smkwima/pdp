@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=3"></script>
 <script src="mobile.js?v=1" defer></script>
 <style>
   .ak-row { display:grid; grid-template-columns: 220px 1fr; gap:14px; align-items:center; padding:14px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px; }
@@ -279,6 +280,7 @@
         '<div class="dv-field"><label for="pengTeks">Isi pengumuman</label><textarea id="pengTeks" maxlength="300" placeholder="Contoh: Besok pukul 19.00–21.00 sistem dalam pemeliharaan.">' + esc(s.pengumuman_teks || '') + '</textarea></div>' +
         '<div class="dv-field"><label for="pengBerakhir">Berakhir pada (opsional; kosong = sampai dimatikan)</label><input type="datetime-local" id="pengBerakhir" value="' + keLokal(s.pengumuman_berakhir) + '"></div>' +
         '<div id="pengPratinjau">' + pratinjau(s.pengumuman_jenis, s.pengumuman_teks) + '</div>' +
+        '<div id="pengStatus" style="margin-top:10px;font-size:12.5px;line-height:1.5;"></div>' +
         '<div style="margin-top:14px;"><button type="button" class="dv-btn" id="pengSimpan">Simpan pengumuman</button> <span class="ak-flash" id="pengFlash" style="display:inline-block;margin-left:8px;"></span></div>' +
       '</div>';
 
@@ -324,7 +326,24 @@
       tombol.disabled = false;
       flashDi($('pengFlash'), !res.error, res.error ? 'Gagal: ' + res.error.message : 'Tersimpan.');
       if (!res.error) $('pengLabel').textContent = aktif ? 'Pengumuman tampil' : 'Pengumuman disembunyikan';
+      await periksaPengumuman();
     });
+    // Baca ulang dari database dan jelaskan apakah pengguna akan melihat banner.
+    async function periksaPengumuman() {
+      var el = $('pengStatus');
+      var r = await supabaseClient.from('pengaturan_sistem').select('pengumuman_aktif, pengumuman_teks, pengumuman_berakhir, pemeliharaan_aktif').eq('id', 1).maybeSingle();
+      var t, ok = false;
+      if (r.error) t = 'Gagal membaca ulang dari database: ' + r.error.message;
+      else if (!r.data) t = 'Baris pengaturan_sistem (id = 1) tidak ditemukan. Jalankan migrasi_sistem.sql.';
+      else if (!r.data.pengumuman_aktif) t = 'Di database pengumuman berstatus NONAKTIF, jadi tidak tampil. Nyalakan saklar lalu klik Simpan pengumuman.';
+      else if (!r.data.pengumuman_teks) t = 'Isi pengumuman kosong di database.';
+      else if (r.data.pengumuman_berakhir && new Date(r.data.pengumuman_berakhir) <= new Date()) t = 'Waktu berakhir sudah lewat, jadi tidak tampil.';
+      else if (r.data.pemeliharaan_aktif) t = 'Pengumuman tersimpan, tetapi MODE PEMELIHARAAN sedang aktif: pengguna selain developer hanya melihat layar pemeliharaan, bukan banner.';
+      else { ok = true; t = 'Di database pengumuman AKTIF dan siap tampil. Pengguna melihatnya paling lambat sekitar 2 menit (atau saat halaman dibuka). Banner yang sama juga tampil di halaman ini. Jika pengguna belum melihatnya, minta mereka membuka alamat portal dengan tambahan ?debugbanner=1 untuk melihat diagnosisnya.'; }
+      $('pengStatus').style.color = ok ? '#166534' : '#b45309';
+      $('pengStatus').textContent = t;
+    }
+    periksaPengumuman();
   }
 
   // ---------- TAB 3: Kesehatan Sistem ----------

@@ -35,7 +35,7 @@
     'log-admin.html': 'log'
   };
   // Halaman tanpa kode aplikasi, tetapi tetap ikut mode pemeliharaan & pengumuman.
-  var HALAMAN_UMUM = { 'portal.html': 1, 'siswa.html': 1 };
+  var HALAMAN_UMUM = { 'portal.html': 1, 'siswa.html': 1, 'developer.html': 1 };
   // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker tidak punya halaman, href '#').
   var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
 
@@ -152,8 +152,17 @@
     if (w) return w;
     w = document.createElement('div');
     w.id = 'pdp-banner-wrap';
-    w.style.cssText = 'position:relative;z-index:50;';
-    document.body.insertBefore(w, document.body.firstChild);
+    // Menu Utama (portal): banner masuk ke area konten, tepat di atas kartu sapaan.
+    // Halaman lain: banner di paling atas halaman.
+    var konten = document.querySelector('main.pt-content');
+    if (konten) {
+      w.setAttribute('data-mode', 'konten');
+      w.style.cssText = 'position:relative;z-index:5;display:grid;gap:10px;margin-bottom:16px;';
+      konten.insertBefore(w, konten.firstChild);
+    } else {
+      w.style.cssText = 'position:relative;z-index:50;';
+      document.body.insertBefore(w, document.body.firstChild);
+    }
     return w;
   }
   // id: penanda unik banner (satu elemen per id). label: judul kecil tebal di depan teks (opsional).
@@ -163,11 +172,15 @@
       var lama = document.getElementById(elId);
       if (lama) lama.remove();
       var g = GAYA_BANNER[jenis] || GAYA_BANNER.info;
+      var wadah = wadahBanner();
+      var dikonten = wadah.getAttribute('data-mode') === 'konten';
       var el = document.createElement('div');
       el.id = elId;
       el.className = 'pdp-banner';
       el.setAttribute('role', 'status');
-      el.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 16px;background:' + g.bg + ';border-bottom:1px solid ' + g.bd + ';color:' + g.fg + ';font:500 13px/1.5 \'Plus Jakarta Sans\',system-ui,sans-serif;';
+      el.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:' + (dikonten ? '12px 16px' : '10px 16px') + ';background:' + g.bg + ';' +
+        (dikonten ? 'border:1px solid ' + g.bd + ';border-radius:14px;' : 'border-bottom:1px solid ' + g.bd + ';') +
+        'color:' + g.fg + ';font:500 13px/1.5 \'Plus Jakarta Sans\',system-ui,sans-serif;';
       el.innerHTML = '<span aria-hidden="true">' + g.ikon + '</span><div style="flex:1;white-space:pre-line;">' +
         (label ? '<strong>' + esc(label) + '</strong>\n' : '') + esc(teks) + '</div>' +
         (kunciTutup ? '<button type="button" aria-label="Tutup pengumuman" style="border:0;background:transparent;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button>' : '');
@@ -177,7 +190,7 @@
           el.remove();
         };
       }
-      wadahBanner().appendChild(el);
+      wadah.appendChild(el);
     });
   }
   function hapusBanner(id) {
@@ -199,23 +212,33 @@
     if (sedangSegar) return;
     sedangSegar = true;
     try {
+      var dbg = { berkas: berkasSekarang(), versiGuard: 3 };
       // 1) Pengumuman Developer (pengaturan_sistem)
       try {
         var rs = await supabaseClient.from('pengaturan_sistem').select('*').eq('id', 1).maybeSingle();
         var s = (!rs.error && rs.data) ? rs.data : null;
+        dbg.baca_pengaturan_sistem = rs.error ? 'GALAT: ' + rs.error.message : (s ? 'ok' : 'BARIS id=1 TIDAK ADA / tidak terbaca (RLS?)');
+        if (s) {
+          dbg.pengumuman_aktif = s.pengumuman_aktif;
+          dbg.teks_terisi = !!s.pengumuman_teks;
+          dbg.berakhir = s.pengumuman_berakhir || '(kosong)';
+          dbg.sudah_berakhir = !belumBerakhir(s.pengumuman_berakhir);
+          dbg.ditutup_pengguna_di_sesi_ini = sudahDitutup('pdp_pengumuman_' + (s.diubah_pada || ''));
+        }
         if (s && s.pengumuman_aktif && s.pengumuman_teks && belumBerakhir(s.pengumuman_berakhir) &&
             !sudahDitutup('pdp_pengumuman_' + (s.diubah_pada || ''))) {
           pasangBanner('dev', s.pengumuman_jenis, s.pengumuman_teks, 'pdp_pengumuman_' + (s.diubah_pada || ''), null);
         } else {
           hapusBanner('dev');
         }
-      } catch (e) { /* biarkan banner apa adanya */ }
+      } catch (e) { dbg.galat_developer = String(e && e.message || e); }
 
       // 2) Pengumuman Kepala Sekolah (pengumuman_sekolah; tabel belum ada -> dilewati)
       try {
         var rk = await supabaseClient.from('pengumuman_sekolah')
           .select('id, jenis, judul, teks, pengirim_nama, berakhir_pada, diubah_pada')
           .eq('aktif', true).order('dibuat_pada', { ascending: false }).limit(10);
+        dbg.pengumuman_kepsek = rk.error ? 'GALAT/belum ada tabel: ' + rk.error.message : (rk.data ? rk.data.length + ' aktif' : '0');
         if (!rk.error && rk.data) {
           var tampil = {};
           rk.data.forEach(function (p) {
@@ -240,10 +263,29 @@
             if (!tampil[ada[i].id.replace('pdp-banner-', '')]) ada[i].remove();
           }
         }
-      } catch (e) { /* biarkan banner apa adanya */ }
+      } catch (e) { dbg.galat_kepsek = String(e && e.message || e); }
+      tampilDebug(dbg);
     } finally {
       sedangSegar = false;
     }
+  }
+
+  // Diagnosis: tambahkan ?debugbanner=1 di akhir alamat halaman untuk melihat kenapa banner tampil / tidak.
+  function tampilDebug(dbg) {
+    var aktif = false;
+    try { aktif = /[?&]debugbanner=1/.test(location.search); } catch (e) { /* abaikan */ }
+    if (!aktif) return;
+    sesudahBodySiap(function () {
+      var el = document.getElementById('pdp-debug');
+      if (!el) {
+        el = document.createElement('pre');
+        el.id = 'pdp-debug';
+        el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483646;max-width:92vw;max-height:60vh;overflow:auto;margin:0;padding:10px 12px;background:#0f172a;color:#e2e8f0;font:12px/1.5 ui-monospace,monospace;border-radius:10px;white-space:pre-wrap;';
+        document.body.appendChild(el);
+      }
+      el.textContent = 'DIAGNOSIS BANNER\n' + Object.keys(dbg).map(function (k) { return k + ': ' + dbg[k]; }).join('\n') +
+        '\nbanner_terpasang_di_halaman: ' + document.querySelectorAll('.pdp-banner').length;
+    });
   }
 
   var timerPengumuman = null;
