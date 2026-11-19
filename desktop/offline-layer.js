@@ -159,7 +159,8 @@
       '#pdpNet ul{list-style:none;margin:0 0 8px;padding:0}#pdpNet li{padding:6px 8px;border-radius:8px;background:#f1f5f9;margin-bottom:4px;font-size:11.5px}' +
       '#pdpNet li.gagal{background:#fee2e2}#pdpNet li small{display:block;color:#64748b;word-break:break-word}' +
       '#pdpNet .btn{border:0;border-radius:8px;padding:6px 10px;background:#1673e0;color:#fff;font:600 11.5px inherit;cursor:pointer;margin:2px 4px 0 0}' +
-      '#pdpNet .btn.abu{background:#64748b}';
+      '#pdpNet .btn.abu{background:#64748b}' +
+      '@media print{#pdpNet,#pdpToast,#pdpKembali{display:none!important}}';
     document.head.appendChild(s);
   }
   function jam(t) { return new Date(t).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }); }
@@ -198,7 +199,7 @@
   }
   function buat() {
     css();
-    var el = document.createElement('div'); el.id = 'pdpNet';
+    var el = document.createElement('div'); el.id = 'pdpNet'; el.setAttribute('data-pdp-noprint', '');
     el.innerHTML = '<div class="panel"></div><button class="pill" type="button"><i class="dot"></i><span class="t">Terhubung</span></button>';
     document.body.appendChild(el);
     pill = el.querySelector('button.pill'); panel = el.querySelector('.panel');

@@ -4,7 +4,7 @@
 // - Menyimpan antrean data (saat offline) + salinan data terakhir ke penyimpanan komputer
 // - Mengirim antrean ke Supabase otomatis begitu koneksi kembali
 
-const { app, BrowserWindow, ipcMain, protocol, net, shell, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, shell, safeStorage, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -180,55 +180,49 @@ ipcMain.handle('pdp:discard-failed', (_e, id) => {
 });
 
 // ---------- CETAK -> SIMPAN PDF LANGSUNG ----------
-// window.print() di halaman diganti: isi halaman diambil (snapshot), dicetak ke PDF secara senyap
-// memakai aturan @page / @media print yang sudah ada di style.css, lalu langsung "Simpan sebagai".
-// Nama file otomatis = judul dokumen (document.title) saat tombol cetak ditekan.
+// Semua jalur cetak (window.print, jendela cetak window.open, iframe cetak, Ctrl+P) dialihkan oleh
+// print-patch.js: isi dokumen diambil (snapshot), dicetak ke PDF secara senyap memakai aturan
+// @page / @media print yang sudah ada di style.css, lalu langsung "Simpan sebagai".
+// Nama file otomatis menyesuaikan isi dokumen (lihat judul() di print-patch.js dan namaPdf()).
 const printPages = new Map();
 let lastDir = null;
+const PATCH_SRC = fs.readFileSync(path.join(__dirname, 'print-patch.js'), 'utf8');
+const PREFS_JENDELA = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true,
+                        nodeIntegration: false, nodeIntegrationInSubFrames: true };
 
-const PATCH_PRINT = `(function(){
-  if (window.__pdpPrintPatched) return; window.__pdpPrintPatched = true;
-  window.print = function () {
-    try {
-      try { window.dispatchEvent(new Event('beforeprint')); } catch (e) {}
-      var d = document.documentElement.cloneNode(true);
-      Array.prototype.forEach.call(d.querySelectorAll('script,base'), function (n) { n.remove(); });
-      var ai = document.querySelectorAll('input,textarea,select'), ci = d.querySelectorAll('input,textarea,select');
-      for (var i = 0; i < ai.length && i < ci.length; i++) {
-        var a = ai[i], c = ci[i], t = (a.type || '').toLowerCase();
-        if (a.tagName === 'TEXTAREA') c.textContent = a.value;
-        else if (a.tagName === 'SELECT') Array.prototype.forEach.call(c.options, function (o, k) { if (a.options[k] && a.options[k].selected) o.setAttribute('selected', ''); else o.removeAttribute('selected'); });
-        else if (t === 'checkbox' || t === 'radio') { if (a.checked) c.setAttribute('checked', ''); else c.removeAttribute('checked'); }
-        else c.setAttribute('value', a.value);
-      }
-      var av = document.querySelectorAll('canvas'), cv = d.querySelectorAll('canvas');
-      for (var j = 0; j < av.length && j < cv.length; j++) {
-        try { var im = document.createElement('img'); im.src = av[j].toDataURL('image/png'); im.style.cssText = av[j].style.cssText; im.width = av[j].width; im.height = av[j].height; cv[j].replaceWith(im); } catch (e) {}
-      }
-      var head = d.querySelector('head');
-      if (head) { var b = document.createElement('base'); b.href = 'app://pdp/'; head.insertBefore(b, head.firstChild); }
-      window.__pdpSnap = { title: document.title || '', html: '<!DOCTYPE html>' + d.outerHTML };
-      console.log('__PDP_PRINT__');
-      try { window.dispatchEvent(new Event('afterprint')); } catch (e) {}
-    } catch (err) { console.error('Gagal menyiapkan PDF', err); alert('Gagal menyiapkan PDF: ' + err.message); }
-  };
-})();`;
+// preload memintanya sinkron supaya patch terpasang SEBELUM skrip halaman berjalan (semua frame).
+ipcMain.on('pdp:patch-src', (e) => { e.returnValue = PATCH_SRC; });
+
+function stempel() {
+  const d = new Date(), p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + '.' + p(d.getMinutes());
+}
+
+const NAMA_GENERIK = /^(|untitled|tanpa judul|dokumen|document|cetak|print|preview|pratinjau|menyiapkan cetak.*|memuat.*|loading.*|portal data dan penilaian)$/i;
 
 function namaPdf(judul) {
   let n = String(judul || '')
-    .replace(/\s*[—–-]\s*PORTAL DATA DAN PENILAIAN.*$/i, '')
+    .replace(/\s*[—–|-]\s*PORTAL DATA DAN PENILAIAN.*$/i, '')
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
     .replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
-  if (!n || /menyiapkan cetak/i.test(n)) n = 'Dokumen PDP';
+  if (NAMA_GENERIK.test(n)) n = 'Dokumen PDP ' + stempel();
   if (n.length > 120) n = n.slice(0, 120).trim();
   return n + '.pdf';
 }
 
+// Target jendela untuk dialog/toast; jendela cetak bisa saja sudah ditutup halaman.
+function sasaran(wc) {
+  if (wc && !wc.isDestroyed()) return wc;
+  return win && !win.isDestroyed() ? win.webContents : null;
+}
+
 function toast(wc, teks, galat) {
-  if (!wc || wc.isDestroyed()) return;
+  wc = sasaran(wc);
+  if (!wc) return;
   wc.executeJavaScript(`(function(){
     var el = document.getElementById('pdpToast');
     if (!el) { el = document.createElement('div'); el.id = 'pdpToast';
+      el.setAttribute('data-pdp-noprint', '');
       el.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:2147483647;padding:10px 16px;border-radius:12px;color:#fff;font:600 13px Segoe UI,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:80vw;word-break:break-all';
       (document.body || document.documentElement).appendChild(el); }
     el.style.background = ${galat ? "'#dc2626'" : "'#0f172a'"};
@@ -237,11 +231,9 @@ function toast(wc, teks, galat) {
   })();`).catch(() => {});
 }
 
-async function cetakPdf(wc) {
-  let snap;
-  try { snap = await wc.executeJavaScript('window.__pdpSnap'); } catch (e) { return; }
-  if (!snap || !snap.html) return;
-  const induk = BrowserWindow.fromWebContents(wc);
+async function cetakPdf(wc, snap) {
+  if (!snap || typeof snap.html !== 'string' || !snap.html) return;
+  const induk0 = BrowserWindow.fromWebContents(wc);
   toast(wc, 'Membuat PDF…');
   const id = crypto.randomBytes(6).toString('hex');
   printPages.set(id, snap.html);
@@ -252,7 +244,8 @@ async function cetakPdf(wc) {
     await new Promise((r) => setTimeout(r, 400));
     const pdf = await tersembunyi.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true, pageSize: 'A4' });
     const nama = namaPdf(snap.title);
-    const hasil = await dialog.showSaveDialog(induk || undefined, {
+    const induk = (induk0 && !induk0.isDestroyed()) ? induk0 : (win && !win.isDestroyed() ? win : undefined);
+    const hasil = await dialog.showSaveDialog(induk, {
       title: 'Simpan sebagai PDF',
       defaultPath: path.join(lastDir || app.getPath('downloads'), nama),
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
@@ -269,15 +262,45 @@ async function cetakPdf(wc) {
   }
 }
 
-// Pasang pengganti window.print + Ctrl+P pada sebuah jendela (utama maupun popup).
-function lampirkanCetak(wc) {
-  const pasang = () => { if (!wc.isDestroyed()) wc.executeJavaScript(PATCH_PRINT).catch(() => {}); };
-  wc.on('dom-ready', pasang);
-  wc.on('did-finish-load', pasang);
-  wc.on('console-message', (e, level, message) => {
-    const msg = (e && e.message) || message;
-    if (msg === '__PDP_PRINT__') cetakPdf(wc);
+ipcMain.handle('pdp:cetak', (e, snap) => cetakPdf(e.sender, snap));
+
+// PDF yang dibuat halaman lewat "Unduh PDF" (jsPDF / html2pdf / blob): nama generik (mis. "download.pdf",
+// kode acak) diganti judul halaman; nama yang sudah bermakna dipertahankan. Folder terakhir diingat.
+const UNDUH_GENERIK = /^(|download|downloads|document|dokumen|file|unnamed|untitled|blob|output|result|export|[0-9a-f]{8}-[0-9a-f-]{20,}|\d+)$/i;
+function pasangUnduhan() {
+  session.defaultSession.on('will-download', (_e, item, wc) => {
+    const asli = item.getFilename() || '';
+    if (!/\.pdf$/i.test(asli) && item.getMimeType() !== 'application/pdf') return;
+    const dasar = asli.replace(/\.pdf$/i, '').trim();
+    let judul = dasar;
+    if (UNDUH_GENERIK.test(dasar)) {
+      try { judul = (wc && !wc.isDestroyed()) ? wc.getTitle() : ''; } catch (e) { judul = ''; }
+    }
+    item.setSaveDialogOptions({
+      title: 'Simpan sebagai PDF',
+      defaultPath: path.join(lastDir || app.getPath('downloads'), namaPdf(judul)),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    item.once('done', (_ev, state) => {
+      if (state !== 'completed') return;
+      const p = item.getSavePath();
+      if (p) { lastDir = path.dirname(p); toast(wc, '✓ PDF tersimpan: ' + p); }
+    });
   });
+}
+
+// Cadangan: pasang patch di semua frame setelah DOM siap + Ctrl+P (jendela utama maupun popup).
+function lampirkanCetak(wc) {
+  const pasang = () => {
+    if (wc.isDestroyed()) return;
+    let frames = [];
+    try { frames = wc.mainFrame.framesInSubtree; } catch (e) {}
+    if (!frames.length) { wc.executeJavaScript(PATCH_SRC).catch(() => {}); return; }
+    frames.forEach((f) => { try { f.executeJavaScript(PATCH_SRC).catch(() => {}); } catch (e) {} });
+  };
+  wc.on('dom-ready', pasang);
+  wc.on('did-frame-finish-load', pasang);
+  wc.on('did-finish-load', pasang);
   wc.on('before-input-event', (e, input) => {
     if (input.type === 'keyDown' && input.control && !input.alt && input.key.toLowerCase() === 'p') {
       e.preventDefault();
@@ -293,7 +316,7 @@ function buatJendela() {
     width: 1280, height: 800, show: false, autoHideMenuBar: true,
     title: 'PDP Wima',
     icon: path.join(__dirname, 'build', 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
+    webPreferences: PREFS_JENDELA
   });
   win.removeMenu();
   // Menyesuaikan layar: jendela terbuka maksimal (mengisi layar, taskbar tetap terlihat),
@@ -317,7 +340,8 @@ function buatJendela() {
     const lokal = keLokal(url);
     if (lokal) { win.loadURL(lokal); return { action: 'deny' }; }
     if (dalamApp(url)) { win.loadURL(url); return { action: 'deny' }; }
-    if (!url || url === 'about:blank' || url.startsWith('app://') || url.startsWith('blob:')) return { action: 'allow' };
+    if (!url || url === 'about:blank' || url.startsWith('app://') || url.startsWith('blob:'))
+      return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: PREFS_JENDELA } };   // popup tetap memakai preload (patch cetak sejak awal)
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -339,7 +363,7 @@ function buatJendela() {
     win.webContents.executeJavaScript(`(function(){
       if (document.getElementById('pdpKembali')) return;
       var b = document.createElement('button');
-      b.id = 'pdpKembali'; b.type = 'button'; b.textContent = '\u2190 Menu Utama PDP';
+      b.id = 'pdpKembali'; b.setAttribute('data-pdp-noprint', ''); b.type = 'button'; b.textContent = '\u2190 Menu Utama PDP';
       b.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:2147483647;border:0;border-radius:999px;padding:9px 15px;background:#1673e0;color:#fff;font:600 13px Segoe UI,Arial,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)';
       b.onclick = function(){ location.href = ${JSON.stringify(PORTAL_MENU)}; };
       (document.body || document.documentElement).appendChild(b);
@@ -380,6 +404,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(full).toString());
   });
 
+  pasangUnduhan();
   buatJendela();
   setInterval(cekKoneksi, 8000);
   cekKoneksi();

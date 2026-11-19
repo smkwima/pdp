@@ -1,6 +1,6 @@
 {
   "name": "pdp-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Portal Data dan Penilaian SMK Widya Mandala Tambak (aplikasi Windows)",
   "author": "SMK Widya Mandala Tambak",
   "main": "main.js",
@@ -17,7 +17,7 @@
     "appId": "id.sch.smkwima.pdp",
     "productName": "PDP Wima",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "app/**/*"],
+    "files": ["main.js", "preload.js", "print-patch.js", "app/**/*"],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "build/icon.ico"

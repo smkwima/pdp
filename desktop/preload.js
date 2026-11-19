@@ -1,6 +1,14 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
-contextBridge.exposeInMainWorld('pdpDesktop', {
+// Semua frame (utama, popup, iframe): jembatan cetak + patch window.print dipasang sebelum skrip halaman jalan.
+contextBridge.exposeInMainWorld('__pdpCetak', (snap) => ipcRenderer.invoke('pdp:cetak', snap));
+try {
+  const src = ipcRenderer.sendSync('pdp:patch-src');
+  if (src) webFrame.executeJavaScript(src);
+} catch (e) {}
+
+// Lapisan offline hanya untuk frame teratas (sama seperti sebelumnya; iframe tidak mendapat indikator ganda).
+if (window.top === window) contextBridge.exposeInMainWorld('pdpDesktop', {
   hello: (cfg) => ipcRenderer.invoke('pdp:hello', cfg),
   status: () => ipcRenderer.invoke('pdp:status'),
   auth: (a) => ipcRenderer.send('pdp:auth', a),
