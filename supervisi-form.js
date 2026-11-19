@@ -99,6 +99,32 @@ var SvForm = (function () {
     });
     return out;
   }
+  // Form tambahan yang dipilih admin saat menjadwalkan (j.form_tambahan = [id form]), di luar paket bawaan form induk.
+  // Contoh: pada satu kesempatan ada supervisi penggunaan media tertentu selain form supervisi utama.
+  function tambahan(j) { var t = j && j.form_tambahan; return Array.isArray(t) ? t : []; }
+  // Paket lengkap sebuah jadwal: form induk + sepaket bawaan + form tambahan pilihan admin.
+  // Id yang sudah terhapus atau sudah ada di paket dilewati. Jawaban form tambahan disimpan di jawaban_paket[id form].
+  function paketJadwal(j, f, list) {
+    var out = paket(f, list);
+    tambahan(j).forEach(function (id) {
+      var x = list.find(function (i) { return i.id === id; });
+      if (x && out.indexOf(x) < 0) out.push(x);
+    });
+    return out;
+  }
+  // Link bukti pelaksanaan (foto di Google Drive dsb.) yang ditautkan supervisor pada jadwal (j.bukti_link).
+  // buktiUrl: kembalikan alamat http(s) yang valid (tanpa skema -> https://), atau '' bila kosong/tidak valid.
+  function buktiUrl(u) {
+    u = String(u === null || u === undefined ? '' : u).trim();
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { var x = new URL(u); return /^https?:$/.test(x.protocol) && x.hostname.indexOf('.') > 0 ? x.href : ''; } catch (e) { return ''; }
+  }
+  // Tombol tautan (tab baru) ke bukti pelaksanaan; kosong bila jadwal belum punya link.
+  function buktiTautan(j, label) {
+    var u = buktiUrl(j && j.bukti_link);
+    return u ? '<a class="btn-small" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(label || 'Buka Bukti') + '</a>' : '';
+  }
   // Form Supervisi yang menjadi induk dari form f (f dipaketkan di paket_ids-nya). Aturan: induk paket selalu form Supervisi;
   // form Pra-Supervisi yang sudah dipaketkan tidak dijadwalkan sendiri, hanya ikut jadwal induknya.
   function indukDari(f, list) {
@@ -120,5 +146,5 @@ var SvForm = (function () {
       return it;
     });
   }
-  return { penentu: penentu, aktif: aktif, render: render, baca: baca, hasil: hasil, identitas: identitas, paket: paket, indukDari: indukDari, isianPaket: isianPaket, untukGuru: untukGuru, renderGuru: renderGuru, bacaGuru: bacaGuru };
+  return { penentu: penentu, aktif: aktif, render: render, baca: baca, hasil: hasil, identitas: identitas, paket: paket, tambahan: tambahan, paketJadwal: paketJadwal, buktiUrl: buktiUrl, buktiTautan: buktiTautan, indukDari: indukDari, isianPaket: isianPaket, untukGuru: untukGuru, renderGuru: renderGuru, bacaGuru: bacaGuru };
 })();

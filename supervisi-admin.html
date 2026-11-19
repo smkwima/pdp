@@ -15,7 +15,7 @@
 <script src="kepsek-readonly.js?v=13"></script>
 <script src="kepsek-nav.js?v=9"></script>
 <script src="sticky-nama.js?v=1"></script>
-<script src="supervisi-form.js?v=5"></script>
+<script src="supervisi-form.js?v=7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -82,7 +82,7 @@
   // Semua form dalam paket (induk + sepaket) untuk jadwal j, siap dicetak ke satu PDF
   function paketPdf(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; });
-    return f ? { paket: SvForm.isianPaket(j, SvForm.paket(f, formList)) } : {};
+    return f ? { paket: SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)) } : {};
   }
 
   function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -174,7 +174,7 @@
         return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td><td>' + esc(nm(guruList, j.supervisor_id)) + (profil && profil.kepala_sekolah ? ' / ' + esc(profil.kepala_sekolah) : '') + '</td><td>' + esc(nm(formList, j.form_id)) + jmlPaket(j) + '</td>' +
           '<td><span class="chip ' + (j.status === 'selesai' ? 'chip--aktif' : 'chip--muted') + '">' + j.status + '</span></td>' +
           '<td>' + (j.status === 'selesai' ? '<button class="btn-small" data-lihat="' + j.id + '">Lihat Hasil</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button> ' : '') +
-          '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
+          SvForm.buktiTautan(j, 'Buka Bukti') + ' ' + '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
       }).join('') : '<tr><td colspan="8">Belum ada jadwal.</td></tr>') + '</tbody></table></div>';
     document.getElementById('btnTambah').addEventListener('click', function () { modalJadwal(null); });
     document.getElementById('btnTplJadwal').addEventListener('click', tplJadwal);
@@ -218,7 +218,9 @@
 
   function jmlPaket(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; }), n = f ? SvForm.paket(f, formList).length - 1 : 0;
-    return n > 0 ? ' <span class="chip chip--muted">+' + n + ' sepaket</span>' : '';
+    var tb = f ? SvForm.paketJadwal(j, f, formList).slice(n + 1) : [];
+    return (n > 0 ? ' <span class="chip chip--muted">+' + n + ' sepaket</span>' : '') +
+      tb.map(function (x) { return '<div style="margin-top:3px;font-size:12.5px;">+ ' + esc(x.judul) + '</div>'; }).join('');
   }
 
   function modal(judul, html) {
@@ -239,17 +241,34 @@
       '<div class="field"><label>Supervisor</label><select id="fSpv">' + opts(guruList, j && j.supervisor_id) + '</select></div>' +
       '<div class="field"><label>Mata Pelajaran</label><select id="fMapel"></select><div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" id="fMapelInfo"></div></div>' +
       '<div class="field"><label>Form</label><select id="fForm"></select></div>' +
+      '<div class="field field--full"><label>Instrumen Tambahan (opsional)</label><div id="fTambah" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow:auto;border:1px solid var(--line,#d8dee6);border-radius:8px;padding:8px 10px;"></div><div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">Centang bila pada jadwal ini ada instrumen lain yang ikut dipakai, mis. supervisi penggunaan media tertentu. Supervisor mengisi semua instrumen dalam satu jadwal dan semuanya ikut tercetak dalam satu PDF.</div></div>' +
       '<div class="field field--full"><label>Kelas (otomatis dari Penugasan Guru, boleh diubah)</label><input id="fKelas"></div></div>' +
       '<div class="panel-note" id="fHint" style="margin-top:10px;">Pra-Supervisi yang sudah dipaketkan dengan Supervisi tidak perlu dijadwalkan sendiri: jadwalkan form <strong>Supervisi</strong>-nya, Pra-Supervisi ikut otomatis.</div>' +
       '<div style="margin-top:18px;"><button class="btn-small btn-small--primary" id="fSimpan">Simpan</button></div>');
-    var fJenis = o.querySelector('#fJenis'), fForm = o.querySelector('#fForm');
+    var fJenis = o.querySelector('#fJenis'), fForm = o.querySelector('#fForm'), fTambah = o.querySelector('#fTambah'), pilihTambah = {};
+    SvForm.tambahan(j).forEach(function (id) { pilihTambah[id] = 1; });
+    // Instrumen tambahan: form sejenis selain form utama dan selain yang sudah ikut paketnya
+    function isiTambah() {
+      var induk = formList.find(function (x) { return x.id === fForm.value; });
+      var sudah = {}; if (induk) SvForm.paket(induk, formList).forEach(function (x) { sudah[x.id] = 1; });
+      var l = formList.filter(function (x) {
+        return x.jenis === fJenis.value && !sudah[x.id] && x.id !== fForm.value &&
+          !(x.jenis === 'pra' && SvForm.indukDari(x, formList).length && !pilihTambah[x.id]);
+      });
+      fTambah.innerHTML = !induk ? '<div style="font-size:12.5px;color:var(--ink-soft);">Pilih form utama dulu.</div>' :
+        l.length ? l.map(function (x) {
+          return '<label style="display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer;"><input type="checkbox" value="' + x.id + '"' + (pilihTambah[x.id] ? ' checked' : '') + ' style="margin-top:3px;"> <span>' + esc(x.judul) + '</span></label>';
+        }).join('') : '<div style="font-size:12.5px;color:var(--ink-soft);">Belum ada form lain yang bisa ditambahkan.</div>';
+      fTambah.querySelectorAll('input').forEach(function (c) { c.addEventListener('change', function () { if (c.checked) pilihTambah[c.value] = 1; else delete pilihTambah[c.value]; }); });
+    }
     // Pra-Supervisi yang sudah dipaketkan ke form Supervisi tidak dijadwalkan sendiri (ikut jadwal induknya)
     function isiForm() {
       fForm.innerHTML = opts(formList.filter(function (f) { return f.jenis === fJenis.value && !(f.jenis === 'pra' && SvForm.indukDari(f, formList).length && !(j && j.form_id === f.id)); }), j && j.form_id, '— pilih form —');
       var h = o.querySelector('#fHint'); if (h) h.style.display = fJenis.value === 'pra' ? '' : 'none';
+      isiTambah();
     }
     if (j) { fJenis.value = j.jenis; o.querySelector('#fTgl').value = j.tanggal; }
-    isiForm(); fJenis.addEventListener('change', isiForm);
+    isiForm(); fJenis.addEventListener('change', isiForm); fForm.addEventListener('change', isiTambah);
     var fKelas = o.querySelector('#fKelas'), fG = o.querySelector('#fGuru'), fM = o.querySelector('#fMapel');
     function autoKelas() { fKelas.value = kelasOtomatis(fG.value, fM.value); }
     // Mapel hanya yang ditugaskan ke guru terpilih
@@ -267,16 +286,20 @@
       var uj = unitJenjang(); d.unit_kerja = uj.unit_kerja; d.jenjang = uj.jenjang;
       if (!d.tanggal) { alert('Tanggal wajib diisi.'); return; }
       if (d.guru_id === d.supervisor_id) { alert('Supervisor tidak boleh sama dengan guru yang disupervisi.'); return; }
+      // Hanya pilihan yang masih tampil (form utama sudah dipilih) yang disimpan; urutan mengikuti daftar form
+      var tambah = d.form_id ? Array.prototype.map.call(fTambah.querySelectorAll('input:checked'), function (c) { return c.value; }) : [];
+      if (tambah.length || SvForm.tambahan(j).length) d.form_tambahan = tambah; // kolom baru: hanya dikirim bila dipakai
       var res = j ? await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id) : await supabaseClient.from('supervisi_jadwal').insert(d);
-      if (res.error) { alert('Gagal: ' + res.error.message); return; }
+      if (res.error) { alert('Gagal: ' + res.error.message + (d.form_tambahan ? '\n\nJalankan migrasi_supervisi_instrumen_tambahan.sql di Supabase SQL Editor bila belum.' : '')); return; }
       o.remove(); viewJadwal();
     });
   }
 
   function modalHasil(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; });
-    var isi = f ? SvForm.isianPaket(j, SvForm.paket(f, formList)) : [];
+    var isi = f ? SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)) : [];
     var o = modal('Hasil ' + JENIS[j.jenis], '<div style="margin-bottom:10px;"><button class="btn-small btn-small--primary" id="hsCetak">Cetak</button> <button class="btn-small" id="hsPdf">Unduh PDF</button></div>' + SvForm.identitas(idn(j)) +
+      (SvForm.buktiUrl(j.bukti_link) ? '<div class="sv-q"><div class="sv-q__t">Bukti Pelaksanaan Supervisi (foto)</div><div>' + SvForm.buktiTautan(j, 'Buka Bukti Pelaksanaan') + '</div></div>' : '') +
       (f ? isi.map(function (x) {
         return (isi.length > 1 ? '<div class="form-section-title" style="margin-top:18px;">' + esc(x.form.judul) + '</div>' : '') + SvForm.hasil(x.form, x.jawaban) +
           '<div class="sv-q"><div class="sv-q__t">Catatan</div><div>' + esc(x.catatan || '—') + '</div></div>';
@@ -361,7 +384,7 @@
           return '<tr><td><input type="checkbox" data-pilih="' + j.id + '"' + (dipilih[j.id] ? ' checked' : '') + ' aria-label="Pilih"></td>' +
             '<td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + jmlPaket(j) + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td>' +
             '<td>' + esc(nm(guruList, j.supervisor_id)) + '</td><td>' + (j.selesai_at ? tglId(String(j.selesai_at).slice(0, 10)) : '—') + '</td>' +
-            '<td style="white-space:nowrap;"><button class="btn-small" data-lihat="' + j.id + '">Lihat</button> <button class="btn-small btn-small--primary" data-cetak="' + j.id + '">Cetak</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button></td></tr>';
+            '<td style="white-space:nowrap;"><button class="btn-small" data-lihat="' + j.id + '">Lihat</button> <button class="btn-small btn-small--primary" data-cetak="' + j.id + '">Cetak</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button> ' + SvForm.buktiTautan(j, 'Buka Bukti') + '</td></tr>';
         }).join('') : '<tr><td colspan="8">Tidak ada hasil pada filter ini.</td></tr>') + '</tbody></table></div>';
       var wrap = document.getElementById('hsTabel');
       var semuaEl = wrap.querySelector('#hsSemua');
