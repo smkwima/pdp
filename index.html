@@ -314,12 +314,12 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
   var note = document.getElementById('loginNote');
   var noteDefault = note.textContent;
 
-  // ===== Aplikasi Windows: tetap masuk tanpa menyimpan kata sandi =====
+  // ===== Aplikasi Windows & Android: tetap masuk tanpa menyimpan kata sandi =====
   // Sesi login (token Supabase) sudah tersimpan di komputer; halaman ini cukup memeriksanya saat
   // aplikasi dibuka dan langsung meneruskan ke menu sesuai peran. Kata sandi TIDAK disimpan.
   // "Ingat saya" dicentang -> sesi dipakai terus. Tidak dicentang -> sesi hanya berlaku selama
   // aplikasi terbuka; saat aplikasi dibuka lagi, pengguna diminta masuk ulang.
-  var DESKTOP = !!window.pdpDesktop;
+  var DESKTOP = !!(window.pdpDesktop || window.AndroidApp);   // aplikasi Windows atau Android
   var KUNCI_INGAT = 'pdp_ingat_saya';     // localStorage: '0' = jangan ingat
   var KUNCI_SESI = 'pdp_sesi_berjalan';   // sessionStorage: login terjadi pada jalannya aplikasi ini
 

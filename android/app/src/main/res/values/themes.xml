@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tidak fullscreen: bar status (jam, sinyal, baterai) dan bar navigasi HP tetap terlihat. -->
+    <style name="Theme.PDP" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pdp_bg</item>
+        <item name="android:statusBarColor">@color/pdp_bg</item>
+        <item name="android:navigationBarColor">@color/pdp_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>

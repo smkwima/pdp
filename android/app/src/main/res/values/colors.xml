@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sama dengan --bg di style.css; dipakai di belakang bar status agar menyatu dengan halaman. -->
+    <color name="pdp_bg">#F8FAFC</color>
+    <color name="ic_background">#FFFFFF</color>
+</resources>

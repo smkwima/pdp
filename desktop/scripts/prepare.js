@@ -16,7 +16,7 @@ const OUT = path.join(DESK, 'app');
 const VENDOR = path.join(OUT, 'vendor');
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
-const SKIP_DIR = new Set(['desktop', '.github', '.git', 'node_modules', 'supabase']);
+const SKIP_DIR = new Set(['desktop', 'android', '.github', '.git', 'node_modules', 'supabase']);
 const SKIP_FILE = /\.(sql|md|zip|ts|ini)$/i;
 
 const sha = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 10);
