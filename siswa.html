@@ -510,7 +510,14 @@
   function isiArsipRapor() {
     var area = document.getElementById('areaArsipRapor');
     if (!area) return;
-    var data = (S.riwayatRapor || []).slice().sort(function (a, b) {
+    var aktif = S.tahunAktif;
+    var data = (S.riwayatRapor || []).filter(function (r) {
+      // Hanya semester yang SUDAH LEWAT; semester aktif & setelahnya tidak ditampilkan di arsip.
+      if (!aktif) return false;
+      var ta = String(r.ta_nama || '').trim(), sm = String(r.ta_semester || '').trim();
+      if (ta !== String(aktif.nama).trim()) return ta < String(aktif.nama).trim();
+      return aktif.semester === 'Genap' && sm === 'Gasal';
+    }).sort(function (a, b) {
       if (a.ta_nama !== b.ta_nama) return a.ta_nama < b.ta_nama ? 1 : -1;
       return a.ta_semester === b.ta_semester ? 0 : (a.ta_semester === 'Gasal' ? 1 : -1);
     });
