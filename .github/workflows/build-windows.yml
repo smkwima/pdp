@@ -1,0 +1,48 @@
+name: Build Aplikasi Windows
+
+on:
+  workflow_dispatch:        # jalankan manual: tab Actions -> Build Aplikasi Windows -> Run workflow
+  push:
+    tags: ['v*']            # atau otomatis saat membuat tag, mis. v1.0.0
+
+permissions:
+  contents: write           # diperlukan untuk membuat Release saat ada tag
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Pasang Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Pasang dependensi
+        run: npm install
+
+      # Menyalin file web ke desktop/app, mengunduh library CDN (agar bisa jalan offline),
+      # menyisipkan modul offline + indikator koneksi ke setiap halaman.
+      - name: Siapkan isi aplikasi
+        run: npm run prepare-app
+
+      - name: Build installer Windows
+        run: npx electron-builder --win --publish never
+
+      - name: Unggah installer (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDP-Wima-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+
+      - name: Buat Release (khusus tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/*.exe
