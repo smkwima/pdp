@@ -313,7 +313,8 @@
     kelasPerTA: {},      // tahun_ajaran_id -> kelas siswa pada periode itu
     noAbsenPerTA: {},
     terbitPerTA: {},     // tahun_ajaran_id -> Date waktu terbit rapor (dari rapor_terbit)
-    rekap: []            // semua baris rekap_presensi milik siswa
+    rekap: [],           // semua baris rekap_presensi milik siswa
+    riwayatHadir: []     // kehadiran semester lama dari Buku Induk (bi_riwayat_semester, lewat fungsi kehadiran_riwayat_saya)
   };
 
   // Rapor baru boleh dilihat jika sudah diterbitkan admin DAN waktu terbit sudah lewat.
@@ -709,44 +710,82 @@
     isiPresensi();
   }
 
+  // Kehadiran satu periode: rekap E-Rapor diutamakan; bila tidak ada, pakai arsip Buku Induk.
+  function riwayatBI(nama, smt) {
+    var h = null;
+    S.riwayatHadir.forEach(function (x) {
+      if (String(x.ta_nama).trim() === String(nama).trim() && String(x.ta_semester).trim() === String(smt).trim()) h = x;
+    });
+    return h;
+  }
+  function dataHadir(p) {
+    var b = null;
+    S.rekap.forEach(function (x) { if (x.tahun_ajaran_id === p.id) b = x; });
+    if (b) return { sakit: b.jumlah_sakit || 0, izin: b.jumlah_izin || 0, alpha: b.jumlah_alpha || 0, kelas: null };
+    var h = riwayatBI(p.nama, p.semester);
+    if (h) return { sakit: h.jumlah_sakit || 0, izin: h.jumlah_izin || 0, alpha: h.jumlah_alpha || 0, kelas: h.kelas_nama || null };
+    return null;
+  }
+
   function isiPresensi() {
     var area = document.getElementById('areaPresensi');
     var ta = periodeById(S.periodeId);
-    if (!ta) { area.innerHTML = kosongHtml('Belum ada data', 'Belum ada tahun ajaran yang tercatat untukmu.'); return; }
+    if (!ta && !S.riwayatHadir.length) { area.innerHTML = kosongHtml('Belum ada data', 'Belum ada tahun ajaran yang tercatat untukmu.'); return; }
 
-    var baris = null;
-    S.rekap.forEach(function (x) { if (x.tahun_ajaran_id === ta.id) baris = x; });
-
-    var atas;
-    if (!baris) {
-      atas = '<div class="panel-note">Belum ada data presensi untuk ' + escapeHtml(ta.nama) + ' semester ' + escapeHtml(ta.semester) +
-        '. Data diisi wali kelas, biasanya menjelang pembagian rapor.</div>';
-    } else {
-      var total = (baris.jumlah_sakit || 0) + (baris.jumlah_izin || 0) + (baris.jumlah_alpha || 0);
-      atas = '<div class="stat-grid">' +
-        stat('Sakit', baris.jumlah_sakit || 0) + stat('Izin', baris.jumlah_izin || 0) +
-        stat('Tanpa Keterangan (Alpha)', baris.jumlah_alpha || 0) + stat('Total Tidak Hadir', total) + '</div>';
+    var atas = '';
+    if (ta) {
+      var baris = dataHadir(ta);
+      if (!baris) {
+        atas = '<div class="panel-note">Belum ada data presensi untuk ' + escapeHtml(ta.nama) + ' semester ' + escapeHtml(ta.semester) +
+          '. Data diisi wali kelas, biasanya menjelang pembagian rapor.</div>';
+      } else {
+        var total = baris.sakit + baris.izin + baris.alpha;
+        atas = '<div class="stat-grid">' +
+          stat('Sakit', baris.sakit) + stat('Izin', baris.izin) +
+          stat('Tanpa Keterangan (Alpha)', baris.alpha) + stat('Total Tidak Hadir', total) + '</div>';
+      }
     }
 
     // Rekap seluruh semester yang ada
-    var urut = S.periodeList.slice();
-    var rows = urut.map(function (p) {
-      var b = null;
-      S.rekap.forEach(function (x) { if (x.tahun_ajaran_id === p.id) b = x; });
+    var rows = S.periodeList.map(function (p) {
+      var b = dataHadir(p);
       var k = S.kelasPerTA[p.id];
-      var sel = p.id === ta.id ? ' style="background:var(--primary-tint, #eff6ff);"' : '';
-      if (!b) return '<tr' + sel + '><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.semester) + '</td><td>' + escapeHtml(k ? k.nama : '—') + '</td><td class="tc-center" colspan="4">Belum ada data</td></tr>';
-      var t = (b.jumlah_sakit || 0) + (b.jumlah_izin || 0) + (b.jumlah_alpha || 0);
-      return '<tr' + sel + '><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.semester) + '</td><td>' + escapeHtml(k ? k.nama : '—') + '</td>' +
-        '<td class="tc-center">' + (b.jumlah_sakit || 0) + '</td><td class="tc-center">' + (b.jumlah_izin || 0) + '</td>' +
-        '<td class="tc-center">' + (b.jumlah_alpha || 0) + '</td><td class="tc-center"><b>' + t + '</b></td></tr>';
+      var namaKelas = k ? k.nama : (b && b.kelas ? b.kelas : '—');
+      var sel = ta && p.id === ta.id ? ' style="background:var(--primary-tint, #eff6ff);"' : '';
+      if (!b) return '<tr' + sel + '><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.semester) + '</td><td>' + escapeHtml(namaKelas) + '</td><td class="tc-center" colspan="4">Belum ada data</td></tr>';
+      var t = b.sakit + b.izin + b.alpha;
+      return '<tr' + sel + '><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.semester) + '</td><td>' + escapeHtml(namaKelas) + '</td>' +
+        '<td class="tc-center">' + b.sakit + '</td><td class="tc-center">' + b.izin + '</td>' +
+        '<td class="tc-center">' + b.alpha + '</td><td class="tc-center"><b>' + t + '</b></td></tr>';
     }).join('');
 
+    // Tahun ajaran lama yang tidak ada di daftar periode E-Rapor (hanya ada di Buku Induk)
+    var lama = S.riwayatHadir.filter(function (h) {
+      return !S.periodeList.some(function (p) { return String(p.nama).trim() === String(h.ta_nama).trim() && String(p.semester).trim() === String(h.ta_semester).trim(); });
+    }).sort(function (x, y) {
+      if (x.ta_nama !== y.ta_nama) return x.ta_nama < y.ta_nama ? 1 : -1;
+      return x.ta_semester === y.ta_semester ? 0 : (x.ta_semester === 'Gasal' ? -1 : 1);
+    });
+    var lamaHtml = '';
+    if (lama.length) {
+      lamaHtml = '<div class="section-title" style="margin-top:20px;">Tahun ajaran sebelumnya (dari Buku Induk)</div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tahun Ajaran</th><th>Semester</th><th>Kelas</th>' +
+        '<th class="tc-center">Sakit</th><th class="tc-center">Izin</th><th class="tc-center">Alpha</th><th class="tc-center">Total</th></tr></thead><tbody>' +
+        lama.map(function (h) {
+          var sk = h.jumlah_sakit || 0, iz = h.jumlah_izin || 0, al = h.jumlah_alpha || 0;
+          return '<tr><td>' + escapeHtml(h.ta_nama) + '</td><td>' + escapeHtml(h.ta_semester) + '</td><td>' + escapeHtml(h.kelas_nama || '—') + '</td>' +
+            '<td class="tc-center">' + sk + '</td><td class="tc-center">' + iz + '</td><td class="tc-center">' + al + '</td>' +
+            '<td class="tc-center"><b>' + (sk + iz + al) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="panel-note" style="margin-top:12px;">Data ini dicatat wali kelas di Buku Induk untuk semester yang tidak ada di E-Rapor.</div>';
+    }
+
     area.innerHTML = atas +
-      '<div class="section-title" style="margin-top:20px;">Rekap semua semester</div>' +
+      (rows ? '<div class="section-title" style="margin-top:20px;">Rekap semua semester</div>' +
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tahun Ajaran</th><th>Semester</th><th>Kelas</th>' +
       '<th class="tc-center">Sakit</th><th class="tc-center">Izin</th><th class="tc-center">Alpha</th><th class="tc-center">Total</th></tr></thead><tbody>' +
-      (rows || '<tr><td colspan="7">Belum ada data.</td></tr>') + '</tbody></table></div>' +
+      rows + '</tbody></table></div>' : '') +
+      lamaHtml +
       '<div class="panel-note" style="margin-top:12px;">Satuan dalam hari. Kalau ada yang tidak sesuai, hubungi wali kelasmu.</div>';
 
     function stat(label, nilai) {
@@ -1324,6 +1363,12 @@
       (cekError(r[1], 'kelas').data || []).forEach(function (k) { S.kelasMap[k.id] = k; });
       var sk = cekError(r[2], 'penempatan kelas').data || [];
       S.rekap = cekError(r[3], 'presensi').data || [];
+      // Kehadiran tahun ajaran lama (diinput manual wali kelas di Buku Induk). Opsional: bila
+      // migrasi_kehadiran_riwayat_siswa.sql belum dijalankan, bagian ini dilewati tanpa mengganggu menu lain.
+      try {
+        var rh = await supabaseClient.rpc('kehadiran_riwayat_saya');
+        S.riwayatHadir = (!rh.error && rh.data) ? rh.data : [];
+      } catch (e) { S.riwayatHadir = []; }
       var nv = cekError(r[4], 'nilai').data || [];
       // Jika migrasi_terbit_rapor.sql belum dijalankan, tabelnya belum ada -> anggap belum ada yang terbit.
       ((r[5] && !r[5].error && r[5].data) || []).forEach(function (x) { S.terbitPerTA[x.tahun_ajaran_id] = new Date(x.terbit_pada); });
