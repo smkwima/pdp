@@ -282,20 +282,27 @@
     }
   }
 
+  // Halaman bertampilan admin dipakai bersama oleh admin, Kepala Sekolah, dan Pengawas (mode lihat saja),
+  // jadi nama berkas TIDAK cukup untuk menentukan daftar aplikasi: role asli akun yang dipakai.
+  var ROLE_HALAMAN_ADMIN = ['admin', 'kepsek', 'pengawas'];
+
   async function mulai() {
     pasangGaya();
     var roleAkhir = roleDariBerkas;
-    if (roleDariBerkas) {
+    var halamanAdmin = roleDariBerkas === 'admin' || roleDariBerkas === 'kepsek';
+    if (roleDariBerkas && !halamanAdmin) {
       render(roleDariBerkas);
     } else {
-      // pkl / pelanggaran / portal / kinerja: role bergantung akun
+      // halaman admin / pkl / pelanggaran / portal / kinerja: role bergantung akun
       var petunjuk = null;
       try { petunjuk = localStorage.getItem('bnav_role_hint'); } catch (e) { /* abaikan */ }
+      if (halamanAdmin && ROLE_HALAMAN_ADMIN.indexOf(petunjuk) < 0) petunjuk = null; // petunjuk guru/staf tidak berlaku di halaman admin
       if (petunjuk) render(petunjuk); // tampil dulu supaya bar tidak "muncul belakangan"
-      var role = await cariRole();
+      var asli = await cariRole(), role = asli, terbaca = true;
+      if (halamanAdmin && ROLE_HALAMAN_ADMIN.indexOf(asli) < 0) { role = roleDariBerkas; terbaca = false; } // gagal baca akun: pakai menu halaman ini
       roleAkhir = role;
-      try { localStorage.setItem('bnav_role_hint', role); } catch (e) { /* abaikan */ }
-      if (role !== petunjuk) render(role); // tanpa petunjuk: bar baru digambar setelah role diketahui (staf tidak melihat menu guru sekilas)
+      if (terbaca) { try { localStorage.setItem('bnav_role_hint', role); } catch (e) { /* abaikan */ } }
+      if (role !== petunjuk) render(role); // tanpa petunjuk: bar baru digambar setelah role diketahui
     }
     // Catat kunjungan SETELAH bar digambar, supaya pilihan 2 aplikasi tidak berubah di tengah halaman yang sedang dibuka.
     catat(roleAkhir || 'guru', kunciAktif);
