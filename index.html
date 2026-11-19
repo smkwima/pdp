@@ -274,6 +274,11 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
       </div>
     </div>
 
+    <label id="ingatWrap" style="display:none;align-items:center;gap:8px;font-size:13px;margin:0 0 14px;cursor:pointer;">
+      <input type="checkbox" id="ingatSaya" checked style="width:auto;margin:0;">
+      <span>Ingat saya di komputer ini</span>
+    </label>
+
     <button type="submit" class="btn-primary" id="submitBtn">Masuk</button>
 
     <div class="login-card__note" id="loginNote">Siswa masuk dengan NIS. Guru &amp; admin masuk dengan email. Peran ditentukan otomatis berdasarkan akun.</div>
@@ -309,6 +314,52 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
   var note = document.getElementById('loginNote');
   var noteDefault = note.textContent;
 
+  // ===== Aplikasi Windows: tetap masuk tanpa menyimpan kata sandi =====
+  // Sesi login (token Supabase) sudah tersimpan di komputer; halaman ini cukup memeriksanya saat
+  // aplikasi dibuka dan langsung meneruskan ke menu sesuai peran. Kata sandi TIDAK disimpan.
+  // "Ingat saya" dicentang -> sesi dipakai terus. Tidak dicentang -> sesi hanya berlaku selama
+  // aplikasi terbuka; saat aplikasi dibuka lagi, pengguna diminta masuk ulang.
+  var DESKTOP = !!window.pdpDesktop;
+  var KUNCI_INGAT = 'pdp_ingat_saya';     // localStorage: '0' = jangan ingat
+  var KUNCI_SESI = 'pdp_sesi_berjalan';   // sessionStorage: login terjadi pada jalannya aplikasi ini
+
+  async function masukOtomatis() {
+    try {
+      if (window.PdpLihat && PdpLihat.aktif()) return;
+      var ses = await supabaseClient.auth.getSession();
+      var sesi = ses.data && ses.data.session;
+      if (!sesi) return;
+
+      var ingat = true, masihJalan = false;
+      try { ingat = localStorage.getItem(KUNCI_INGAT) !== '0'; } catch (e) { /* abaikan */ }
+      try { masihJalan = sessionStorage.getItem(KUNCI_SESI) === '1'; } catch (e) { /* abaikan */ }
+      if (!ingat && !masihJalan) {
+        // scope local: hanya mengeluarkan komputer ini, bukan perangkat lain.
+        try { await supabaseClient.auth.signOut({ scope: 'local' }); } catch (e) { /* abaikan */ }
+        return;
+      }
+
+      note.textContent = 'Masuk otomatis...';
+      var uid = sesi.user.id;
+      var pr = await supabaseClient.from('profiles').select('role').eq('id', uid).maybeSingle();
+      if (pr.data && pr.data.role) {
+        location.replace(pr.data.role === 'developer' ? 'developer.html' : 'portal.html');
+        return;
+      }
+      var sw = await supabaseClient.from('siswa').select('id').eq('auth_user_id', uid).maybeSingle();
+      if (sw.data) { location.replace('siswa.html'); return; }
+      note.textContent = noteDefault;   // akun tanpa peran: tetap di halaman masuk
+    } catch (e) {
+      note.textContent = noteDefault;
+    }
+  }
+
+  if (DESKTOP) {
+    document.getElementById('ingatWrap').style.display = 'flex';
+    try { document.getElementById('ingatSaya').checked = localStorage.getItem(KUNCI_INGAT) !== '0'; } catch (e) { /* abaikan */ }
+    masukOtomatis();
+  }
+
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -333,6 +384,13 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
     }
 
     var userId = authResult.data.user.id;
+
+    if (DESKTOP) {
+      try {
+        localStorage.setItem(KUNCI_INGAT, document.getElementById('ingatSaya').checked ? '1' : '0');
+        sessionStorage.setItem(KUNCI_SESI, '1');
+      } catch (e) { /* abaikan */ }
+    }
 
     // 2. Ambil role dari tabel profiles berdasarkan id user yang login
     var profileResult = await supabaseClient

@@ -1605,6 +1605,32 @@
   // opsi (opsional): { sembunyi: {kolom:true}, tanpaCatatan: true }
   //   dipakai Portal Siswa: isian internal & catatan wali kelas tidak ikut tercetak.
   var opsiCetak = {};
+  // Nama berkas PDF hasil cetak: "<Jenis> - <Nama Siswa> - <Kelas>".
+  // Dipakai sebagai <title> (nama bawaan "Simpan sebagai PDF" di browser) dan <meta name="pdf-filename">
+  // (dibaca print-patch.js pada aplikasi Windows). Satu siswa -> nama + kelasnya;
+  // banyak siswa -> "Kelas X (N siswa)" bila sekelas, atau "N siswa" bila beda kelas.
+  function namaBerkasCetak(jenis, list, rwRows) {
+    var awal = jenis === 'nilai' ? 'Nilai Buku Induk' : jenis === 'biodata' ? 'Biodata Buku Induk' : 'Buku Induk';
+    function kelasDari(s) {
+      if (s.kelas && s.kelas.nama) return s.kelas.nama;
+      // Siswa tanpa kelas aktif (mis. alumni): pakai kelas terakhir di riwayat semester.
+      var rw = (rwRows || []).filter(function (r) { return r.siswa_id === s.id && r.kelas_nama; })
+        .sort(function (a, b) { return (a.semester_ke || 0) - (b.semester_ke || 0); });
+      return rw.length ? rw[rw.length - 1].kelas_nama : '';
+    }
+    var teks;
+    if (list.length === 1) {
+      teks = awal + ' - ' + (list[0].nama || 'Siswa') + (kelasDari(list[0]) ? ' - ' + kelasDari(list[0]) : '');
+    } else {
+      var kls = {}, n = 0;
+      list.forEach(function (s) { var k = kelasDari(s); if (!kls[k]) { kls[k] = 1; n++; } });
+      var tunggal = n === 1 ? Object.keys(kls)[0] : '';
+      teks = awal + ' - ' + (tunggal ? 'Kelas ' + tunggal + ' (' + list.length + ' siswa)' : list.length + ' siswa');
+    }
+    // Buang karakter terlarang di nama berkas Windows/macOS/Linux.
+    return teks.replace(/[<>:"\/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
+  }
+
   BI.cetak = async function (list, jenis, opsi) {
     jenis = jenis || 'lengkap';
     opsiCetak = opsi || {};
@@ -1631,7 +1657,8 @@
 
       var css = cssCetak();
       w.document.open();
-      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + (jenis === 'nilai' ? 'Nilai' : jenis === 'biodata' ? 'Biodata' : 'Buku Induk') + '</title><style>' + css + '</style></head><body>' + halaman + '</body></html>');
+      var namaBerkas = namaBerkasCetak(jenis, list, rwRows);
+      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(namaBerkas) + '</title><meta name="pdf-filename" content="' + esc(namaBerkas) + '"><style>' + css + '</style></head><body>' + halaman + '</body></html>');
       w.document.close();
       w.focus();
       // Tunggu semua foto (dari Storage) selesai dimuat sebelum dialog cetak dibuka (maks 10 dtk).
