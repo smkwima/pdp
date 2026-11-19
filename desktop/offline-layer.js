@@ -149,12 +149,12 @@
   function css() {
     var s = document.createElement('style');
     s.textContent =
-      '#pdpNet{position:fixed;right:14px;bottom:14px;z-index:2147483000;font:600 12px/1.2 "Plus Jakarta Sans",Segoe UI,Arial,sans-serif}' +
+      '#pdpNet{position:fixed;left:14px;bottom:14px;z-index:2147483000;font:600 12px/1.2 "Plus Jakarta Sans",Segoe UI,Arial,sans-serif}' +
       '#pdpNet button.pill{display:flex;align-items:center;gap:7px;border:0;border-radius:999px;padding:8px 13px;color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.28);font:inherit}' +
       '#pdpNet .dot{width:9px;height:9px;border-radius:50%;background:#fff;flex:none}' +
       '#pdpNet.on button.pill{background:#16a34a}#pdpNet.off button.pill{background:#dc2626}#pdpNet.sync button.pill{background:#d97706}' +
       '#pdpNet.sync .dot{animation:pdpBlink 1s infinite}@keyframes pdpBlink{50%{opacity:.25}}' +
-      '#pdpNet .panel{position:absolute;right:0;bottom:44px;width:330px;max-height:60vh;overflow:auto;background:#fff;color:#0f172a;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.3);padding:14px;display:none;font-weight:500}' +
+      '#pdpNet .panel{position:absolute;left:0;bottom:44px;width:330px;max-height:60vh;overflow:auto;background:#fff;color:#0f172a;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.3);padding:14px;display:none;font-weight:500}' +
       '#pdpNet .panel.open{display:block}#pdpNet h4{margin:0 0 6px;font-size:13px}#pdpNet p{margin:0 0 8px;color:#475569}' +
       '#pdpNet ul{list-style:none;margin:0 0 8px;padding:0}#pdpNet li{padding:6px 8px;border-radius:8px;background:#f1f5f9;margin-bottom:4px;font-size:11.5px}' +
       '#pdpNet li.gagal{background:#fee2e2}#pdpNet li small{display:block;color:#64748b;word-break:break-word}' +
