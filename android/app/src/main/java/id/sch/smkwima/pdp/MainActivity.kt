@@ -19,10 +19,12 @@ import android.print.PrintJob
 import android.print.PrintManager
 import android.provider.MediaStore
 import android.util.Base64
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.JsResult
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -36,6 +38,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -53,6 +56,7 @@ import org.json.JSONObject
  *  - Unduh PDF / Excel / gambar dari halaman -> tersimpan di folder Download.
  *  - Upload foto / berkas lewat pemilih berkas Android.
  *  - Sesi login tetap tersimpan (index.html masuk otomatis).
+ *  - Gestur: tarik ke bawah + tahan = muat ulang; geser kanan/kiri = kembali; geser kanan/kiri + tahan = keluar.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -147,6 +151,150 @@ class MainActivity : AppCompatActivity() {
   }, true);
 })();
 """
+
+        // Gestur sentuh (ditanam ke halaman portal, idempoten):
+        //  - Tarik ke bawah dari paling atas halaman, lalu TAHAN sebentar  -> muat ulang.
+        //  - Geser ke kanan / kiri lalu lepas                               -> kembali (halaman sebelumnya).
+        //  - Geser ke kanan / kiri sampai melewati batas, lalu TAHAN        -> keluar dari aplikasi.
+        // Gestur tidak aktif bila sentuhan dimulai di kolom isian, tabel/area yang bisa digeser menyamping,
+        // atau saat halaman/area sedang tergulir ke bawah (supaya tidak bentrok dengan scroll biasa).
+        private const val JS_GESTUR = """
+(function () {
+  if (window.__pdpGestur) return;
+  window.__pdpGestur = true;
+
+  var JARAK_TARIK = 90, TAHAN_MUAT = 600, TAHAN_KELUAR = 650, KUNCI_ARAH = 12;
+  var s = null, el = null, bar = null, lab = null;
+
+  function buat() {
+    if (el && el.isConnected) return;
+    var st = document.createElement('style');
+    st.textContent = '#pdpGes{position:fixed;z-index:2147483647;pointer-events:none;display:none;overflow:hidden;' +
+      'padding:9px 16px 11px;border-radius:999px;background:rgba(15,23,42,.92);color:#fff;' +
+      'font:600 13px/1.2 Segoe UI,Roboto,Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.3);white-space:nowrap}' +
+      '#pdpGes i{position:absolute;left:0;bottom:0;height:3px;width:0;background:#38bdf8}' +
+      '@media print{#pdpGes{display:none!important}}';
+    (document.head || document.documentElement).appendChild(st);
+    el = document.createElement('div');
+    el.id = 'pdpGes';
+    el.setAttribute('data-pdp-noprint', '');
+    lab = document.createElement('span');
+    bar = document.createElement('i');
+    el.appendChild(lab); el.appendChild(bar);
+    (document.body || document.documentElement).appendChild(el);
+  }
+
+  function tampil(vertikal, teks, geser, kiri) {
+    buat();
+    lab.textContent = teks;
+    el.style.display = 'block';
+    if (vertikal) {
+      el.style.top = 'calc(env(safe-area-inset-top, 0px) + 10px)';
+      el.style.bottom = 'auto'; el.style.left = '50%'; el.style.right = 'auto';
+      el.style.transform = 'translate(-50%,' + geser + 'px)';
+    } else {
+      el.style.top = '50%'; el.style.bottom = 'auto';
+      el.style.transform = 'translateY(-50%)';
+      if (kiri) { el.style.left = '12px'; el.style.right = 'auto'; }
+      else { el.style.right = '12px'; el.style.left = 'auto'; }
+    }
+  }
+
+  function sembunyi() { if (el) el.style.display = 'none'; resetBar(); }
+  function resetBar() { if (bar) { bar.style.transition = 'none'; bar.style.width = '0'; } }
+
+  function mulai(ms, aksi) {
+    if (s.timer) return;
+    if (bar) {
+      bar.style.transition = 'none'; bar.style.width = '0';
+      void bar.offsetWidth;
+      bar.style.transition = 'width ' + ms + 'ms linear'; bar.style.width = '100%';
+    }
+    s.timer = setTimeout(function () {
+      if (!s) return;
+      s.fired = true; s.timer = null;
+      try { AndroidApp.tik(); } catch (e) {}
+      sembunyi();
+      try { AndroidApp.gestur(aksi); } catch (e) {}
+    }, ms);
+  }
+  function batal() { if (s && s.timer) { clearTimeout(s.timer); s.timer = null; } resetBar(); }
+
+  function adaScrollX(n) {
+    while (n && n !== document.body && n !== document.documentElement) {
+      if (n.nodeType === 1) {
+        var ox = getComputedStyle(n).overflowX;
+        if ((ox === 'auto' || ox === 'scroll') && n.scrollWidth > n.clientWidth + 2) return true;
+      }
+      n = n.parentNode;
+    }
+    return false;
+  }
+  function sudahTergulir(n) {
+    var d = document.scrollingElement || document.documentElement;
+    if (d && d.scrollTop > 0) return true;
+    while (n && n !== document.body && n !== document.documentElement) {
+      if (n.nodeType === 1) {
+        var oy = getComputedStyle(n).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && n.scrollTop > 0) return true;
+      }
+      n = n.parentNode;
+    }
+    return false;
+  }
+  function isian(n) {
+    return !!(n && n.closest && n.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],canvas,iframe,video'));
+  }
+
+  function awal(e) {
+    s = null;
+    if (e.touches.length !== 1) return;
+    var t = e.touches[0], n = e.target;
+    if (isian(n)) return;
+    var sel = ''; try { sel = String(window.getSelection()); } catch (x) {}
+    if (sel) return;
+    s = { x: t.clientX, y: t.clientY, mode: null, timer: null, fired: false,
+          boleh_sisi: !adaScrollX(n), boleh_tarik: !sudahTergulir(n) };
+  }
+
+  function gerak(e) {
+    if (!s || s.fired) return;
+    if (e.touches.length !== 1) { batal(); sembunyi(); s = null; return; }
+    var t = e.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y, ax = Math.abs(dx), ay = Math.abs(dy);
+    if (!s.mode) {
+      if (Math.max(ax, ay) < KUNCI_ARAH) return;
+      if (s.boleh_tarik && dy > 0 && dy > ax * 1.5) s.mode = 'tarik';
+      else if (s.boleh_sisi && ax > ay * 1.5) s.mode = 'sisi';
+      else s.mode = 'abaikan';
+    }
+    if (s.mode === 'tarik') {
+      var geser = Math.min(dy * 0.35, 60);
+      if (dy >= JARAK_TARIK) { tampil(true, 'Tahan untuk muat ulang\u2026', geser); mulai(TAHAN_MUAT, 'muatulang'); }
+      else { batal(); if (dy > 25) tampil(true, '\u2193 Tarik terus', geser); }
+    } else if (s.mode === 'sisi') {
+      var batas = Math.max(70, window.innerWidth * 0.22), kiri = dx < 0;
+      if (ax >= batas) { tampil(false, 'Lepas: kembali \u00b7 Tahan: keluar', 0, kiri); mulai(TAHAN_KELUAR, 'keluar'); }
+      else { batal(); if (ax > 30) tampil(false, '\u2039 Kembali', 0, kiri); }
+    }
+  }
+
+  function akhir(e) {
+    if (!s) return;
+    var mode = s.mode, fired = s.fired, t = e.changedTouches && e.changedTouches[0];
+    var ax = t ? Math.abs(t.clientX - s.x) : 0;
+    batal(); sembunyi();
+    var batas = Math.max(70, window.innerWidth * 0.22);
+    var cancel = e.type === 'touchcancel';
+    s = null;
+    if (!cancel && !fired && mode === 'sisi' && ax >= batas) { try { AndroidApp.gestur('kembali'); } catch (x) {} }
+  }
+
+  document.addEventListener('touchstart', awal, { passive: true, capture: true });
+  document.addEventListener('touchmove', gerak, { passive: true, capture: true });
+  document.addEventListener('touchend', akhir, { passive: true, capture: true });
+  document.addEventListener('touchcancel', akhir, { passive: true, capture: true });
+})();
+"""
     }
 
     private lateinit var root: FrameLayout
@@ -203,18 +351,21 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                when {
-                    popup != null -> tutupPopup()
-                    web.canGoBack() -> web.goBack()
-                    else -> {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
+                if (!kembaliHalaman()) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
                 }
             }
         })
 
         web.loadUrl(URL_AWAL)
+    }
+
+    // Mundur satu langkah (popup -> riwayat WebView). false bila sudah tidak ada yang bisa dimundurkan.
+    private fun kembaliHalaman(): Boolean = when {
+        popup != null -> { tutupPopup(); true }
+        web.canGoBack() -> { web.goBack(); true }
+        else -> false
     }
 
     override fun onResume() {
@@ -470,6 +621,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun tik() {
+            if (!halamanAman) return
+            runOnUiThread { web.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+        }
+
+        // Aksi dari gestur sentuh (lihat JS_GESTUR): muat ulang, kembali, keluar.
+        @JavascriptInterface
+        fun gestur(aksi: String?) {
+            if (!halamanAman) return
+            runOnUiThread {
+                when (aksi) {
+                    "muatulang" -> web.reload()
+                    "kembali" -> if (!kembaliHalaman()) {
+                        Toast.makeText(this@MainActivity, "Sudah di halaman awal", Toast.LENGTH_SHORT).show()
+                    }
+                    "keluar" -> finishAndRemoveTask()
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun pesan(teks: String?) {
             if (!halamanAman) return
             val t = teks ?: return
@@ -499,7 +671,10 @@ class MainActivity : AppCompatActivity() {
 
         override fun onPageFinished(view: WebView, url: String?) {
             halamanAman = sehost(url)
-            if (halamanAman) view.evaluateJavascript(JS_TAMBAL, null)
+            if (halamanAman) {
+                view.evaluateJavascript(JS_TAMBAL, null)
+                view.evaluateJavascript(JS_GESTUR, null)
+            }
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -537,6 +712,18 @@ class MainActivity : AppCompatActivity() {
                 callback.onReceiveValue(null)
                 true
             }
+        }
+
+        // Halaman menandai "perubahan belum disimpan" (beforeunload) -> tanyakan dulu saat muat ulang / kembali.
+        override fun onJsBeforeUnload(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Perubahan belum disimpan")
+                .setMessage("Jika Anda meninggalkan atau memuat ulang halaman ini, perubahan yang belum disimpan akan hilang.")
+                .setPositiveButton("Tinggalkan") { _, _ -> result.confirm() }
+                .setNegativeButton("Tetap di sini") { _, _ -> result.cancel() }
+                .setOnCancelListener { result.cancel() }
+                .show()
+            return true
         }
 
         @SuppressLint("SetJavaScriptEnabled")
