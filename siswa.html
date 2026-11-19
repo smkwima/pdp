@@ -320,7 +320,16 @@
   // Rapor baru boleh dilihat jika sudah diterbitkan admin DAN waktu terbit sudah lewat.
   // (Pembatasan sebenarnya ada di database/RLS; ini hanya untuk pesan di layar.)
   function waktuTerbit(taId) { return S.terbitPerTA[taId] || null; }
+  // Semester LAMPAU (sebelum semester aktif) selalu boleh dilihat tanpa menunggu penerbitan.
+  // Semester AKTIF (dan setelahnya) baru terbuka setelah diterbitkan admin.
+  function periodeLampau(taId) {
+    var a = S.tahunAktif, p = periodeById(taId);
+    if (!a || !p || p.id === a.id) return false;
+    if (p.nama !== a.nama) return p.nama < a.nama;
+    return a.semester === 'Genap' && p.semester === 'Gasal';
+  }
   function raporSudahTerbit(taId) {
+    if (periodeLampau(taId)) return true;
     var w = waktuTerbit(taId);
     return !!w && w.getTime() <= Date.now();
   }
@@ -438,7 +447,7 @@
       '<div class="sw-cards">' +
       kartu('biodata', 'app-card--kuning', 'book-user', 'Lihat Biodata Buku Induk', 'Data diri, orang tua, dan riwayat pendidikan yang tercatat di Buku Induk sekolah.') +
       kartu('kartu', 'app-card--hijau', 'id-card', 'Kartu Pelajar Digital', 'Kartu pelajar depan-belakang lengkap dengan foto. Bisa dicetak atau diunduh sebagai gambar.') +
-      kartu('rapor', '', 'file-text', 'Lihat Rapor', 'Nilai, capaian kompetensi, ekstrakurikuler, dan ketidakhadiran. Tersedia setelah rapor diterbitkan sekolah.') +
+      kartu('rapor', '', 'file-text', 'Lihat Rapor', 'Nilai, capaian kompetensi, ekstrakurikuler, dan ketidakhadiran. Semester berjalan tersedia setelah rapor diterbitkan sekolah; semester sebelumnya selalu bisa dilihat.') +
       kartu('presensi', 'app-card--hijau', 'calendar-check', 'Lihat Presensi', 'Rekap sakit, izin, dan tanpa keterangan per tahun ajaran dan semester.') +
       kartu('pelanggaran', 'app-card--merah', 'shield-alert', 'Lihat Catatan Pelanggaran', 'Catatan pelanggaran dan pembinaan kedisiplinan dari sekolah, lengkap dengan poinnya.') +
       kartu('pengaduan', 'app-card--merah', 'megaphone', 'Pengaduan', 'Lapor bullying atau pelanggaran lain. Laporan hanya dibaca Admin dan Kepala Sekolah.') +
