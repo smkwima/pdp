@@ -1,0 +1,35 @@
+{
+  "name": "pdp-desktop",
+  "version": "1.0.0",
+  "description": "Portal Data dan Penilaian SMK Widya Mandala Tambak (aplikasi Windows)",
+  "author": "SMK Widya Mandala Tambak",
+  "main": "main.js",
+  "scripts": {
+    "prepare-app": "node scripts/prepare.js",
+    "start": "npm run prepare-app && electron .",
+    "dist": "npm run prepare-app && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "id.sch.smkwima.pdp",
+    "productName": "PDP Wima",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "app/**/*"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDP Wima",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
