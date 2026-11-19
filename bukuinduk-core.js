@@ -1435,10 +1435,9 @@
     var lg = legerHtml(rows);
     el.innerHTML =
       '<div class="toolbar" style="margin-top:6px;">' +
-      (bolehUbah ? '<button class="btn-small btn-small--primary" id="biTarik">⟳ Tarik Ulang dari E-Rapor</button>' +
-        '<button class="btn-small" id="biTambahManual">+ Tambah Semester Manual</button>' : '') + '</div>' +
+      (bolehUbah ? '<button class="btn-small btn-small--primary" id="biTarik">⟳ Tarik Ulang dari E-Rapor</button>' : '') + '</div>' +
       '<div class="panel-note">Data nilai, kehadiran, ekstrakurikuler & kokurikuler di bawah diambil dari E-Rapor dan diarsipkan di Buku Induk. Nilai akhir PKL (rata-rata nilai DUDI & penguji) masuk sebagai mata pelajaran pada semester 6. ' +
-      'Semester yang diisi/diubah manual dikunci dan tidak ditimpa saat tarik ulang.</div>' +
+      'Mata pelajaran hanya berasal dari E-Rapor. Semester tahun lama yang tidak ada di E-Rapor diisi lewat menu "Isi Semester Terlewat" (Excel) dan dikunci, tidak ditimpa saat tarik ulang.</div>' +
       (rows.length ? (lg ? '<div class="section-title">Nilai Rapor per Semester</div><div class="table-wrap"><table class="data-table"><thead>' + lg.head + '</thead><tbody>' + lg.body + '</tbody></table></div>' : '') +
         '<div class="section-title" style="margin-top:20px;">Kehadiran, Ekstrakurikuler & Catatan</div>' +
         '<div class="table-wrap"><table class="data-table"><thead><tr><th>Smt</th><th>Kelas</th><th>Tahun Ajaran</th><th>S</th><th>I</th><th>A</th><th>Ekstrakurikuler</th><th>Sumber</th><th></th></tr></thead><tbody>' +
@@ -1450,7 +1449,7 @@
             '<td style="white-space:nowrap;">' + (bolehUbah ? '<button class="btn-small" data-ubah="' + r.id + '">Ubah</button> <button class="btn-small btn-small--danger" data-hapus="' + r.id + '">Hapus</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table></div>' + kokuLayarHtml(rows)
         : '<div class="empty-state"><div class="empty-state__mark">！</div><div class="empty-state__title">Belum ada data semester</div>' +
-        '<div class="empty-state__desc">Belum ada nilai atau presensi di E-Rapor untuk siswa ini. Isi dulu di E-Rapor, atau tambahkan semester secara manual.</div></div>');
+        '<div class="empty-state__desc">Belum ada nilai atau presensi di E-Rapor untuk siswa ini. Isi dulu nilainya di E-Rapor, atau untuk semester tahun lama gunakan menu "Isi Semester Terlewat".</div></div>');
 
     var btnTarik = el.querySelector('#biTarik');
     if (btnTarik) btnTarik.addEventListener('click', async function () {
@@ -1461,8 +1460,6 @@
       } catch (e) { alert('Gagal menarik data: ' + pesanError(e)); }
       renderPerkembangan(el, s, bolehUbah);
     });
-    var btnManual = el.querySelector('#biTambahManual');
-    if (btnManual) btnManual.addEventListener('click', function () { modalSemester(s, null, function () { renderPerkembangan(el, s, bolehUbah); }); });
     el.querySelectorAll('[data-ubah]').forEach(function (b) {
       b.addEventListener('click', function () {
         var r = rows.find(function (x) { return x.id === b.dataset.ubah; });
@@ -1486,9 +1483,9 @@
     var ekTeks = r ? (r.ekskul || []).map(function (e) { return e.nama + (e.predikat ? ' | ' + e.predikat : ''); }).join('\n') : '';
     var kokuTeks = r ? (r.kokurikuler || []).map(function (k) { return (k.nama || '') + ' | ' + (k.deskripsi || '').replace(/\n/g, ' '); }).join('\n') : '';
     var taBawaan = BI.ctx.ta ? BI.ctx.ta.nama : '';
-    o.innerHTML = '<div class="modal-box"><div class="modal-box__head"><div class="modal-box__title">' + (r ? 'Ubah' : 'Tambah') + ' Semester Manual</div>' +
+    o.innerHTML = '<div class="modal-box"><div class="modal-box__head"><div class="modal-box__title">' + (r ? 'Ubah' : 'Tambah') + ' Semester</div>' +
       '<button class="modal-box__close" type="button" data-x>×</button></div>' +
-      '<div class="modal-box__desc">Dipakai untuk data yang tidak ada di E-Rapor (tahun lama, siswa pindahan). Baris yang disimpan di sini dikunci dan tidak ditimpa saat tarik dari E-Rapor.</div>' +
+      '<div class="modal-box__desc">Nama mata pelajaran harus sama dengan yang ada di E-Rapor; nama yang tidak dikenal akan ditolak. Baris yang disimpan di sini dikunci dan tidak ditimpa saat tarik dari E-Rapor.</div>' +
       '<div class="form-grid">' +
       '<div class="field"><label>Tahun Ajaran</label><input type="text" id="msTa" placeholder="2023/2024" value="' + esc(r ? r.ta_nama : taBawaan) + '"' + (r ? ' disabled' : '') + '></div>' +
       '<div class="field"><label>Semester</label><select id="msSem"' + (r ? ' disabled' : '') + '><option>Gasal</option><option' + (r && r.ta_semester === 'Genap' ? ' selected' : '') + '>Genap</option></select></div>' +
@@ -1513,13 +1510,25 @@
       if (!/^\d{4}\/\d{4}$/.test(ta)) { alert('Tahun ajaran harus berformat 2023/2024.'); return; }
       var ke = o.querySelector('#msKe').value ? Number(o.querySelector('#msKe').value) : null;
       if (ke !== null && (ke < 1 || ke > 6)) { alert('Semester ke- harus 1 sampai 6.'); return; }
-      var nilai = [];
+      var nilai = [], tidakDikenal = [];
+      var master = await ambilMapel(), mmKey = {};
+      Object.keys(master).forEach(function (id) {
+        var m = master[id], k = kunciMapel(m.nama).toLowerCase().replace(/\s+/g, ' ').trim();
+        var u = urutMapel(m);
+        if (!mmKey[k] || u < mmKey[k].urut) mmKey[k] = { nama: m.nama, kode: /pendidikan\s+agama/i.test(m.nama) ? null : (m.kode || null), kkm: m.kkm, urut: u };
+      });
       o.querySelector('#msNilai').value.split('\n').forEach(function (ln, idx) {
         var p = ln.split('|');
         if (p.length < 2 || !p[0].trim()) return;
         var n = Number(String(p[1]).trim().replace(',', '.'));
-        if (!isNaN(n)) nilai.push({ mapel: p[0].trim(), kode: null, nilai: n, kkm: null, urut: idx + 1 });
+        if (isNaN(n)) return;
+        var nm = p[0].trim();
+        if (adalahPkl(nm)) { nilai.push({ mapel: PKL_NAMA, kode: 'PKL', nilai: n, kkm: null, urut: 9998 }); return; }
+        var info = mmKey[kunciMapel(nm).toLowerCase().replace(/\s+/g, ' ').trim()];
+        if (!info) { tidakDikenal.push(nm); return; }
+        nilai.push({ mapel: namaMapelUntukSiswa(info.nama, s.agama), kode: info.kode, nilai: n, kkm: info.kkm, urut: info.urut });
       });
+      if (tidakDikenal.length) { alert('Mata pelajaran berikut tidak ada di E-Rapor, jadi tidak bisa disimpan:\n\n• ' + tidakDikenal.join('\n• ') + '\n\nPerbaiki penulisannya agar sama dengan E-Rapor, atau hapus barisnya.'); return; }
       var ekskul = [];
       o.querySelector('#msEks').value.split('\n').forEach(function (ln) {
         var p = ln.split('|');
@@ -2590,7 +2599,9 @@
       (!opts.kelasId ? '<div class="field" style="margin-bottom:0;"><label>Cakupan</label><select id="sinCakupan"><option value="aktif">Semua siswa aktif</option><option value="semua">Semua siswa (termasuk lulus/pindah)</option>' +
         kelasList.map(function (k) { return '<option value="' + k.id + '">Kelas ' + esc(k.nama) + '</option>'; }).join('') + '</select></div>' : '') +
       '<button class="btn-small btn-small--primary" id="sinMulai">⟳ Tarik dari E-Rapor</button></div>' +
-      '<div id="sinHasil"></div>';
+      '<div id="sinHasil"></div>' +
+      (!opts.kelasId ? '<div id="auditMapel"></div>' : '');
+    if (!opts.kelasId) BI.pasangAuditMapel(root.querySelector('#auditMapel'));
     root.querySelector('#sinMulai').addEventListener('click', async function () {
       var btn = this, out = root.querySelector('#sinHasil');
       btn.disabled = true;
@@ -2608,6 +2619,124 @@
           h.dilewatiKunci + ' semester dilewati (dikunci/manual)\n' + h.tanpaData + ' semester dilewati (belum ada nilai/presensi di E-Rapor)' +
           (h.pklBelumSemester6 ? '\n' + h.pklBelumSemester6 + ' siswa punya nilai PKL tetapi belum punya semester 6 di E-Rapor (PKL belum ditaruh)' : '') + '</div>';
       } catch (e) { out.innerHTML = '<div class="import-summary" style="color:var(--danger);">Gagal: ' + esc(pesanError(e)) + '</div>'; }
+      btn.disabled = false;
+    });
+  };
+
+  // ================= Audit mapel arsip yang tidak ada di E-Rapor (admin) =================
+  // Memeriksa semua nama mapel di bi_riwayat_semester terhadap tabel mata_pelajaran E-Rapor.
+  // Mapel yang tidak dikenal bisa diganti ke mapel E-Rapor yang benar, atau dihapus dari arsip.
+  function normMapel(n) { return kunciMapel(String(n || '')).toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function bigram(t) { var o = {}; t = ' ' + t + ' '; for (var i = 0; i < t.length - 1; i++) { var b = t.substr(i, 2); o[b] = (o[b] || 0) + 1; } return o; }
+  function mirip(a, b) {
+    var x = bigram(a), y = bigram(b), irisan = 0, nx = 0, ny = 0;
+    Object.keys(x).forEach(function (k) { nx += x[k]; if (y[k]) irisan += Math.min(x[k], y[k]); });
+    Object.keys(y).forEach(function (k) { ny += y[k]; });
+    return nx + ny ? (2 * irisan) / (nx + ny) : 0;
+  }
+
+  BI.pasangAuditMapel = function (el) {
+    if (!el) return;
+    el.innerHTML =
+      '<div class="section-title" style="margin-top:26px;">Periksa Mapel yang Tidak Ada di E-Rapor</div>' +
+      '<div class="panel-note" style="margin-top:-4px;">Mencari nama mata pelajaran di arsip Buku Induk yang tidak terdaftar di E-Rapor (mis. hasil input manual lama). Tiap nama bisa diganti ke mapel E-Rapor yang benar atau dihapus dari arsip. Data di E-Rapor tidak diubah.</div>' +
+      '<div class="toolbar"><button class="btn-small btn-small--primary" id="audPeriksa">Periksa Arsip</button></div>' +
+      '<div id="audHasil"></div>';
+    var hasil = el.querySelector('#audHasil');
+
+    el.querySelector('#audPeriksa').addEventListener('click', async function () {
+      var btn = this; btn.disabled = true;
+      hasil.innerHTML = '<div class="panel-note">Memeriksa arsip...</div>';
+      try {
+        cacheMapel = null;
+        var master = await ambilMapel(), set = {}, pilihan = {};
+        Object.keys(master).forEach(function (id) {
+          var m = master[id];
+          if (adalahPkl(m.nama)) return;
+          var k = normMapel(m.nama), u = urutMapel(m);
+          set[k] = true;
+          if (!pilihan[k] || u < pilihan[k].urut) pilihan[k] = { key: k, nama: kunciMapel(m.nama), asli: m.nama, kode: /pendidikan\s+agama/i.test(m.nama) ? null : (m.kode || null), kkm: m.kkm, urut: u };
+        });
+        var daftarPilihan = Object.keys(pilihan).map(function (k) { return pilihan[k]; }).sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+
+        var arsip = await pageAll(function (a, b) {
+          return sb().from('bi_riwayat_semester').select('id, siswa_id, ta_nama, ta_semester, nilai, sumber').order('id').range(a, b);
+        });
+        var orfan = {};
+        arsip.forEach(function (r) {
+          (r.nilai || []).forEach(function (n) {
+            if (adalahPkl(n.mapel)) return;
+            var k = normMapel(n.mapel);
+            if (!k || set[k]) return;
+            var o = orfan[k] = orfan[k] || { key: k, nama: n.mapel, baris: 0, siswa: {}, sem: {}, manual: 0 };
+            o.baris++; o.siswa[r.siswa_id] = true; o.sem[r.ta_nama + ' ' + r.ta_semester] = true;
+            if (r.sumber === 'manual') o.manual++;
+          });
+        });
+        var daftar = Object.keys(orfan).map(function (k) { return orfan[k]; }).sort(function (a, b) { return b.baris - a.baris; });
+        if (!daftar.length) { hasil.innerHTML = '<div class="import-summary">Semua nama mapel di arsip (' + arsip.length + ' semester) sudah sesuai dengan E-Rapor. Tidak ada yang perlu dibereskan.</div>'; btn.disabled = false; return; }
+
+        var opsiGanti = daftarPilihan.map(function (m) { return '<option value="g:' + esc(m.key) + '">' + esc(m.nama) + '</option>'; }).join('');
+        hasil.innerHTML =
+          '<div class="import-summary">' + daftar.length + ' nama mapel tidak ada di E-Rapor (dari ' + arsip.length + ' semester yang diperiksa).\nPilih tindakan untuk tiap nama lalu klik "Terapkan". Yang dibiarkan tidak diubah.</div>' +
+          '<div class="table-wrap"><table class="data-table"><thead><tr><th>Nama di arsip</th><th>Dipakai</th><th>Tindakan</th></tr></thead><tbody>' +
+          daftar.map(function (o, i) {
+            var terbaik = null, skor = 0;
+            daftarPilihan.forEach(function (m) { var v = mirip(o.key, m.key); if (v > skor) { skor = v; terbaik = m; } });
+            var sel = (terbaik && skor >= 0.6) ? 'g:' + terbaik.key : '';
+            return '<tr><td>' + esc(o.nama) + '</td><td style="font-size:12px;">' + o.baris + ' nilai · ' + Object.keys(o.siswa).length + ' siswa · ' + Object.keys(o.sem).length + ' semester' + (o.manual ? ' (' + o.manual + ' manual)' : '') + '</td>' +
+              '<td><select data-aud="' + i + '" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;font:inherit;max-width:320px;">' +
+              '<option value="">— biarkan —</option><option value="hapus">Hapus dari arsip</option>' +
+              '<optgroup label="Ganti ke mapel E-Rapor">' + opsiGanti.replace('value="' + sel + '"', 'value="' + sel + '" selected') + '</optgroup></select>' +
+              (sel ? ' <span style="font-size:11.5px;color:var(--ink-soft);">(saran)</span>' : '') + '</td></tr>';
+          }).join('') + '</tbody></table></div>' +
+          '<div class="toolbar"><button class="btn-small btn-small--primary" id="audTerapkan">Terapkan</button></div><div id="audOut"></div>';
+
+        hasil.querySelector('#audTerapkan').addEventListener('click', async function () {
+          var tb = this, out = hasil.querySelector('#audOut');
+          var aksi = {}; var nGanti = 0, nHapus = 0;
+          hasil.querySelectorAll('[data-aud]').forEach(function (sl) {
+            if (!sl.value) return;
+            aksi[daftar[Number(sl.dataset.aud)].key] = sl.value;
+            if (sl.value === 'hapus') nHapus++; else nGanti++;
+          });
+          if (!nGanti && !nHapus) { out.innerHTML = '<div class="panel-note">Belum ada tindakan yang dipilih.</div>'; return; }
+          if (!confirm('Terapkan perubahan ke arsip Buku Induk?\n\n' + nGanti + ' nama diganti, ' + nHapus + ' nama dihapus.\nNilai pada mapel yang dihapus ikut hilang dari arsip (data di E-Rapor tidak terpengaruh).')) return;
+          tb.disabled = true; out.innerHTML = '<div class="panel-note">Menerapkan...</div>';
+          try {
+            var sisIds = {};
+            arsip.forEach(function (r) { (r.nilai || []).forEach(function (n) { if (aksi[normMapel(n.mapel)]) sisIds[r.siswa_id] = true; }); });
+            var agamaBy = {};
+            var sis = await inChunks(Object.keys(sisIds), function (pp, a, b) { return sb().from('siswa').select('id, agama').in('id', pp).order('id').range(a, b); });
+            sis.forEach(function (x) { agamaBy[x.id] = x.agama; });
+
+            var diubah = 0, gagal = [], bentrok = 0;
+            for (var i = 0; i < arsip.length; i++) {
+              var r = arsip[i], berubah = false, baru = [], ada = {};
+              (r.nilai || []).forEach(function (n) { if (!aksi[normMapel(n.mapel)]) ada[normMapel(n.mapel)] = true; });
+              (r.nilai || []).forEach(function (n) {
+                var a = aksi[normMapel(n.mapel)];
+                if (adalahPkl(n.mapel) || !a) { baru.push(n); return; }
+                berubah = true;
+                if (a === 'hapus') return;
+                var tujuan = pilihan[a.slice(2)];
+                if (!tujuan) { baru.push(n); return; }
+                if (ada[tujuan.key]) { bentrok++; return; } // sudah ada nilai mapel itu di semester ini, jangan ditimpa
+                ada[tujuan.key] = true;
+                baru.push({ mapel: namaMapelUntukSiswa(tujuan.asli, agamaBy[r.siswa_id]), kode: tujuan.kode, nilai: n.nilai, kkm: tujuan.kkm, urut: tujuan.urut });
+              });
+              if (!berubah) continue;
+              baru.sort(function (x, y) { return ((x.urut == null ? 9999 : x.urut) - (y.urut == null ? 9999 : y.urut)) || String(x.mapel).localeCompare(String(y.mapel)); });
+              var up = await sb().from('bi_riwayat_semester').update({ nilai: baru, updated_by: BI.ctx.userId, updated_at: new Date().toISOString() }).eq('id', r.id);
+              if (up.error) gagal.push(r.ta_nama + ' ' + r.ta_semester + ': ' + pesanError(up.error)); else diubah++;
+            }
+            out.innerHTML = '<div class="import-summary"' + (gagal.length ? ' style="color:var(--danger);"' : '') + '>Selesai. ' + diubah + ' semester diperbarui.' +
+              (bentrok ? '\n' + bentrok + ' nilai dilewati karena mapel tujuan sudah ada nilainya di semester yang sama.' : '') +
+              (gagal.length ? '\n' + gagal.length + ' gagal:\n' + gagal.slice(0, 10).join('\n') : '') + '\nKlik "Periksa Arsip" lagi untuk memastikan.</div>';
+          } catch (e) { out.innerHTML = '<div class="import-summary" style="color:var(--danger);">Gagal: ' + esc(pesanError(e)) + '</div>'; }
+          tb.disabled = false;
+        });
+      } catch (e) { hasil.innerHTML = '<div class="import-summary" style="color:var(--danger);">Gagal memeriksa: ' + esc(pesanError(e)) + '</div>'; }
       btn.disabled = false;
     });
   };
@@ -2682,7 +2811,7 @@
   // Impor: disimpan ke arsip Buku Induk (bi_riwayat_semester) sebagai semester MANUAL (dikunci),
   // sama seperti tombol "+ Tambah Semester Manual", tetapi untuk satu kelas sekaligus.
   var NS_SHEET = 'Nilai Semester';
-  var NS_TAMBAHAN = 3;
+  var NS_TAMBAHAN = 0; // kolom "Mapel Tambahan" dihapus: mapel hanya boleh yang ada di E-Rapor
   var NS_EKSKUL = 5; // jumlah pasangan kolom Ekstrakurikuler N + Predikat Ekstrakurikuler N di template
   function semesterDariKe(ke) { return ke % 2 === 1 ? 'Gasal' : 'Genap'; }
   function urutMapel(m) { return m.urutan_leger != null ? m.urutan_leger : (m.urutan_rapor != null ? m.urutan_rapor : 9999); }
@@ -2746,7 +2875,7 @@
       '2. Bagian atas sheet (Tahun Ajaran, Semester ke-, Kelas pada semester ini) boleh diperbaiki bila keliru. Tahun Ajaran ditulis TTTT/TTTT, contoh 2025/2026. Semester ke- 1 sampai 6 (ganjil = Gasal, genap = Genap). Kelas pada semester ini adalah kelas siswa SAAT semester itu, bukan kelas sekarang (contoh: siswa kini XII-ANM yang mengisi semester 1 berarti kelasnya X-ANM).',
       '3. Jangan mengubah, menghapus, atau menambah kolom, dan jangan mengubah judul kolom. Kolom NIS, NISN, dan Nama dipakai untuk mencocokkan siswa.',
       '4. Kolom mapel diisi nilai 0-100 (koma/titik desimal boleh). Mapel yang kosong dianggap tidak ada. Pendidikan Agama otomatis memakai agama masing-masing siswa.',
-      '5. Mapel yang tidak ada di daftar: ketik namanya pada judul kolom "Mapel Tambahan 1-' + NS_TAMBAHAN + '" (timpa tulisan judulnya), lalu isi nilainya. Kolom yang judulnya tidak diubah diabaikan.',
+      '5. Hanya mata pelajaran yang ada di E-Rapor yang bisa diisi. Kolom yang judulnya tidak dikenal sebagai mapel E-Rapor akan diabaikan dan dilaporkan sebagai peringatan. Bila ada mapel yang belum terdaftar, tambahkan dulu di E-Rapor (menu Mata Pelajaran).',
       '6. Sakit / Izin / Tanpa Keterangan: angka jumlah hari. Kosong dianggap 0.',
       '7. Ekstrakurikuler: tersedia ' + NS_EKSKUL + ' pasang kolom. Isi nama ekskul pada "Ekstrakurikuler 1" dan predikatnya pada "Predikat Ekstrakurikuler 1", lalu ekskul berikutnya pada pasangan 2, 3, dst. Predikat boleh dikosongkan; pasangan yang tidak dipakai biarkan kosong.',
       '8. Kokurikuler: satu baris satu kegiatan, format Nama Kegiatan | Deskripsi capaian. Pindah baris dalam sel dengan Alt+Enter.',
@@ -2870,6 +2999,13 @@
       if (!mm[k] || u < mm[k].urut) mm[k] = { kode: /pendidikan\s+agama/i.test(m.nama) ? null : (m.kode || null), kkm: m.kkm, urut: u };
     });
 
+    // Judul kolom yang bukan mapel E-Rapor (dan bukan PKL) diabaikan, supaya tidak muncul mapel baru di Buku Induk.
+    var kolDitolak = [];
+    kolMapel = kolMapel.filter(function (km) {
+      if (adalahPkl(km.nama) || mm[kunciMapel(km.nama).toLowerCase().replace(/\s+/g, ' ').trim()] || mm[kunciMapel(km.nama).toLowerCase()]) return true;
+      kolDitolak.push(km.nama); return false;
+    });
+
     var ids = semuaSiswa.map(function (s) { return s.id; });
     var lama = ids.length ? await inChunks(ids, function (p, a, b) {
       return sb().from('bi_riwayat_semester').select('id, siswa_id, ta_nama, ta_semester, semester_ke, sumber').in('siswa_id', p).order('id').range(a, b);
@@ -2879,6 +3015,7 @@
     semuaSiswa.forEach(function (s) { if (s.nis) byNis[String(s.nis).trim()] = s; if (s.nisn) byNisn[String(s.nisn).trim()] = s; });
     var hasil = { ta: ta, ke: ke, sem: sem, kelasNama: kelasNama, baris: [], dilewati: [], tidakDitemukan: [], peringatan: [], menimpa: 0, totalBaris: 0, timpa: !!o.timpa };
     var sudah = {};
+    kolDitolak.forEach(function (nm) { hasil.peringatan.push('Kolom "' + nm + '" tidak dikenal sebagai mata pelajaran E-Rapor, jadi kolom ini diabaikan.'); });
 
     for (var r = idxH + 1; r < aoa.length; r++) {
       var row = aoa[r], noBaris = r + 1;
