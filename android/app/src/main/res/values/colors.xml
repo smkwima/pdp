@@ -2,5 +2,5 @@
 <resources>
     <!-- Sama dengan variabel bg di style.css; dipakai di belakang bar status agar menyatu dengan halaman. -->
     <color name="pdp_bg">#F8FAFC</color>
-    <color name="ic_background">#FFFFFF</color>
+    <color name="ic_background">#0F3B60</color>
 </resources>
