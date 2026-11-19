@@ -1,6 +1,6 @@
 // main.js — proses utama aplikasi PDP Wima (Windows)
 // - Membuka portal dari file lokal (app://pdp/) sehingga tetap terbuka tanpa internet
-// - Otomatis terbuka setelah instalasi, selalu tampil full screen
+// - Otomatis terbuka setelah instalasi, jendela menyesuaikan layar (maksimal)
 // - Menyimpan antrean data (saat offline) + salinan data terakhir ke penyimpanan komputer
 // - Mengirim antrean ke Supabase otomatis begitu koneksi kembali
 
@@ -11,7 +11,9 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
 const APP_DIR = path.join(__dirname, 'app');
-const HOST_DALAM_APP = ['wima15.github.io'];   // tautan ini dibuka di dalam aplikasi (RPP Maker)
+const HOST_DALAM_APP = ['wima15.github.io'];   // RPP Maker & Rekap Absen: dibuka DI DALAM aplikasi (jendela yang sama)
+const PORTAL_HOSTED = 'https://smkwima.github.io/pdp/';   // alamat PDP di hosting -> dialihkan ke versi lokal app://pdp/
+const PORTAL_MENU = PORTAL_HOSTED + 'portal.html';        // menu utama
 const CACHE_MAKS_BYTE = 300 * 1024 * 1024;
 
 protocol.registerSchemesAsPrivileged([
@@ -180,33 +182,67 @@ ipcMain.handle('pdp:discard-failed', (_e, id) => {
 // ---------- jendela ----------
 function buatJendela() {
   win = new BrowserWindow({
-    width: 1280, height: 800, show: false, autoHideMenuBar: true, fullscreen: true,
+    width: 1280, height: 800, show: false, autoHideMenuBar: true,
     title: 'PDP Wima',
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
   });
   win.removeMenu();
-  win.once('ready-to-show', () => { win.setFullScreen(true); win.show(); });
-  // WAJIB full screen: bila keluar dari full screen / dipulihkan dari minimize, masuk lagi otomatis
-  const paksaFull = () => { if (win && !win.isDestroyed() && !win.isFullScreen()) setTimeout(() => win && win.setFullScreen(true), 50); };
-  win.on('leave-full-screen', paksaFull);
-  win.on('restore', paksaFull);
-  win.on('show', paksaFull);
+  // Menyesuaikan layar: jendela terbuka maksimal (mengisi layar, taskbar tetap terlihat),
+  // tombol minimize / maximize / tutup tetap ada.
+  win.once('ready-to-show', () => { win.maximize(); win.show(); });
   win.loadURL('app://pdp/index.html');
 
-  // Jendela cetak / pratinjau (window.open('')) tetap dibuka; tautan luar dibuka di browser.
+  // Alamat PDP di hosting (mis. tombol "kembali" dari RPP Maker) dialihkan ke file lokal.
+  const keLokal = (url) => {
+    if (!url.startsWith(PORTAL_HOSTED)) return null;
+    let rest = url.slice(PORTAL_HOSTED.length);
+    if (!rest || rest[0] === '?' || rest[0] === '#') rest = 'index.html' + rest;
+    return 'app://pdp/' + rest;
+  };
+  const dalamApp = (url) => { try { return HOST_DALAM_APP.includes(new URL(url).hostname); } catch (e) { return false; } };
+
+  // Jendela cetak / pratinjau (window.open('')) tetap dibuka; Rekap Absen dibuka di jendela ini; tautan luar lain di browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    const lokal = keLokal(url);
+    if (lokal) { win.loadURL(lokal); return { action: 'deny' }; }
+    if (dalamApp(url)) { win.loadURL(url); return { action: 'deny' }; }
     if (!url || url === 'about:blank' || url.startsWith('app://') || url.startsWith('blob:')) return { action: 'allow' };
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (e, url) => {
+  const arahkan = (e, url) => {
     if (url.startsWith('app://')) return;
-    let host = '';
-    try { host = new URL(url).hostname; } catch (err) {}
-    if (HOST_DALAM_APP.includes(host)) return;
+    const lokal = keLokal(url);
+    if (lokal) { e.preventDefault(); win.loadURL(lokal); return; }
+    if (dalamApp(url)) return;
     e.preventDefault();
     if (/^https?:/i.test(url)) shell.openExternal(url);
+  };
+  win.webContents.on('will-navigate', arahkan);
+  win.webContents.on('will-redirect', arahkan);
+
+  // Tombol "Menu Utama" melayang di halaman eksternal (RPP Maker / Rekap Absen) supaya selalu bisa kembali.
+  const pasangTombol = () => {
+    const u = win && !win.isDestroyed() ? win.webContents.getURL() : '';
+    if (!dalamApp(u)) return;
+    win.webContents.executeJavaScript(`(function(){
+      if (document.getElementById('pdpKembali')) return;
+      var b = document.createElement('button');
+      b.id = 'pdpKembali'; b.type = 'button'; b.textContent = '\u2190 Menu Utama PDP';
+      b.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:2147483647;border:0;border-radius:999px;padding:9px 15px;background:#1673e0;color:#fff;font:600 13px Segoe UI,Arial,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)';
+      b.onclick = function(){ location.href = ${JSON.stringify(PORTAL_MENU)}; };
+      (document.body || document.documentElement).appendChild(b);
+    })();`).catch(() => {});
+  };
+  win.webContents.on('did-finish-load', pasangTombol);
+  win.webContents.on('did-navigate-in-page', pasangTombol);
+
+  // Mundur: tombol Back pada mouse / Alt+Panah Kiri
+  const mundur = () => { const h = win.webContents.navigationHistory; if (h.canGoBack()) h.goBack(); };
+  win.on('app-command', (_e, cmd) => { if (cmd === 'browser-backward') mundur(); });
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && input.alt && input.key === 'ArrowLeft') { e.preventDefault(); mundur(); }
   });
   win.webContents.on('did-finish-load', siarkan);
   win.on('closed', () => { win = null; });

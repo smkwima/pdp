@@ -101,6 +101,18 @@ async function vendor() {
   }
 }
 
+// Alamat "kembali" yang dikirim ke RPP Maker harus alamat hosting PDP (https), bukan app://pdp/.
+// Aplikasi mengalihkan alamat itu kembali ke versi lokal (lihat main.js).
+function perbaikiRpp() {
+  const f = path.join(OUT, 'rpp-launcher.js');
+  if (!fs.existsSync(f)) return;
+  const t = fs.readFileSync(f, 'utf8');
+  const lama = /var dari = [^;]*portal\.html';/;
+  if (!lama.test(t)) { console.warn('PERINGATAN: baris "var dari" di rpp-launcher.js tidak ditemukan'); return; }
+  fs.writeFileSync(f, t.replace(lama, "var dari = 'https://smkwima.github.io/pdp/portal.html';"));
+  console.log('rpp-launcher.js: tautan kembali -> https://smkwima.github.io/pdp/portal.html');
+}
+
 function sisipkan() {
   fs.copyFileSync(path.join(DESK, 'offline-layer.js'), path.join(OUT, 'offline-layer.js'));
   let n = 0;
@@ -119,6 +131,7 @@ function sisipkan() {
   salin();
   if (process.env.SKIP_VENDOR === '1') console.log('SKIP_VENDOR=1: library CDN tidak diunduh (hanya untuk uji)');
   else await vendor();
+  perbaikiRpp();
   sisipkan();
   const sisa = new Set();
   for (const f of semuaFile(OUT)) {
