@@ -179,6 +179,26 @@ ipcMain.handle('pdp:discard-failed', (_e, id) => {
   return status();
 });
 
+// ---------- NAVIGASI: Kembali / Muat Ulang / Maju (toolbar melayang + pintasan keyboard) ----------
+function statusNav() {
+  if (!win || win.isDestroyed()) return { back: false, fwd: false, loading: false };
+  const wc = win.webContents, h = wc.navigationHistory;
+  return { back: h.canGoBack(), fwd: h.canGoForward(), loading: wc.isLoading() };
+}
+function siarkanNav() {
+  if (win && !win.isDestroyed()) win.webContents.send('pdp:nav-state', statusNav());
+}
+function aksiNav(a) {
+  if (!win || win.isDestroyed()) return;
+  const wc = win.webContents, h = wc.navigationHistory;
+  if (a === 'back') { if (h.canGoBack()) h.goBack(); }
+  else if (a === 'forward') { if (h.canGoForward()) h.goForward(); }
+  else if (a === 'reload') wc.reload();
+  else if (a === 'hard') wc.reloadIgnoringCache();
+}
+ipcMain.handle('pdp:nav-state', (e) => (win && e.sender === win.webContents) ? statusNav() : { back: false, fwd: false, loading: false });
+ipcMain.on('pdp:nav', (e, a) => { if (win && e.sender === win.webContents) aksiNav(a); });
+
 // ---------- CETAK -> SIMPAN PDF LANGSUNG ----------
 // Semua jalur cetak (window.print, jendela cetak window.open, iframe cetak, Ctrl+P) dialihkan oleh
 // print-patch.js: isi dokumen diambil (snapshot), dicetak ke PDF secara senyap memakai aturan
@@ -187,6 +207,7 @@ ipcMain.handle('pdp:discard-failed', (_e, id) => {
 const printPages = new Map();
 let lastDir = null;
 const PATCH_SRC = fs.readFileSync(path.join(__dirname, 'print-patch.js'), 'utf8');
+const NAV_SRC = fs.readFileSync(path.join(__dirname, 'nav-toolbar.js'), 'utf8');
 const PREFS_JENDELA = { preload: path.join(__dirname, 'preload.js'), contextIsolation: true,
                         nodeIntegration: false, nodeIntegrationInSubFrames: true };
 
@@ -372,11 +393,42 @@ function buatJendela() {
   win.webContents.on('did-finish-load', pasangTombol);
   win.webContents.on('did-navigate-in-page', pasangTombol);
 
-  // Mundur: tombol Back pada mouse / Alt+Panah Kiri
-  const mundur = () => { const h = win.webContents.navigationHistory; if (h.canGoBack()) h.goBack(); };
-  win.on('app-command', (_e, cmd) => { if (cmd === 'browser-backward') mundur(); });
+  // Toolbar navigasi (Kembali · Muat Ulang · Maju) disisipkan setiap halaman selesai dimuat.
+  const pasangNav = () => {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.executeJavaScript(NAV_SRC).catch(() => {});
+    siarkanNav();
+  };
+  win.webContents.on('did-finish-load', pasangNav);
+  win.webContents.on('did-navigate', siarkanNav);
+  win.webContents.on('did-navigate-in-page', siarkanNav);
+  win.webContents.on('did-start-loading', siarkanNav);
+  win.webContents.on('did-stop-loading', siarkanNav);
+
+  // Mouse (tombol samping) & keyboard: Alt+← / Alt+→, F5 / Ctrl+R (muat ulang), Ctrl+Shift+R / Ctrl+F5 (muat ulang penuh)
+  win.on('app-command', (_e, cmd) => {
+    if (cmd === 'browser-backward') aksiNav('back');
+    else if (cmd === 'browser-forward') aksiNav('forward');
+  });
   win.webContents.on('before-input-event', (e, input) => {
-    if (input.type === 'keyDown' && input.alt && input.key === 'ArrowLeft') { e.preventDefault(); mundur(); }
+    if (input.type !== 'keyDown') return;
+    const k = String(input.key || '').toLowerCase();
+    if (input.alt && !input.control && k === 'arrowleft') { e.preventDefault(); aksiNav('back'); }
+    else if (input.alt && !input.control && k === 'arrowright') { e.preventDefault(); aksiNav('forward'); }
+    else if (k === 'f5' || (input.control && !input.alt && k === 'r')) {
+      e.preventDefault(); aksiNav(input.control && (input.shift || k === 'f5') ? 'hard' : 'reload');
+    }
+  });
+
+  // Halaman yang menandai "perubahan belum disimpan" (beforeunload): tanyakan dulu, jangan diam-diam batal.
+  win.webContents.on('will-prevent-unload', (e) => {
+    const pilih = dialog.showMessageBoxSync(win, {
+      type: 'warning', buttons: ['Tetap di halaman ini', 'Tinggalkan halaman'], defaultId: 0, cancelId: 0,
+      title: 'Perubahan belum disimpan',
+      message: 'Ada perubahan yang belum disimpan.',
+      detail: 'Jika Anda meninggalkan atau memuat ulang halaman ini, perubahan tersebut akan hilang.'
+    });
+    if (pilih === 1) e.preventDefault();   // preventDefault = izinkan halaman ditutup/dimuat ulang
   });
   win.webContents.on('did-finish-load', siarkan);
   win.on('closed', () => { win = null; });

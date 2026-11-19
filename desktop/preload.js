@@ -21,3 +21,10 @@ if (window.top === window) contextBridge.exposeInMainWorld('pdpDesktop', {
   discard: (id) => ipcRenderer.invoke('pdp:discard-failed', id),
   onStatus: (cb) => ipcRenderer.on('pdp:status', (_e, s) => cb(s))
 });
+
+// Toolbar navigasi (Kembali / Muat Ulang / Maju) — hanya frame teratas; main.js hanya melayani jendela utama.
+if (window.top === window) contextBridge.exposeInMainWorld('pdpNav', {
+  act: (a) => ipcRenderer.send('pdp:nav', a),
+  state: () => ipcRenderer.invoke('pdp:nav-state'),
+  onState: (cb) => ipcRenderer.on('pdp:nav-state', (_e, s) => cb(s))
+});
