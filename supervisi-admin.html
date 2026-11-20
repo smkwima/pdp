@@ -24,7 +24,7 @@
 <script src="supervisi-ttd.js?v=1"></script>
 <script src="supervisi-pdf.js?v=8"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=14" defer></script>
+<script src="bottomnav.js?v=16" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 </head>
@@ -602,8 +602,19 @@
   (async function () {
     var s = (await supabaseClient.auth.getSession()).data.session;
     if (!s) { location.href = 'index.html'; return; }
-    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
-    if (!p.data || (p.data.role !== 'admin' && p.data.role !== 'kepsek' && p.data.role !== 'pengawas')) { location.href = 'supervisi.html'; return; }
+    // Coba beberapa kali: gangguan jaringan sesaat tidak boleh melempar Kepala Sekolah/Admin ke halaman guru
+    var p = { data: null }, galat = null;
+    for (var i = 0; i < 3 && !p.data; i++) {
+      try { var q = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single(); if (!q.error && q.data) p.data = q.data; else galat = q.error; }
+      catch (e) { galat = e; }
+      if (!p.data && i < 2) await new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); });
+    }
+    if (!p.data) {
+      var h = ''; try { h = localStorage.getItem('kepsek_hint') || ''; } catch (e) { /* abaikan */ }
+      if (h === '1') p.data = { nama: s.user.email, role: 'kepsek' }; // cek gagal: pakai peran terakhir yang diketahui
+      else { document.getElementById('content').innerHTML = '<div class="panel-note">Gagal memuat data akun (koneksi bermasalah). <button class="btn-small btn-small--primary" onclick="location.reload()">Muat ulang</button></div>'; document.getElementById('userName').textContent = s.user.email; return; }
+    }
+    if (p.data.role !== 'admin' && p.data.role !== 'kepsek' && p.data.role !== 'pengawas') { location.href = 'supervisi.html'; return; }
     document.getElementById('userName').textContent = p.data.nama || s.user.email;
     meRole = p.data.role;
     if (meRole === 'kepsek') { var mi = document.getElementById('menuIsiKepsek'); if (mi) mi.style.display = ''; }

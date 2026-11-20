@@ -24,7 +24,7 @@
 <script src="supervisi-ttd.js?v=1"></script>
 <script src="supervisi-pdf.js?v=8"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=15" defer></script>
+<script src="bottomnav.js?v=16" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=3" defer></script>
@@ -104,8 +104,10 @@
   function tglId(d) { return new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); }
   function hariIni() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
-  async function muat() {
+  async function muat(opsi) {
     if (tampilan === 'ttd') return renderTtd();
+    // opsi.lokal: pakai data yang sudah ada di memori (dipakai setelah simpan supaya layar langsung segar)
+    if (opsi && opsi.lokal && formList.length) { var hariLokal = hariIni(); if (tampilan === 'wawancara') return renderWawancara(); if (tampilan === 'isi') return renderIsi(hariLokal); return renderJadwal(); }
     var r = await Promise.all([
       supabaseClient.from('supervisi_jadwal').select('*').order('tanggal'),
       supabaseClient.from('supervisi_guru').select('*'),
@@ -117,6 +119,9 @@
     var today = hariIni();
     if (tampilan === 'wawancara') return renderWawancara();
     if (tampilan === 'isi') return renderIsi(today);
+    renderJadwal();
+  }
+  function renderJadwal() {
     content.innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th>' + (meRole === 'kepsek' ? '<th>Supervisor</th>' : '') + '<th>Status</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (j) {
         // Form boleh diisi kapan saja, tidak harus menunggu tanggal jadwal
@@ -254,7 +259,9 @@
         alert(r.n + ' isian diimpor' + (tampilTab ? ' ke form tab ' + (aktif + 1) : '') + '.' + (r.err.length ? '\n\nDilewati:\n' + r.err.join('\n') : '') + '\n\nPeriksa dulu, lalu klik Simpan.');
       }, 'kode');
     });
-    o.querySelector('#svSimpan').addEventListener('click', async function () {
+    var btnSimpan = o.querySelector('#svSimpan');
+    btnSimpan.addEventListener('click', async function () {
+      if (btnSimpan.disabled) return; // cegah klik ganda saat proses simpan berjalan
       var semua = bacaSemua(), d, bukti = '';
       if (!anak) {
         var bEl = o.querySelector('#svBukti'), bRaw = bEl ? bEl.value.trim() : '';
@@ -270,9 +277,28 @@
         if (bukti || j.bukti_link) d.bukti_link = bukti || null; // kolom baru: hanya dikirim bila dipakai
         if (banyak) { d.jawaban_paket = {}; semua.forEach(function (x, i) { if (i) d.jawaban_paket[x.form.id] = { jawaban: x.jawaban, catatan: x.catatan }; }); }
       }
-      var res = await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id);
-      if (res.error) { alert('Gagal menyimpan: ' + res.error.message + ((banyak || anak) ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + (d.bukti_link ? '\n\nJalankan migrasi_supervisi_bukti.sql di Supabase SQL Editor bila belum.' : '') + (meRole === 'kepsek' ? '\n\nUntuk akun Kepala Sekolah, jalankan migrasi_supervisi_kepsek.sql di Supabase SQL Editor bila belum.' : '')); return; }
-      o.remove(); if (anak) alert('Isian form sepaket tersimpan. Jadwal tetap berstatus terjadwal.'); muat();
+      // Umpan balik instan: tombol terkunci + teks "Menyimpan..." sebelum menunggu server
+      var teksAwal = btnSimpan.textContent;
+      btnSimpan.disabled = true; btnSimpan.textContent = 'Menyimpan...';
+      var res;
+      try { res = await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id); }
+      catch (err) { res = { error: { message: (err && err.message) || 'Koneksi bermasalah, coba lagi.' } }; }
+      if (res.error) {
+        btnSimpan.disabled = false; btnSimpan.textContent = teksAwal;
+        alert('Gagal menyimpan: ' + res.error.message + ((banyak || anak) ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + (d.bukti_link ? '\n\nJalankan migrasi_supervisi_bukti.sql di Supabase SQL Editor bila belum.' : '') + (meRole === 'kepsek' ? '\n\nUntuk akun Kepala Sekolah, jalankan migrasi_supervisi_kepsek.sql di Supabase SQL Editor bila belum.' : ''));
+        return;
+      }
+      // Berhasil: perbarui data lokal & tutup form SEKARANG; sinkron ulang dari server berjalan di latar belakang
+      Object.assign(j, d);
+      o.remove();
+      muat({ lokal: true });
+      if (anak) setTimeout(function () { alert('Isian form sepaket tersimpan. Jadwal tetap berstatus terjadwal.'); }, 0);
+      supabaseClient.from('supervisi_jadwal').select('*').order('tanggal').then(function (r2) {
+        if (r2 && !r2.error && r2.data) {
+          rows = r2.data;
+          if (!document.querySelector('.modal-overlay')) muat({ lokal: true }); // jangan ganggu bila sedang membuka form lain
+        }
+      }, function () { /* abaikan: data lokal sudah benar */ });
     });
   }
 
@@ -332,7 +358,9 @@
       var payload = {};
       o.querySelectorAll('[data-gf]').forEach(function (el) { payload[el.dataset.gf] = SvForm.bacaGuru(el); });
       bs.disabled = true; var t = bs.textContent; bs.textContent = 'Menyimpan...';
-      var res = await supabaseClient.rpc('supervisi_isi_wawancara', { p_jadwal: j.id, p_jawaban: payload });
+      var res;
+      try { res = await supabaseClient.rpc('supervisi_isi_wawancara', { p_jadwal: j.id, p_jawaban: payload }); }
+      catch (err) { res = { error: { message: (err && err.message) || 'Koneksi bermasalah, coba lagi.' } }; }
       if (res.error) { alert('Gagal menyimpan: ' + res.error.message); bs.disabled = false; bs.textContent = t; return; }
       o.remove(); alert('Jawaban wawancara tersimpan.'); renderWawancara();
     });
@@ -386,34 +414,76 @@
     a.addEventListener('click', function (e) { e.preventDefault(); keHalaman(a.dataset.view); });
   });
 
+  // ---------- Peran akun ----------
+  // 'kepsek_hint' (diisi portal.html) = peran terakhir yang diketahui. Dipakai supaya tampilan Kepala Sekolah
+  // langsung benar sejak awal & tidak jatuh ke tampilan guru bila cek peran ke server gagal sesaat.
+  function hintPeran() { try { var v = localStorage.getItem('kepsek_hint'); return v === '1' ? 'kepsek' : (v === 'pengawas' ? 'pengawas' : null); } catch (e) { return null; } }
+  function setHintPeran(r) { try { if (r === 'kepsek') localStorage.setItem('kepsek_hint', '1'); else if (r === 'pengawas') localStorage.setItem('kepsek_hint', 'pengawas'); else localStorage.removeItem('kepsek_hint'); } catch (e) { /* abaikan */ } }
+  function terapkanKepsek() {
+    meRole = 'kepsek';
+    // Kepala Sekolah: mengisi instrumen supervisi SEMUA guru; menu khusus guru disembunyikan
+    document.querySelectorAll('.menu-item[data-view="ttd"], .menu-item[data-view="wawancara"]').forEach(function (a) { a.style.display = 'none'; });
+    document.querySelectorAll('.sidebar__section-label').forEach(function (l) { if (/disupervisi/i.test(l.textContent)) l.style.display = 'none'; });
+    var lk = document.getElementById('menuLihatKepsek'); if (lk) lk.style.display = '';
+    var rl = document.querySelector('.user-chip__role'); if (rl) rl.textContent = 'Kepala Sekolah';
+    HALAMAN.jadwal = ['Jadwal Supervisi Semua Guru', 'Sebagai Kepala Sekolah kamu dapat mengisi instrumen supervisi semua guru. Form boleh diisi kapan saja'];
+    HALAMAN.isi = ['Isi Form Otomatis', 'Isi draft form dari target nilai untuk jadwal guru mana pun, lalu periksa dan simpan'];
+    var jd = document.getElementById('judul'); if (jd && tampilan === 'jadwal') jd.textContent = HALAMAN.jadwal[0];
+    var mt = document.getElementById('metaHal'); if (mt && tampilan === 'jadwal') mt.textContent = HALAMAN.jadwal[1];
+  }
+  // Tampilan awal: bila petunjuk bilang Kepala Sekolah, langsung pakai tampilan kepsek (tanpa kilasan tampilan guru)
+  if (hintPeran() === 'kepsek') terapkanKepsek();
+  else if (hintPeran() === 'pengawas') { location.replace('supervisi-admin.html'); }
+
+  async function ambilProfil(uid) {
+    // Coba beberapa kali: gangguan jaringan sesaat tidak boleh membuat Kepala Sekolah dianggap guru
+    var err = null;
+    for (var i = 0; i < 3; i++) {
+      try {
+        var q = await supabaseClient.from('profiles').select('nama, role').eq('id', uid).single();
+        if (!q.error && q.data) return { data: q.data };
+        err = q.error || err;
+      } catch (e) { err = e; }
+      await new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); });
+    }
+    return { error: err || new Error('gagal') };
+  }
+
   (async function () {
     var s = (await supabaseClient.auth.getSession()).data.session;
     if (!s) { location.href = 'index.html'; return; }
-    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
-    if (p.data && (p.data.role === 'admin' || p.data.role === 'pengawas')) { location.href = 'supervisi-admin.html'; return; }
-    if (p.data && p.data.role === 'staf') { location.href = 'portal.html'; return; }
-    meId = s.user.id; meNama = (p.data && p.data.nama) || s.user.email;
-    if (p.data && p.data.role === 'kepsek') {
-      // Kepala Sekolah: mengisi instrumen supervisi SEMUA guru; menu khusus guru disembunyikan
-      meRole = 'kepsek';
-      document.querySelectorAll('.menu-item[data-view="ttd"], .menu-item[data-view="wawancara"]').forEach(function (a) { a.style.display = 'none'; });
-      document.querySelectorAll('.sidebar__section-label').forEach(function (l) { if (/disupervisi/i.test(l.textContent)) l.style.display = 'none'; });
-      var lk = document.getElementById('menuLihatKepsek'); if (lk) lk.style.display = '';
-      var rl = document.querySelector('.user-chip__role'); if (rl) rl.textContent = 'Kepala Sekolah';
-      HALAMAN.jadwal = ['Jadwal Supervisi Semua Guru', 'Sebagai Kepala Sekolah kamu dapat mengisi instrumen supervisi semua guru. Form boleh diisi kapan saja'];
-      HALAMAN.isi = ['Isi Form Otomatis', 'Isi draft form dari target nilai untuk jadwal guru mana pun, lalu periksa dan simpan'];
+    var pr = await ambilProfil(s.user.id), p = { data: pr.data || null }, hint = hintPeran();
+    if (!p.data) {
+      if (hint === 'kepsek') { p.data = { nama: s.user.email, role: 'kepsek' }; } // cek gagal: tetap pakai peran terakhir
+      else {
+        content.innerHTML = '<div class="panel-note">Gagal memuat data akun (koneksi bermasalah). <button class="btn-small btn-small--primary" onclick="location.reload()">Muat ulang</button></div>';
+        document.getElementById('userName').textContent = s.user.email;
+        return;
+      }
+    } else { setHintPeran(p.data.role === 'kepsek' || p.data.role === 'pengawas' ? p.data.role : null); }
+    if (p.data.role === 'admin' || p.data.role === 'pengawas') { location.href = 'supervisi-admin.html'; return; }
+    if (p.data.role === 'staf') { location.href = 'portal.html'; return; }
+    meId = s.user.id; meNama = p.data.nama || s.user.email;
+    if (p.data.role === 'kepsek') {
+      terapkanKepsek();
       try { isiParam = new URLSearchParams(location.search).get('isi'); } catch (x) { isiParam = null; }
+    } else if (hint === 'kepsek') {
+      // Petunjuk lama (bukan kepsek lagi): kembalikan tampilan guru
+      location.reload(); return;
     }
     document.getElementById('userName').textContent = meNama;
     lucide.createIcons();
     var awal = 'jadwal';
-    try {
-      var c1 = await supabaseClient.from('supervisi_jadwal').select('id', { count: 'exact', head: true });
-      if (!c1.error && !c1.count) {
-        var c2 = await supabaseClient.rpc('supervisi_jadwal_guru');
-        if (!c2.error && c2.data && c2.data.length) awal = 'wawancara';
-      }
-    } catch (x) { /* tetap di halaman jadwal */ }
+    // Halaman "Wawancara Saya" hanya untuk guru; Kepala Sekolah selalu mulai dari jadwal supervisi
+    if (meRole !== 'kepsek') {
+      try {
+        var c1 = await supabaseClient.from('supervisi_jadwal').select('id', { count: 'exact', head: true });
+        if (!c1.error && !c1.count) {
+          var c2 = await supabaseClient.rpc('supervisi_jadwal_guru');
+          if (!c2.error && c2.data && c2.data.length) awal = 'wawancara';
+        }
+      } catch (x) { /* tetap di halaman jadwal */ }
+    }
     keHalaman(awal);
   })();
   document.getElementById('logoutBtn').addEventListener('click', async function (e) { e.preventDefault(); await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi'); await supabaseClient.auth.signOut(); location.href = 'index.html'; });

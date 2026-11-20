@@ -265,6 +265,11 @@
     try { sessionStorage.setItem('bnav_role_' + uid, role); } catch (e) {}
   }
 
+  // Peran terakhir yang diketahui portal (kepala sekolah / pengawas), dipakai bila cek peran ke server gagal
+  function roleDariHint() {
+    try { var v = localStorage.getItem('kepsek_hint'); return v === '1' ? 'kepsek' : (v === 'pengawas' ? 'pengawas' : null); } catch (e) { return null; }
+  }
+
   async function cariRole() {
     if (typeof supabaseClient === 'undefined') return 'guru';
     try {
@@ -276,9 +281,10 @@
       var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
       var role = (pr && pr.data && (pr.data.role === 'admin' || pr.data.role === 'kepsek' || pr.data.role === 'pengawas' || pr.data.role === 'staf')) ? pr.data.role : 'guru';
       if (pr && pr.data) simpanRole(user.id, role);
+      else return roleDariHint() || role; // cek peran gagal sesaat: jangan paksa tampilan guru
       return role;
     } catch (e) {
-      return 'guru';
+      return roleDariHint() || 'guru';
     }
   }
 
