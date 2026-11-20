@@ -103,6 +103,10 @@
       '.dk-rw:first-child{border-top:0;}' +
       '.dk-rw__t{font-weight:700;}' +
       '.dk-rw__m{font-size:12px;color:var(--ink-soft,#64748b);margin-top:2px;}' +
+      '.dk-rw__aksi{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center;}' +
+      '.dk-del{display:none !important;}body.pk-kepsek .dk-del{display:inline-flex !important;}' +
+      '.dk-del{align-items:center;white-space:nowrap;font-size:12px !important;padding:4px 10px !important;line-height:1.2;color:#b91c1c !important;border-color:#fecaca !important;background:#fff !important;}' +
+      '.dk-del:hover{background:#fef2f2 !important;}' +
       '.dk-rw details summary{cursor:pointer;font-size:12px;color:var(--primary,#2563eb);margin-top:4px;}' +
       '.dk-rw details div{white-space:pre-line;font-size:12.5px;line-height:1.5;margin-top:4px;padding:8px 10px;border:1px dashed var(--border,#d1d5db);border-radius:10px;background:rgba(0,0,0,.025);}' +
       '.dk-st{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}' +
@@ -422,6 +426,22 @@
     if (wa) { e.preventDefault(); bukaDialogWa(); return; }
     var rm = e.target.closest ? e.target.closest('#dkRMore') : null;
     if (rm) { R.tampil += 15; renderRiwayat(); return; }
+    var hp = e.target.closest ? e.target.closest('[data-dk-hapus]') : null;
+    if (hp) {
+      e.preventDefault();
+      var id = hp.getAttribute('data-dk-hapus');
+      var x = (R.rows || []).filter(function (r) { return r.id === id; })[0];
+      hapusPengingat([id], 'Hapus pengingat' + (x && x.guru && x.guru.nama ? ' untuk ' + x.guru.nama : '') + '? Pengingat juga hilang dari lonceng guru dan tidak bisa dikembalikan.');
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-dk-hapus-semua]')) {
+      e.preventDefault();
+      var tampilIds = (R.rows || []).filter(function (r) {
+        return (!R.modul || r.modul === R.modul) && (!R.status || (R.status === 'belum' ? !r.dibaca_pada : !!r.dibaca_pada));
+      }).map(function (r) { return r.id; });
+      hapusPengingat(tampilIds, 'Hapus ' + tampilIds.length + ' pengingat' + ((R.modul || R.status) ? ' yang sedang tampil' : '') + '? Pengingat juga hilang dari lonceng guru dan tidak bisa dikembalikan.');
+      return;
+    }
     var ul = e.target.closest ? e.target.closest('[data-dk-ulang]') : null;
     if (ul) { e.preventDefault(); ingatkanLagi(ul.getAttribute('data-dk-ulang')); return; }
     var b = e.target.closest ? e.target.closest('[data-dk-ingat]') : null;
@@ -492,7 +512,8 @@
         '<div><div>' + esc(x.judul) + '</div>' +
         (x.pesan ? '<details><summary>Lihat pesan</summary><div>' + esc(x.pesan) + '</div></details>' : '') + '</div>' +
         '<div>' + statusRow(x) + '</div>' +
-        '<div>' + (!x.dibaca_pada ? Pengingat.tombolHtml('data-dk-ulang="' + esc(x.id) + '"', 'Ingatkan lagi') : '') + '</div></div>';
+        '<div class="dk-rw__aksi">' + (!x.dibaca_pada ? Pengingat.tombolHtml('data-dk-ulang="' + esc(x.id) + '"', 'Ingatkan lagi') : '') +
+        '<button type="button" class="btn-small dk-del" data-kepsek-ok="1" data-dk-hapus="' + esc(x.id) + '" aria-label="Hapus pengingat ke ' + esc(nama) + '">Hapus</button></div></div>';
     }).join('') : '<div class="dk-good" style="color:var(--ink-soft,#64748b);">' + (semuaRows.length ? 'Tidak ada pengingat yang cocok dengan filter.' : 'Belum ada pengingat yang dikirim.') + '</div>';
 
     el.innerHTML = '<div class="dk-panel"><div class="dk-panel__h"><b>Riwayat Pengingat</b>' +
@@ -501,7 +522,8 @@
       '<div class="dk-ring"><span class="dk-pill">' + semuaRows.length + ' terkirim</span>' +
       '<span class="dk-pill dk-pill--ok">' + (semuaRows.length - belum.length) + ' sudah dibaca</span>' +
       '<span class="dk-pill' + (belum.length ? ' dk-pill--warn' : '') + '">' + belum.length + ' belum dibaca</span>' +
-      (lama.length ? '<span class="dk-pill dk-pill--warn">' + lama.length + ' belum dibaca lebih dari ' + HARI_LAMA + ' hari</span>' : '') + '</div>' +
+      (lama.length ? '<span class="dk-pill dk-pill--warn">' + lama.length + ' belum dibaca lebih dari ' + HARI_LAMA + ' hari</span>' : '') +
+      (baris.length ? '<button type="button" class="btn-small dk-del" data-kepsek-ok="1" data-dk-hapus-semua style="margin-left:auto;">Hapus ' + ((R.modul || R.status) ? 'yang tampil' : 'semua') + ' (' + baris.length + ')</button>' : '') + '</div>' +
       daftar +
       (baris.length > R.tampil ? '<button type="button" class="dk-more" id="dkRMore">Tampilkan lebih banyak (' + (baris.length - R.tampil) + ' lagi)</button>' : '') +
       '<div class="dk-ring" style="border-bottom:0;border-top:1px solid var(--border,#e2e8f0);"><span class="dk-card__s">Pengingat yang belum dibaca dengan modul dan judul sama diperbarui, bukan ditumpuk, jadi satu baris menunjukkan pengingat terbaru.</span></div></div>';
@@ -513,6 +535,23 @@
   function onUbah(e) {
     if (e.target.id === 'dkFModul') { R.modul = e.target.value; R.tampil = 15; renderRiwayat(); }
     else if (e.target.id === 'dkFStatus') { R.status = e.target.value; R.tampil = 15; renderRiwayat(); }
+  }
+
+  // Hapus pengingat yang sudah dikirim (juga hilang dari lonceng guru). Hanya Kepala Sekolah (dicek di server).
+  async function hapusPengingat(ids, pesan) {
+    if (!ids.length || !confirm(pesan)) return;
+    var h;
+    try { h = await supabaseClient.rpc('pengingat_hapus', { p_ids: ids }); } catch (e) { h = { error: e }; }
+    if (!h || h.error) {
+      var m = h && h.error && h.error.message ? String(h.error.message) : '';
+      alert(/pengingat_hapus|does not exist|schema cache/i.test(m)
+        ? 'Fungsi hapus belum ada di database. Jalankan ulang migrasi_pengingat.sql di Supabase SQL Editor.'
+        : 'Gagal menghapus pengingat: ' + (m || 'coba lagi.'));
+      return;
+    }
+    R.rows = (R.rows || []).filter(function (x) { return ids.indexOf(x.id) < 0; });
+    renderRiwayat();
+    segarkanRiwayat(); // sinkron ulang dari server
   }
 
   function ingatkanLagi(id) {
