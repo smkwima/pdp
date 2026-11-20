@@ -3,6 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
 <title>Dashboard Admin E-Rapor — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,21 +27,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="excel-rekap.js?v=4"></script>
-<script src="excel-data-rapor.js?v=1"></script>
+<script src="excel-data-rapor.js?v=2"></script>
 <script src="unsaved-guard.js?v=1"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=8" defer></script>
-<script src="kepsek-readonly.js?v=12"></script>
-<script src="kepsek-nav.js?v=7"></script>
+<script src="app-switcher.js?v=12" defer></script>
+<script src="kepsek-readonly.js?v=13"></script>
+<script src="kepsek-nav.js?v=10"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
-<script src="bukuinduk-fields.js?v=1"></script>
+<script src="bukuinduk-fields.js?v=2"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
-<script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=10" defer></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="bottomnav.js?v=18" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
-<script src="foto-profil.js?v=5" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
 </head>
 <body>
 
@@ -65,7 +79,6 @@
       <a href="#" class="menu-item" data-view="unduhDataRapor"><i data-lucide="file-spreadsheet" class="menu-icon"></i><span class="menu-item__title">Unduh Data Rapor (ZIP)</span></a>
       <div class="sidebar__section-label">Lainnya</div>
       <a href="#" class="menu-item" data-view="tarikBukuInduk"><i data-lucide="book-user" class="menu-icon"></i><span class="menu-item__title">Tarik Data Buku Induk</span></a>
-      <a href="log-admin.html" class="menu-item"><i data-lucide="history" class="menu-icon"></i><span class="menu-item__title">Log Aktivitas</span></a>
     </nav>
 
     <div class="sidebar__footer">
@@ -356,12 +369,13 @@
     // Semua query dipaginasi (Supabase membatasi 1000 baris per permintaan),
     // supaya hitungan tidak terpotong di sekolah dengan siswa banyak.
     var siswaKelasRows = await ambilSemuaBaris(function () {
-      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id')
+      return supabaseClient.from('siswa_kelas').select('siswa_id, kelas_id, siswa:siswa_id(status)')
         .eq('tahun_ajaran_id', tahunAktif.id).order('id');
     });
     var kelasSiswaMap = {};
     var siswaUnik = {};
     siswaKelasRows.forEach(function (r) {
+      if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
       (kelasSiswaMap[r.kelas_id] = kelasSiswaMap[r.kelas_id] || []).push(r.siswa_id);
       siswaUnik[r.siswa_id] = true;
     });
@@ -754,7 +768,7 @@
       if (isNaN(waktu.getTime())) { alert('Tanggal / jam tidak valid.'); return; }
 
       // Hitung siswa pada periode ini untuk konfirmasi.
-      var cnt = await supabaseClient.from('siswa_kelas').select('siswa_id', { count: 'exact', head: true }).eq('tahun_ajaran_id', taId);
+      var cnt = await hanyaSiswaAktif(supabaseClient.from('siswa_kelas').select('siswa_id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).eq('tahun_ajaran_id', taId));
       var jumlah = cnt.error ? null : cnt.count;
       var sekarang = waktu.getTime() <= Date.now();
       var pesan = 'Terbitkan rapor ' + p.nama + ' semester ' + p.semester + (jumlah !== null ? ' untuk ' + jumlah + ' siswa' : ' untuk semua siswa') + '?\n\n' +
@@ -2470,12 +2484,12 @@
 
       var skRows = await ambilSemuaBaris(function () {
         return supabaseClient.from('siswa_kelas')
-          .select('kelas_id, siswa:siswa_id(id, nis, nisn, nama, agama)')
+          .select('kelas_id, siswa:siswa_id(id, nis, nisn, nama, agama, status)')
           .eq('tahun_ajaran_id', tahunAktif.id).order('id');
       });
       var siswaPerKelas = {};
       skRows.forEach(function (r) {
-        if (!r.siswa) return;
+        if (!siswaMasihAktif(r.siswa)) return; // lulus / pindah / keluar
         (siswaPerKelas[r.kelas_id] = siswaPerKelas[r.kelas_id] || []).push(r.siswa);
       });
 
@@ -2579,10 +2593,10 @@
 
     var skRes = await supabaseClient
       .from('siswa_kelas')
-      .select('siswa:siswa_id(id, nis, nisn, nama, agama)')
+      .select('siswa:siswa_id(id, nis, nisn, nama, agama, status)')
       .eq('kelas_id', kelasObj.id)
       .eq('tahun_ajaran_id', tahunAktif.id);
-    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
     siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
     if (!siswaList.length) {
@@ -2763,10 +2777,10 @@
 
     var skRes = await supabaseClient
       .from('siswa_kelas')
-      .select('siswa:siswa_id(id, nis, nisn, nama, agama)')
+      .select('siswa:siswa_id(id, nis, nisn, nama, agama, status)')
       .eq('kelas_id', kelasObj.id)
       .eq('tahun_ajaran_id', tahunAktif.id);
-    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
+    var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
     siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
     var area = document.getElementById('legerArea');
@@ -2800,6 +2814,74 @@
 
     tampilkanDaftar('');
     document.getElementById('legerCari').addEventListener('input', function (e) { tampilkanDaftar(e.target.value); });
+  }
+
+  // ---------- Leger membaca arsip Buku Induk (Isi Semester Terlewat) ----------
+  // Semester yang tidak ada di E-Rapor (tahun lama, siswa pindahan) diisi lewat
+  // Buku Induk → disimpan di bi_riwayat_semester, bukan di tabel `nilai`.
+  // Dua fungsi di bawah melengkapi leger: nilai E-Rapor TETAP didahulukan,
+  // arsip Buku Induk hanya mengisi sel semester yang masih kosong.
+  function normMapelLeger(n) {
+    var s = String(n || '').toLowerCase();
+    if (/pendidikan\s+agama/.test(s)) return 'pendidikan agama';
+    return s.replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  async function muatArsipBukuInduk(siswaId, semesterMap) {
+    var out = [];
+    try {
+      var res = await supabaseClient
+        .from('bi_riwayat_semester')
+        .select('semester_ke, ta_nama, ta_semester, kelas_nama, nilai, nilai_pkl')
+        .eq('siswa_id', siswaId);
+      if (res.error) return out;
+      (res.data || []).forEach(function (r) {
+        var ke = Number(r.semester_ke) || null;
+        if (!ke) {
+          // semester_ke kosong: cari lewat tahun ajaran + semester di riwayat kelas
+          Object.keys(semesterMap || {}).forEach(function (k) {
+            var m = semesterMap[k];
+            if (m.taNama === r.ta_nama && m.taSemester === r.ta_semester) ke = Number(k);
+          });
+        }
+        if (ke >= 1 && ke <= 6) out.push({ ke: ke, ta: r.ta_nama, sem: r.ta_semester, kelas: r.kelas_nama, nilai: r.nilai || [], nilaiPkl: r.nilai_pkl });
+      });
+    } catch (e) { /* tabel arsip belum ada: leger tampil seperti biasa */ }
+    return out;
+  }
+  // Mengisi nilaiMap (dan menambah baris mapel bila nama tidak ada di daftar). Mengembalikan mapelList baru.
+  function terapkanArsipBukuInduk(arsip, mapelList, nilaiMap) {
+    if (!arsip || !arsip.length) return mapelList;
+    var daftar = mapelList.slice();
+    var tambahan = {};
+    function cariBaris(nama) {
+      var k = normMapelLeger(nama);
+      var hit = daftar.filter(function (m) { return normMapelLeger(m.nama) === k; });
+      if (hit.length) return hit;
+      if (!tambahan[k]) {
+        tambahan[k] = { id: 'bi:' + k, nama: nama, kode: null, jenis_mapel: null, urutan_leger: null, berlaku_untuk: 'semua', berlaku_semester: 'semua', dariArsip: true };
+        daftar.push(tambahan[k]);
+      }
+      return [tambahan[k]];
+    }
+    function isi(ke, nama, nilai) {
+      var v = Number(nilai);
+      if (nilai === null || nilai === undefined || nilai === '' || isNaN(v)) return;
+      cariBaris(nama).forEach(function (m) {
+        if (!nilaiMap[ke]) nilaiMap[ke] = {};
+        var ada = nilaiMap[ke][m.id];
+        if (ada && ada.nilai !== null && ada.nilai !== undefined) return; // nilai E-Rapor didahulukan
+        nilaiMap[ke][m.id] = { nilai: v, arsip: true };
+      });
+    }
+    arsip.forEach(function (r) {
+      var adaPkl = false;
+      (r.nilai || []).forEach(function (n) {
+        if (/praktik\s+kerja\s+lapangan|\bpkl\b/i.test(n.mapel || '')) adaPkl = true;
+        isi(r.ke, n.mapel, n.nilai);
+      });
+      if (r.ke === 6 && !adaPkl && r.nilaiPkl !== null && r.nilaiPkl !== undefined) isi(6, 'Praktik Kerja Lapangan (PKL)', r.nilaiPkl);
+    });
+    return daftar;
   }
 
   async function renderLegerDetail(siswaObj, kelasObj) {
@@ -2841,7 +2923,9 @@
     var tahunAjaranIdKeSemester = {};
     Object.keys(semesterMap).forEach(function (ke) { tahunAjaranIdKeSemester[semesterMap[ke].tahunAjaranId] = Number(ke); });
 
-    if (!Object.keys(semesterMap).length) {
+    var arsipBI = await muatArsipBukuInduk(siswaObj.id, semesterMap);
+
+    if (!Object.keys(semesterMap).length && !arsipBI.length) {
       area.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div>' +
         '<div class="empty-state__title">Belum ada data kelas</div>' +
         '<div class="empty-state__desc">Siswa ini belum tercatat pernah ditempatkan di kelas manapun.</div></div>';
@@ -2933,6 +3017,9 @@
       nilaiMap[ke][r.mapel_id] = { nilai: r.nilai };
     });
 
+    // Semester terlewat (diisi lewat Buku Induk) ikut dibaca; nilai E-Rapor tetap didahulukan.
+    mapelList = terapkanArsipBukuInduk(arsipBI, mapelList, nilaiMap);
+
     if (!mapelList.length) {
       area.innerHTML = '<div class="empty-state"><div class="empty-state__mark">！</div>' +
         '<div class="empty-state__title">Belum ada mata pelajaran</div>' +
@@ -2944,6 +3031,10 @@
     var infoHtml = '<div class="panel-note">' +
       [1, 2, 3, 4, 5, 6].map(function (ke) {
         var m = semesterMap[ke];
+        if (!m) {
+          var ar = arsipBI.filter(function (x) { return x.ke === ke; })[0];
+          if (ar) return 'Semester ' + ke + ': ' + escapeHtml(ar.kelas || '—') + ' — TA ' + escapeHtml(ar.ta) + ' ' + escapeHtml(ar.sem) + ' <em>(arsip Buku Induk)</em>';
+        }
         return 'Semester ' + ke + ': ' + (m ? escapeHtml(m.kelasNama) + ' — TA ' + escapeHtml(m.taNama) + ' ' + escapeHtml(m.taSemester) : '<em>belum ada data</em>');
       }).join(' &nbsp;·&nbsp; ') +
       '</div>';
@@ -3591,7 +3682,7 @@
     // Tanpa profil guru/admin (mis. akun siswa) -> keluar dari halaman ini.
     if (profileResult.error || !profileResult.data) { window.location.href = 'portal.html'; return; }
 
-    window.__kepsekMode = profileResult.data.role === 'kepsek';
+    window.__kepsekMode = profileResult.data.role === 'kepsek' || profileResult.data.role === 'pengawas';
     var nama = (profileResult.data && profileResult.data.nama) ? profileResult.data.nama : user.email;
 
     document.getElementById('userName').textContent = nama;

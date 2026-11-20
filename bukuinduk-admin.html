@@ -3,6 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
 <title>Buku Induk (Admin) — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,20 +25,21 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="xlsx-autofit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=8" defer></script>
-<script src="kepsek-readonly.js?v=12"></script>
-<script src="kepsek-nav.js?v=7"></script>
+<script src="app-switcher.js?v=12" defer></script>
+<script src="kepsek-readonly.js?v=13"></script>
+<script src="kepsek-nav.js?v=10"></script>
 <script src="sticky-nama.js?v=1"></script>
-<script src="bukuinduk-fields.js?v=1"></script>
+<script src="bukuinduk-fields.js?v=2"></script>
 <script src="pelanggaran-cp.js?v=1"></script>
-<script src="bukuinduk-core.js?v=19"></script>
-<script src="pengajuan-data.js?v=1"></script>
-<script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=10" defer></script>
+<script src="bukuinduk-core.js?v=23"></script>
+<script src="pengajuan-data.js?v=2"></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="bottomnav.js?v=18" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
-<script src="foto-profil.js?v=5" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
 </head>
 <body>
 
@@ -49,6 +63,7 @@
       <a href="#" class="menu-item" data-view="mutasi"><i data-lucide="arrow-right-left" class="menu-icon"></i><span class="menu-item__title">Mutasi & Kelulusan</span></a>
       <a href="#" class="menu-item" data-view="sinkron"><i data-lucide="refresh-cw" class="menu-icon"></i><span class="menu-item__title">Sinkron dari E-Rapor</span></a>
       <a href="#" class="menu-item" data-view="excel"><i data-lucide="file-spreadsheet" class="menu-icon"></i><span class="menu-item__title">Excel (Unduh/Impor)</span></a>
+      <a href="#" class="menu-item" data-view="terlewat"><i data-lucide="calendar-plus" class="menu-icon"></i><span class="menu-item__title">Isi Semester Terlewat</span></a>
       <a href="#" class="menu-item" data-view="cetak"><i data-lucide="printer" class="menu-icon"></i><span class="menu-item__title">Cetak Buku Induk</span></a>
     </nav>
 
@@ -199,6 +214,7 @@
     mutasi: renderMutasi,
     sinkron: function () { return BI.renderSinkron({ root: content }); },
     excel: function () { return BI.renderExcel({ root: content, admin: true }); },
+    terlewat: function () { return BI.renderSemesterTerlewat({ root: content, admin: true }); },
     cetak: function () { return BI.renderCetak({ root: content, admin: true }); }
   };
 

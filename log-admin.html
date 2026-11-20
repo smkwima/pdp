@@ -3,17 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Log Aktivitas (Admin) — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
+<title>Log Aktivitas (Developer) — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js"></script>
-<script src="app-switcher.js?v=8" defer></script>
-<script src="ijin-notif.js?v=2" defer></script>
-<script src="mobile.js?v=1" defer></script>
-<script src="foto-profil.js?v=5" defer></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
 </head>
 <body>
 
@@ -27,7 +39,7 @@
         <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
       </div>
     </div>
-    <div class="sidebar__role"><i data-lucide="shield-check" style="width:13px;height:13px;"></i> Admin Log Aktivitas</div>
+    <div class="sidebar__role"><i data-lucide="code-xml" style="width:13px;height:13px;"></i> Developer · Log Aktivitas</div>
 
     <nav class="menu-list" id="menuAdmin">
       <a href="#semua" class="menu-item" data-view="semua"><i data-lucide="history" class="menu-icon"></i><span class="menu-item__title">Semua Aktivitas</span></a>
@@ -50,12 +62,12 @@
     <div class="topbar">
       <div>
         <div class="topbar__title">Log Aktivitas</div>
-        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Siapa melakukan apa dan kapan</div><a href="portal.html" class="btn-small topbar__app"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Menu Utama</a></div>
+        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Siapa melakukan apa dan kapan</div><a href="developer.html" class="btn-small topbar__app"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Kembali ke Developer</a></div>
       </div>
       <div class="user-chip">
         <div class="user-chip__text">
           <div class="user-chip__name" id="userName">Memuat...</div>
-          <div class="user-chip__role">Admin</div>
+          <div class="user-chip__role">Developer</div>
           <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
         </div>
         <div class="user-chip__avatar" id="userAvatar">•</div>
@@ -88,7 +100,7 @@
   // LOG AKTIVITAS
   // Menampilkan siapa melakukan apa dan kapan. Data dicatat otomatis
   // oleh trigger database + catatAktivitas() (login/logout/cetak/unduh).
-  // Perlu migrasi_log_aktivitas.sql. Hanya admin yang bisa membaca.
+  // Perlu migrasi_log_aktivitas.sql. Hanya developer yang bisa membaca (admin tidak bisa).
   // =========================================================
   async function renderLogAktivitas(preset) {
     preset = preset || {};
@@ -130,7 +142,7 @@
       '<div class="field"><label>Dari tanggal</label><input type="date" id="lgDari"></div>' +
       '<div class="field"><label>Sampai tanggal</label><input type="date" id="lgSampai"></div>' +
       '<div class="field"><label>Aplikasi</label><select id="lgApp">' + opsiApp + '</select></div>' +
-      '<div class="field"><label>Peran</label><select id="lgPeran"><option value="">Semua peran</option><option value="admin">Admin</option><option value="guru">Guru</option><option value="siswa">Siswa</option><option value="sistem">Sistem / SQL</option></select></div>' +
+      '<div class="field"><label>Peran</label><select id="lgPeran"><option value="">Semua peran</option><option value="developer">Developer</option><option value="admin">Admin</option><option value="guru">Guru</option><option value="siswa">Siswa</option><option value="sistem">Sistem / SQL</option></select></div>' +
       '<div class="field"><label>Pengguna</label><select id="lgUser">' + opsiAkun + '</select></div>' +
       '<div class="field"><label>Aksi</label><select id="lgAksi"><option value="">Semua aksi</option><option value="tambah">Tambah</option><option value="ubah">Ubah</option><option value="hapus">Hapus</option><option value="login">Login</option><option value="logout">Logout</option><option value="cetak">Cetak</option><option value="unduh">Unduh</option></select></div>' +
       '<div class="field"><label>Modul</label><select id="lgModul">' + opsiModul + '</select></div>' +
@@ -212,7 +224,7 @@
       return '<span class="chip chip--muted">' + escapeHtml(a || '-') + '</span>';
     }
     function chipPeran(p) {
-      var label = { admin: 'Admin', guru: 'Guru', siswa: 'Siswa', sistem: 'Sistem' }[p] || (p || '-');
+      var label = { developer: 'Developer', admin: 'Admin', guru: 'Guru', siswa: 'Siswa', sistem: 'Sistem' }[p] || (p || '-');
       return '<span class="chip chip--muted">' + escapeHtml(label) + '</span>';
     }
     function nilaiTeks(v) {
@@ -392,9 +404,9 @@
     if (!session) { window.location.href = 'index.html'; return; }
     var user = session.user;
 
-    // Hanya admin (log memang hanya bisa dibaca admin lewat RLS)
+    // Hanya developer (RLS database juga hanya mengizinkan developer membaca log)
     var profileResult = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
-    if (profileResult.error || !profileResult.data || profileResult.data.role !== 'admin') { window.location.href = 'portal.html'; return; }
+    if (profileResult.error || !profileResult.data || String(profileResult.data.role) !== 'developer') { window.location.href = 'portal.html'; return; }
 
     var nama = profileResult.data.nama || user.email;
     document.getElementById('userName').textContent = nama;

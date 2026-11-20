@@ -3,21 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
 <title>Menu Utama — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
-<script src="dashboard-kepsek.js?v=4"></script>
-<script src="bottomnav.js?v=10" defer></script>
+<script src="pengumuman-kepsek.js?v=2"></script>
+<script src="dashboard-kepsek.js?v=7"></script>
+<script src="bottomnav.js?v=18" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
-<script src="foto-profil.js?v=5" defer></script>
-<script src="pengingat-guru.js?v=2" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+<script src="pengingat-guru.js?v=3" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
+<script src="disiplin-saya.js?v=1"></script>
+<script src="penilaian-saya.js?v=1"></script>
 <style>
   body { background: var(--bg); min-height: 100vh; }
 
@@ -80,6 +97,8 @@
   .pt-hero__ta b { font-family: var(--font-display); font-size: 18px; font-weight: 800; }
 
   .pt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+  .pt-hero__disp { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+  .pt-hero__disp:not([style*="none"]) { display: flex; }
   .pt-stat { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
   .pt-stat__ic { width: 46px; height: 46px; border-radius: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .pt-stat__ic i, .pt-stat__ic svg { width: 22px; height: 22px; }
@@ -214,9 +233,13 @@
           <p class="pt-hero__sub" id="heroSub">Pilih modul aplikasi yang ingin kamu buka.</p>
         </div>
         <div class="pt-hero__ta" id="heroTa" style="display:none;"><span>Tahun Ajaran Aktif</span><b id="heroTaTxt"></b></div>
+        <div class="pt-hero__disp" id="dsWadah" style="display:none;"></div>
       </section>
 
       <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec" id="secPeng" style="display:none;">Pengumuman Sekolah</div>
+      <div id="pkPengWadah"></div>
 
       <div class="pt-sec" id="secDk" style="display:none;">Pantauan Progres Guru</div>
       <div id="dkWadah"></div>
@@ -242,7 +265,24 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   // Daftar modul — dipakai untuk sidebar DAN kotak modul di konten.
-  function daftarModul(admin, kepsek) {
+  function daftarModul(admin, kepsek, pengawas) {
+    // Pengawas Sekolah: lihat-saja, hanya modul pemantauan mutu (tanpa Buku Induk, Pelanggaran, Pengaduan, Ijin, Administrasi).
+    if (pengawas) {
+      return [
+        { grup: 'Akademik', href: 'admin.html', warna: 'c-hijau', ikon: 'file-text', judul: 'E-Rapor',
+          desc: 'Lihat kelengkapan nilai, kelas, mata pelajaran dan rekap nilai.' },
+        { grup: 'Akademik', href: 'guru-penugasan.html', warna: 'c-ungu', ikon: 'users-round', judul: 'Guru & Penugasan',
+          desc: 'Lihat data guru, penugasan intrakurikuler, PJ kokurikuler, dan pembina ekstrakurikuler.' },
+        { grup: 'Akademik', href: 'pkl.html', warna: 'c-biru', ikon: 'briefcase-business', judul: 'Nilai PKL',
+          desc: 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.' },
+        { grup: 'Pembinaan & Mutu', href: 'supervisi-admin.html', warna: 'c-ungu', ikon: 'clipboard-check', judul: 'Supervisi',
+          desc: 'Lihat jadwal dan hasil supervisi akademik guru.' },
+        { grup: 'Pembinaan & Mutu', href: 'kinerja.html', warna: 'c-oranye', ikon: 'award', judul: 'Kinerja Guru',
+          desc: 'Lihat kelengkapan dan status bukti kinerja guru.' },
+        { grup: 'Pembinaan & Mutu', href: 'catatan-pengawas.html', warna: 'c-biru', ikon: 'notebook-pen', judul: 'Catatan Pengawas',
+          desc: 'Tulis hasil kunjungan, temuan, rekomendasi, dan tindak lanjut pembinaan.' }
+      ];
+    }
     // Kepala sekolah: modul tampilan admin (mode lihat saja), tanpa menu Administrasi.
     if (kepsek) {
       var desk = {
@@ -251,11 +291,13 @@
         'Nilai PKL': 'Lihat penugasan pembimbing & penguji serta rekap nilai PKL.',
         'Supervisi': 'Lihat jadwal, form dan hasil supervisi akademik guru.',
         'Kinerja Guru': 'Cek bukti kinerja yang diajukan guru dan beri jempol.',
+        'Penilaian Rekan': 'Lihat hasil akhir penilaian kinerja, sikap, dan perilaku antarrekan (anonim).',
         'Ijin & Dinas Luar': 'Lihat pengajuan sakit, ijin dan dinas luar guru & staf.',
+        'Presensi': 'Presensi datang & pulang dengan foto selfie dan lokasi.',
         'Pengaduan Siswa': 'Lihat laporan bullying dan pelanggaran dari siswa beserta nama pelapor (rahasia).'
       };
       var hasil = [];
-      daftarModul(true, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso && m.href !== 'penugasan-admin.html'; }).forEach(function (m) {
+      daftarModul(true, false, false).filter(function (m) { return m.grup !== 'Administrasi' && !m.sso && m.href !== 'penugasan-admin.html'; }).forEach(function (m) {
         if (desk[m.judul]) m.desc = desk[m.judul];
         hasil.push(m);
         if (m.judul === 'E-Rapor') {
@@ -263,8 +305,12 @@
             desc: 'Lihat data guru, penugasan intrakurikuler, PJ kokurikuler, dan pembina ekstrakurikuler.' });
         }
       });
+      hasil.push({ grup: 'Pembinaan & Mutu', href: 'catatan-pengawas.html', warna: 'c-biru', ikon: 'notebook-pen', judul: 'Catatan Pengawas',
+        desc: 'Baca hasil kunjungan, temuan, dan rekomendasi dari Pengawas Sekolah.' });
       hasil.push({ grup: 'Kepegawaian', href: 'disiplin.html', warna: 'c-hijau', ikon: 'fingerprint', judul: 'Rekap Kedisiplinan',
         desc: 'Lihat rekap kehadiran guru & staf: alpa, terlambat, pulang awal, ijin, sakit, dinas luar, dan predikat.' });
+      hasil.push({ grup: 'Kepegawaian', href: 'presensi.html#rekap', warna: 'c-biru', ikon: 'clipboard-list', judul: 'Rekap Presensi Online',
+        desc: 'Pantau presensi datang & pulang guru dan staf lewat aplikasi (selfie + lokasi), per tanggal, lengkap dengan foto.' });
       return hasil;
     }
     return [
@@ -282,21 +328,31 @@
         desc: admin ? 'Atur jadwal, form dan data supervisi akademik guru.' : 'Lihat jadwal, isi form supervisi, dan jawab wawancara supervisi.' },
       { grup: 'Pembinaan & Mutu', href: 'kinerja.html', warna: 'c-oranye', ikon: 'award', judul: admin ? 'Kinerja Guru' : 'Kinerja Saya',
         desc: admin ? 'Pantau bukti kinerja guru, cek dan beri jempol.' : 'Ajukan bukti perangkat, pembelajaran, penilaian dan tugas tambahan ke Kepala Sekolah.' },
+      { grup: 'Pembinaan & Mutu', href: 'penilaian-rekan.html', warna: 'c-ungu', ikon: 'users', judul: 'Penilaian Rekan',
+        desc: admin ? 'Buka/tutup penilaian, acak penilai, dan pantau progres. Jawaban anonim.' : 'Nilai kinerja, sikap, dan perilaku rekan secara anonim.' },
       { grup: 'Pembinaan & Mutu', href: 'pelanggaran.html', warna: 'c-merah', ikon: 'shield-alert', judul: 'Catatan Pelanggaran',
         desc: 'Telusuri catatan pelanggaran siswa dari aplikasi CP, per kelas.' },
       admin ? { grup: 'Pembinaan & Mutu', href: 'pengaduan.html', warna: 'c-merah', ikon: 'megaphone', judul: 'Pengaduan Siswa',
         desc: 'Terima laporan bullying & pelanggaran dari siswa (nama pelapor wajib, hanya terlihat admin & kepsek), beri tanggapan.' } : null,
+      { grup: 'Kepegawaian', href: 'presensi.html', warna: 'c-hijau', ikon: 'map-pin', judul: 'Presensi',
+        desc: admin ? 'Presensi datang & pulang, lalu atur jadwal, lokasi, dan pantau rekap kehadiran pegawai. ' : 'Presensi datang & pulang dengan foto selfie dan lokasi.' },
       { grup: 'Kepegawaian', href: 'ijin.html', warna: 'c-biru', ikon: 'calendar-off', judul: 'Ijin & Dinas Luar',
         desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' }
-    ].filter(Boolean).concat(admin ? [
+    ].filter(Boolean).concat(!admin ? [
+      { grup: 'Bantuan', href: 'assets/Petunjuk_Penggunaan_PDP_Guru_dan_Staf.pdf', luar: true, warna: 'c-abu', ikon: 'book-open', judul: 'Panduan PDP',
+        desc: 'Petunjuk penggunaan PDP untuk guru dan staf (PDF). Terbuka di tab baru.' }
+    ] : []).concat(admin ? [
       { grup: 'Administrasi', href: 'pengaturan-admin.html', warna: 'c-biru', ikon: 'settings', judul: 'Pengaturan Sekolah',
         desc: 'Profil sekolah, tahun ajaran, naik kelas & kelulusan, slideshow login.' },
       { grup: 'Administrasi', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'c-hijau', ikon: 'fingerprint', judul: 'Rekap Absen Fingerprint',
-        desc: 'Rekap kehadiran guru & staf dari mesin fingerprint, termasuk ijin yang diajukan di pdp. Terbuka di tab baru.' },
-      { grup: 'Administrasi', href: 'log-admin.html', warna: 'c-abu', ikon: 'history', judul: 'Log Aktivitas',
-        desc: 'Pantau siapa melakukan apa dan kapan di semua aplikasi.' }
+        desc: 'Rekap kehadiran guru & staf dari mesin fingerprint, termasuk ijin yang diajukan di pdp. Terbuka di tab baru.' }
     ] : []);
   }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('[data-kunci]') : null;
+    if (a) { e.preventDefault(); alert('Aplikasi dikunci.\n' + a.getAttribute('data-kunci')); }
+  });
 
   function renderSidebar(mods) {
     var h = '<div class="pt-nav"><a class="is-active" href="portal.html"><i data-lucide="layout-dashboard"></i>Beranda</a></div>';
@@ -307,6 +363,7 @@
         h += '<div class="pt-side__label">' + esc(m.grup) + '</div><div class="pt-nav">';
         grupTerakhir = m.grup;
       }
+      if (m.kunci) { h += '<a href="#" data-kunci="' + esc(m.kunci) + '" style="opacity:.55;"><i data-lucide="lock"></i>' + esc(m.judul) + '</a>'; return; }
       h += '<a href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '><i data-lucide="' + m.ikon + '"></i>' + esc(m.judul) + '</a>';
     });
     if (grupTerakhir) h += '</div>';
@@ -315,6 +372,11 @@
 
   function renderModul(mods) {
     document.getElementById('grid').innerHTML = mods.map(function (m) {
+      if (m.kunci) {
+        return '<a class="pt-mod" href="#" data-kunci="' + esc(m.kunci) + '" style="opacity:.6;cursor:not-allowed;">' +
+          '<div class="pt-mod__ic c-abu"><i data-lucide="lock"></i></div>' +
+          '<div><div class="pt-mod__t">' + esc(m.judul) + ' (dikunci)</div><div class="pt-mod__d">' + esc(m.kunci) + '</div></div></a>';
+      }
       return '<a class="pt-mod" href="' + m.href + '"' + (m.sso ? ' data-sso="rpp"' : '') + (m.luar ? ' target="_blank" rel="noopener"' : '') + '>' +
         '<div class="pt-mod__ic ' + m.warna + '"><i data-lucide="' + m.ikon + '"></i></div>' +
         '<div><div class="pt-mod__t">' + esc(m.judul) + '<i data-lucide="arrow-right"></i></div><div class="pt-mod__d">' + esc(m.desc) + '</div></div></a>';
@@ -370,7 +432,7 @@
     for (var i = 0; i < [10, 11, 12].length; i++) {
       var t = [10, 11, 12][i];
       var ids = kelas.filter(function (k) { return k.tingkat === t; }).map(function (k) { return k.id; });
-      var n = ids.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', ids)) : 0;
+      var n = ids.length ? await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).in('kelas_id', ids)) : 0;
       hasil.push({ t: t, n: n || 0 });
     }
     var maks = Math.max.apply(null, hasil.map(function (x) { return x.n; })) || 1;
@@ -390,6 +452,17 @@
       kartuStat('user-check', 'c-oranye', 'stWali', 'Wali Kelas', true);
     document.getElementById('heroSub').textContent = 'Lanjutkan pekerjaanmu — pilih modul di bawah ini.';
     if (window.lucide) lucide.createIcons();
+    if (window.DisiplinSaya) {
+      var dsW = document.getElementById('dsWadah');
+      dsW.innerHTML = DisiplinSaya.kartu(); dsW.style.display = '';
+      if (window.lucide) lucide.createIcons();
+    }
+    if (window.DisiplinSaya) DisiplinSaya.muat(); // dimuat paralel; gagal tidak mengganggu kartu lain
+    if (window.PenilaianSaya) { // muncul hanya bila admin mencentang "Tampilkan hasil ke yang dinilai"
+      var psW = document.getElementById('dsWadah');
+      psW.insertAdjacentHTML('beforeend', PenilaianSaya.kartu());
+      PenilaianSaya.muat(function () { psW.style.display = ''; });
+    }
     if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
 
     var peng = [], wali = null, waliKelasObj = null;
@@ -417,11 +490,11 @@
 
     var jmlSiswaWali = null;
     if (waliKelasObj) {
-      jmlSiswaWali = await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('kelas_id', waliKelasObj.id));
+      jmlSiswaWali = await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).eq('kelas_id', waliKelasObj.id));
     }
     var pesertaEkskul = {};
     await Promise.all(daftarEkskul.map(async function (e) {
-      pesertaEkskul[e.id] = await hitung(supabaseClient.from('ekstrakurikuler_siswa').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).eq('ekstrakurikuler_id', e.id));
+      pesertaEkskul[e.id] = await hitung(supabaseClient.from('ekstrakurikuler_siswa').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).eq('ekstrakurikuler_id', e.id));
     }));
 
     var kelasIds = [], mapelIds = {};
@@ -429,7 +502,7 @@
     isiStat('stKelas', kelasIds.length);
     isiStat('stMapel', Object.keys(mapelIds).length);
     isiStat('stWali', wali || 'Bukan wali kelas');
-    isiStat('stSiswa', kelasIds.length ? await hitung(supabaseClient.from('siswa_kelas').select('id', { count: 'exact', head: true }).eq('tahun_ajaran_id', ta.id).in('kelas_id', kelasIds)) : 0);
+    isiStat('stSiswa', kelasIds.length ? await hitung(supabaseClient.from('siswa_kelas').select('id, siswa:siswa_id!inner(status)', { count: 'exact', head: true }).or('status.is.null,status.eq.aktif', { referencedTable: 'siswa', foreignTable: 'siswa' }).eq('tahun_ajaran_id', ta.id).in('kelas_id', kelasIds)) : 0);
 
     // Daftar tugas mengajar, dikelompokkan per kelas
     var perKelas = {};
@@ -488,13 +561,15 @@
       n.style.display = ''; n.textContent = 'Akun ini belum punya role. Hubungi admin.';
       return;
     }
+    if (pr.data.role === 'developer') { window.location.href = 'developer.html'; return; }
     var admin = pr.data.role === 'admin';
-    try { if (pr.data.role === 'kepsek') localStorage.setItem('kepsek_hint', '1'); else localStorage.removeItem('kepsek_hint'); } catch (e) { /* abaikan */ }
+    try { if (pr.data.role === 'kepsek') localStorage.setItem('kepsek_hint', '1'); else if (pr.data.role === 'pengawas') localStorage.setItem('kepsek_hint', 'pengawas'); else localStorage.removeItem('kepsek_hint'); } catch (e) { /* abaikan */ }
     var kepsek = pr.data.role === 'kepsek';
+    var pengawas = pr.data.role === 'pengawas';
     var nama = pr.data.nama || user.email;
     document.getElementById('userName').textContent = nama;
     var staf = pr.data.role === 'staf';
-    document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : (staf ? 'Staf' : 'Guru'));
+    document.getElementById('userRole').textContent = admin ? 'Admin' : (kepsek ? 'Kepala Sekolah' : (pengawas ? 'Pengawas Sekolah' : (staf ? 'Staf' : 'Guru')));
     document.getElementById('hello').textContent = 'Halo, ' + nama.split(' ')[0] + '!';
 
     // Foto profil besar di kartu sambutan (semua peran). Diam saja kalau fitur foto belum aktif.
@@ -523,9 +598,18 @@
       } catch (x) { /* foto bersifat tambahan; abaikan galat */ }
     })();
 
-    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'ijin.html'; }).map(function (m) {
+    var mods = staf ? daftarModul(false, false).filter(function (m) { return m.href === 'kinerja.html' || m.href === 'penilaian-rekan.html' || m.href === 'ijin.html' || m.href === 'presensi.html' || m.judul === 'Panduan PDP'; }).map(function (m) {
       return m.href === 'kinerja.html' ? Object.assign({}, m, { desc: 'Tulis sendiri aspek bukti dukung kinerjamu, isi link dan keterangan, lalu ajukan ke Kepala Sekolah.' }) : m;
-    }) : daftarModul(admin, kepsek);
+    }) : daftarModul(admin, kepsek, pengawas);
+    // Aplikasi yang dikunci developer: tetap tampil, tetapi bergembok dan tidak bisa dibuka.
+    try {
+      var ak = window.AksesAplikasi ? await AksesAplikasi.muat() : null;
+      if (ak) mods = AksesAplikasi.saring(mods, ak); // aplikasi yang disembunyikan developer: hilang sama sekali (developer tetap melihat)
+      if (ak) mods.forEach(function (m) {
+        var info = ak.kunci[AksesAplikasi.kodeDariHref(m.href, m.judul)];
+        if (info) m.kunci = info.keterangan || 'Aplikasi ini sedang dikunci.';
+      });
+    } catch (e) { /* tidak mengunci apa pun bila gagal */ }
     renderSidebar(mods);
     renderModul(mods);
     if (window.lucide) lucide.createIcons();
@@ -543,14 +627,20 @@
 
     // Pop up sambutan khusus guru — muncul sekali tepat setelah berhasil login
     // (lihat sambutan-guru.js). Admin tidak mendapat pop up ini.
-    if (!admin && !kepsek && window.SambutanGuru) SambutanGuru.tampilkanJikaBaruLogin(pr.data.nama);
+    if (!admin && !kepsek && !pengawas && window.SambutanGuru) SambutanGuru.tampilkanJikaBaruLogin(pr.data.nama);
 
     // Dashboard ringkasan satu layar khusus Kepala Sekolah (dashboard-kepsek.js); dimuat paralel.
-    if (kepsek && window.DashboardKepsek) {
-      document.getElementById('secDk').style.display = '';
-      DashboardKepsek.muat(ta, document.getElementById('dkWadah'));
+    // Pengawas: kartu progres saja (tanpa daftar per guru, tombol Ingatkan, riwayat, dan WhatsApp).
+    // Pengumuman sekolah: hanya Kepala Sekolah yang dapat membuat (pengumuman_kepsek.js).
+    if (kepsek && window.PengumumanKepsek) {
+      document.getElementById('secPeng').style.display = '';
+      PengumumanKepsek.muat(document.getElementById('pkPengWadah'));
     }
-    if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else await muatGuru(ta, user.id);
+    if ((kepsek || pengawas) && window.DashboardKepsek) {
+      document.getElementById('secDk').style.display = '';
+      DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });
+    }
+    if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else if (pengawas) await muatAdmin(ta, 'Pengawas Sekolah'); else await muatGuru(ta, user.id);
   })();
 
   document.getElementById('logoutBtn').addEventListener('click', async function (e) {
