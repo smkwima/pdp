@@ -126,6 +126,8 @@
   .ps-notice span { color: var(--ink-soft); }
   .ps-notice--ok { background: var(--success-tint); border-color: var(--success-border); color: var(--success); }
   .ps-notice--ok span { color: #047857; }
+  .ps-notice--info { background: var(--primary-tint); border-color: var(--primary-tint-strong); color: var(--primary-dim); }
+  .ps-notice--info span { color: var(--primary-dim); }
   .ps-notice--warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
   .ps-notice--warn span { color: #92400e; }
   .ps-notice--bad { background: var(--danger-tint); border-color: var(--danger-border); color: var(--danger); }
@@ -379,16 +381,18 @@ async function presensi() {
   if (tok !== presTok || tab !== "presensi") return;
   const tgl = hi.tanggal, hr = hi.log, ef = hi.ef, libur = ef.tipe === "libur" || ef.tipe === "fm";
   const datang = hr.find(x => x.jenis === "datang"), pulang = hr.find(x => x.jenis === "pulang");
-  const jenis = libur ? null : !datang ? "datang" : !pulang ? "pulang" : null;
+  const ij = !libur && !datang && !pulang ? hi.ijin : null; // ijin/sakit/dinas luar disetujui & belum presensi
+  const jenis = libur || ij ? null : !datang ? "datang" : !pulang ? "pulang" : null;
   const jd = ef.tipe === "kerja" ? `Jadwal hari ini <b>${esc(ef.masuk)}–${esc(ef.pulang)}</b><br><span class="ps-hero__src">${esc(ef.sumber)}</span>`
     : ef.tipe === "libur" ? `<b>Hari ini libur.</b>`
     : ef.tipe === "fm" ? `<b>Force Majeure</b>${ef.ket ? " — " + esc(ef.ket) : ""}. Presensi tidak diperlukan.`
     : `<b>Tidak ada jadwal hari ini.</b>`;
-  const tile = (lb, ik, r) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${r ? hhmm(new Date(r.waktu)) : "—"}</div><div class="stat-card__sub">${r ? stChip(r.status) : "Belum presensi"}</div></div>`;
+  const tile = (lb, ik, r) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${r ? hhmm(new Date(r.waktu)) : "—"}</div><div class="stat-card__sub">${r ? stChip(r.status) : ij ? `<span class="ps-st ps-st--info">${esc(ij.label)}</span>` : "Belum presensi"}</div></div>`;
   const kanan = jenis ? `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="camera"></i> Foto presensi ${jenis}</div><div class="task-section__desc">Pastikan wajah terlihat jelas dan Anda berada di area sekolah.</div></div></div>
       <div class="task-section__body"><div id="loc" class="ps-loc ps-loc--wait" style="margin:0 0 14px"><div><b>Mencari lokasi…</b><span>Aktifkan GPS dan izinkan akses lokasi.</span></div></div>
       <div class="ps-cam"><video id="vid" autoplay playsinline muted></video><div class="ps-cam__wait" id="camwait">Menyalakan kamera…</div></div><canvas id="cv" hidden></canvas>
       <div class="ps-cta"><button class="btn-primary" id="snap"><i data-lucide="camera"></i> Ambil foto &amp; kirim presensi ${jenis}</button></div></div></section>`
+    : ij ? notice("info", "calendar-check", "Hari ini tercatat " + esc(ij.label), "Pengajuan Anda sudah disetujui, jadi presensi tidak diperlukan. Jika Anda ternyata masuk, minta admin membatalkan pengajuannya di menu Ijin &amp; Dinas Luar.")
     : libur ? notice("warn", "calendar-off", ef.tipe === "fm" ? "Force Majeure" : "Hari ini libur", "Presensi tidak diperlukan.")
     : notice("ok", "circle-check", "Presensi hari ini sudah lengkap", "Terima kasih.");
   $("#view").innerHTML = `<div class="ps-presensi"><div class="ps-side">
@@ -451,24 +455,26 @@ async function rekap() {
   ikon();
   const load = async () => {
     const d = $("#d").value; if (!d) return toast("Pilih tanggal dulu.", true);
-    let pg, pr, urls = {}, hari = { tipe: "biasa" };
+    let pg, pr, urls = {}, hari = { tipe: "biasa" }, ijinList = [], ijinOk = true;
     try {
       const [prof, rk] = await Promise.all([sb.from("profiles").select("id,kode_mesin,nama").in("role", ["guru", "staf", "kepsek"]).order("nama"), api("rekap", { tanggal: d })]);
       if (prof.error) throw new Error("Gagal membaca data pegawai e-Rapor: " + prof.error.message);
-      pg = prof.data; pr = rk.log; urls = rk.urls; hari = rk.hari;
+      pg = prof.data; pr = rk.log; urls = rk.urls; hari = rk.hari; ijinList = rk.ijin || []; ijinOk = rk.ijin_ok;
     } catch (e) { return toast("Gagal memuat rekap: " + e.message, true); }
     const out = $("#hasil"); if (tab !== "rekap" || !out) return;
     const f = (p, j) => pr.find(x => x.pegawai_id === p.id && x.jenis === j);
-    const cell = r => {
-      if (!r) return `<td><span class="ps-belum">Belum</span></td>`;
+    const ijinDari = p => { const k = kodeNorm(p.kode_mesin); return k ? ijinList.find(x => kodeNorm(x.kode_mesin) === k) : null; };
+    const labelIjin = { sakit: "Sakit", ijin: "Ijin", dinas_luar: "Dinas Luar" };
+    const cell = (r, p) => {
+      if (!r) { const ij = ijinDari(p); return ij ? `<td><span class="ps-st ps-st--info">${esc(labelIjin[ij.jenis] || ij.jenis)}</span></td>` : `<td><span class="ps-belum">Belum</span></td>`; }
       const u = urls[r.foto_path];
       return `<td><span class="ps-time">${hhmm(new Date(r.waktu))}</span>${stChip(r.status)}${u ? `<a class="ps-foto" href="${esc(u)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}</td>`;
     };
-    const nDatang = pg.filter(p => f(p, "datang")).length, nTelat = pg.filter(p => f(p, "datang")?.status === "terlambat").length, nPulang = pg.filter(p => f(p, "pulang")).length;
+    const nIjin = pg.filter(p => !f(p, "datang") && !f(p, "pulang") && ijinDari(p)).length, nDatang = pg.filter(p => f(p, "datang")).length, nTelat = pg.filter(p => f(p, "datang")?.status === "terlambat").length, nPulang = pg.filter(p => f(p, "pulang")).length;
     const kartu = (lb, ik, v, sub) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${v}</div><div class="stat-card__sub">${sub}</div></div>`;
     out.innerHTML = (hari.tipe === "libur" ? notice("warn", "calendar-off", "Tanggal ini libur") : hari.tipe === "fm" ? notice("warn", "calendar-off", "Tanggal ini Force Majeure", hari.ket ? esc(hari.ket) : "") : "")
-      + `<div class="stat-grid" style="margin-top:${hari.tipe === "libur" || hari.tipe === "fm" ? 16 : 0}px">${kartu("Sudah datang", "log-in", nDatang, "dari " + pg.length + " pegawai")}${kartu("Terlambat", "clock-alert", nTelat, "saat datang")}${kartu("Belum datang", "user-x", pg.length - nDatang, "belum presensi")}${kartu("Sudah pulang", "log-out", nPulang, "presensi pulang")}</div>`
-      + `<div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Nama</th><th>Datang</th><th>Pulang</th></tr></thead><tbody>${pg.map(p => `<tr><td>${esc(p.nama)}</td>${cell(f(p, "datang"))}${cell(f(p, "pulang"))}</tr>`).join("") || `<tr><td colspan="3" class="ps-empty">Belum ada data pegawai.</td></tr>`}</tbody></table></div>`;
+      + (ijinOk ? "" : notice("warn", "triangle-alert", "Data ijin belum terbaca", "Ijin/sakit/dinas luar tidak ikut tampil (secret REKAP_URL / REKAP_ANON_KEY belum diisi atau Rekap Absen tidak terjangkau).")) + `<div class="stat-grid" style="margin-top:${hari.tipe === "libur" || hari.tipe === "fm" ? 16 : 0}px">${kartu("Sudah datang", "log-in", nDatang, "dari " + pg.length + " pegawai")}${kartu("Terlambat", "clock-alert", nTelat, "saat datang")}${kartu("Sakit / Ijin / DL", "calendar-off", nIjin, "tercatat disetujui")}${kartu("Belum datang", "user-x", pg.length - nDatang - nIjin, "belum presensi")}${kartu("Sudah pulang", "log-out", nPulang, "presensi pulang")}</div>`
+      + `<div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Nama</th><th>Datang</th><th>Pulang</th></tr></thead><tbody>${pg.map(p => `<tr><td>${esc(p.nama)}</td>${cell(f(p, "datang"), p)}${cell(f(p, "pulang"), p)}</tr>`).join("") || `<tr><td colspan="3" class="ps-empty">Belum ada data pegawai.</td></tr>`}</tbody></table></div>`;
     ikon();
   };
   $("#cari").onclick = load; load();

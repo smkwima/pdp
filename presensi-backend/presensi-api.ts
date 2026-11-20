@@ -12,12 +12,17 @@
 // Secrets (Edge Functions > Secrets):
 //   RAPOR_URL       = https://iejpwxmcqwecejsrezry.supabase.co
 //   RAPOR_ANON_KEY  = kunci publishable/anon project e-Rapor (kunci publik, bukan service_role)
+//   REKAP_URL       = (opsional) alamat project Supabase REKAP ABSEN, untuk membaca ijin/sakit/dinas luar
+//   REKAP_ANON_KEY  = (opsional) kunci publishable/anon project Rekap Absen (kunci publik, bukan service_role)
+//                     Tanpa dua secret ini presensi tetap jalan, hanya tidak membaca ijin.
 //
 // POST { action, ... }  ->  JSON. Daftar action ada di switch di bawah.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const RAPOR_URL = (Deno.env.get("RAPOR_URL") ?? "").replace(/\/+$/, "");
 const RAPOR_ANON = Deno.env.get("RAPOR_ANON_KEY") ?? "";
+const REKAP_URL = (Deno.env.get("REKAP_URL") ?? "").replace(/\/+$/, "");
+const REKAP_ANON = Deno.env.get("REKAP_ANON_KEY") ?? "";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const BUCKET = "selfie", MAX = 20 * 1024; // foto maks 20 KB
 const PEGAWAI = ["guru", "staf", "kepsek", "admin"];
@@ -44,9 +49,9 @@ async function siapa(token: string) {
   const u = await fetch(`${RAPOR_URL}/auth/v1/user`, { headers: h });
   if (!u.ok) return null;
   const { id } = await u.json();
-  const p = await fetch(`${RAPOR_URL}/rest/v1/profiles?id=eq.${id}&select=role`, { headers: h });
+  const p = await fetch(`${RAPOR_URL}/rest/v1/profiles?id=eq.${id}&select=role,kode_mesin`, { headers: h });
   const rows = await p.json();
-  return { id: id as string, role: Array.isArray(rows) ? (rows[0]?.role as string) : undefined };
+  return { id: id as string, role: Array.isArray(rows) ? (rows[0]?.role as string) : undefined, kode_mesin: Array.isArray(rows) ? (rows[0]?.kode_mesin as string | null) : null };
 }
 
 // Waktu server (WIB) — tidak percaya jam HP.
@@ -66,6 +71,28 @@ const ok = <T>(r: { data: T; error: { message: string } | null }) => { if (r.err
 const butuhAdmin = (me: { role?: string }) => { if (me.role !== "admin") throw new Tolak("Hanya admin", 403); };
 // Rekap harian & foto: admin dan kepala sekolah (kepala sekolah hanya membaca).
 const butuhAdminAtauKepsek = (me: { role?: string }) => { if (me.role !== "admin" && me.role !== "kepsek") throw new Tolak("Hanya admin atau kepala sekolah", 403); };
+
+// ---------- Ijin / sakit / dinas luar (dibaca dari database Rekap Absen, tabel absen_ijin) ----------
+// Kunci anon Rekap Absen hanya bisa membaca pengajuan berstatus 'disetujui' (lihat rekap_ijin_persetujuan.sql),
+// jadi pengajuan yang belum disetujui tidak ikut. Gagal baca / secret kosong => null (presensi tetap jalan).
+type Ijin = { kode_mesin: string; nama: string; jenis: string };
+const kodeNorm = (v: unknown) => { const k = parseInt(String(v ?? ""), 10); return Number.isNaN(k) ? "" : String(k); };
+const JENIS_IJIN: Record<string, string> = { sakit: "Sakit", ijin: "Ijin", dinas_luar: "Dinas Luar" };
+async function ijinPada(tanggal: string): Promise<Ijin[] | null> {
+  if (!REKAP_URL || !REKAP_ANON) return null;
+  try {
+    const q = `select=kode_mesin,nama,jenis&tanggal_mulai=lte.${tanggal}&tanggal_selesai=gte.${tanggal}&limit=1000`;
+    const r = await fetch(`${REKAP_URL}/rest/v1/absen_ijin?${q}`, { headers: { apikey: REKAP_ANON, Authorization: `Bearer ${REKAP_ANON}` } });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows as Ijin[] : null;
+  } catch { return null; }
+}
+const ijinSaya = (daftar: Ijin[] | null, kode: unknown) => {
+  const k = kodeNorm(kode);
+  const e = k && daftar ? daftar.find((x) => kodeNorm(x.kode_mesin) === k) : null;
+  return e ? { jenis: e.jenis, label: JENIS_IJIN[e.jenis] ?? e.jenis } : null;
+};
 
 // ---------- Pengaturan jadwal (libur, force majeure, jam staf, acuan tes/pasca tes/piket) ----------
 type Peng = {
@@ -220,11 +247,12 @@ Deno.serve(async (req) => {
 
       case "hari_ini": { // data layar Presensi: jadwal yang berlaku hari ini + log hari ini milik sendiri
         const w = wib();
-        const [ctx, rows, log] = await Promise.all([
+        const [ctx, rows, log, ij] = await Promise.all([
           muatCtx(), jadwalSaya(me.id),
           db.from("presensi_log").select("*").eq("pegawai_id", me.id).eq("tanggal", w.tanggal),
+          ijinPada(w.tanggal),
         ]);
-        return json({ tanggal: w.tanggal, jam: w.jam, hari: w.hari, ef: efektif(ctx, me.id, me.role!, rows, w.tanggal, w.hari), log: ok(log) });
+        return json({ tanggal: w.tanggal, jam: w.jam, hari: w.hari, ef: efektif(ctx, me.id, me.role!, rows, w.tanggal, w.hari), log: ok(log), ijin: ijinSaya(ij, me.kode_mesin) });
       }
 
       case "absen": { // validasi radius, status, simpan foto + log — semua di server
@@ -245,6 +273,10 @@ Deno.serve(async (req) => {
         if (d > cfg.radius_m) throw new Tolak(`Di luar radius presensi (${d} m dari titik, batas ${cfg.radius_m} m)`);
 
         const hr = ok(await db.from("presensi_log").select("jenis").eq("pegawai_id", me.id).eq("tanggal", w.tanggal));
+        if (hr.length === 0) { // sudah tercatat ijin/sakit/dinas luar (disetujui) dan belum presensi: tidak perlu presensi
+          const ij = ijinSaya(await ijinPada(w.tanggal), me.kode_mesin);
+          if (ij) throw new Tolak(`Hari ini Anda tercatat ${ij.label} (disetujui), presensi tidak diperlukan`, 409);
+        }
         if (hr.some((x: { jenis: string }) => x.jenis === jenis)) throw new Tolak(`Presensi ${jenis} hari ini sudah tercatat`, 409);
         if (jenis === "pulang" && !hr.some((x: { jenis: string }) => x.jenis === "datang")) throw new Tolak("Belum presensi datang hari ini");
 
@@ -273,7 +305,8 @@ Deno.serve(async (req) => {
         const log = ok(await db.from("presensi_log").select("*").eq("tanggal", body.tanggal));
         const hariInfo = tipeHari(await muatCtx(), body.tanggal);
         const paths = log.map((x: { foto_path: string | null }) => x.foto_path).filter(Boolean).slice(0, 600) as string[];
-        return json({ log, hari: hariInfo, urls: await signedUrls(paths) });
+        const ij = await ijinPada(body.tanggal);
+        return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null });
       }
 
       case "url": { // admin & kepala sekolah: semua foto; lainnya: hanya foto sendiri
