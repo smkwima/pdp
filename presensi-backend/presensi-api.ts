@@ -64,6 +64,8 @@ function jarak(a: number, b: number, c: number, d: number) {
 const detik = (t: string) => { const [h, m, s] = t.split(":"); return +h * 3600 + +m * 60 + +(s ?? 0); };
 const ok = <T>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Tolak(r.error.message, 500); return r.data; };
 const butuhAdmin = (me: { role?: string }) => { if (me.role !== "admin") throw new Tolak("Hanya admin", 403); };
+// Rekap harian & foto: admin dan kepala sekolah (kepala sekolah hanya membaca).
+const butuhAdminAtauKepsek = (me: { role?: string }) => { if (me.role !== "admin" && me.role !== "kepsek") throw new Tolak("Hanya admin atau kepala sekolah", 403); };
 
 // ---------- Pengaturan jadwal (libur, force majeure, jam staf, acuan tes/pasca tes/piket) ----------
 type Peng = {
@@ -265,8 +267,8 @@ Deno.serve(async (req) => {
       case "riwayat":
         return json({ log: ok(await db.from("presensi_log").select("*").eq("pegawai_id", me.id).order("waktu", { ascending: false }).limit(60)) });
 
-      case "rekap": { // admin: semua log pada satu tanggal + tautan foto
-        butuhAdmin(me);
+      case "rekap": { // admin & kepala sekolah (baca-saja): semua log pada satu tanggal + tautan foto
+        butuhAdminAtauKepsek(me);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.tanggal))) throw new Tolak("Tanggal tidak valid");
         const log = ok(await db.from("presensi_log").select("*").eq("tanggal", body.tanggal));
         const hariInfo = tipeHari(await muatCtx(), body.tanggal);
@@ -274,9 +276,9 @@ Deno.serve(async (req) => {
         return json({ log, hari: hariInfo, urls: await signedUrls(paths) });
       }
 
-      case "url": { // admin: semua foto; lainnya: hanya foto sendiri
+      case "url": { // admin & kepala sekolah: semua foto; lainnya: hanya foto sendiri
         const paths: string[] = (Array.isArray(body.paths) ? body.paths : []).slice(0, 300).map(String);
-        return json({ urls: await signedUrls(paths.filter((p) => me.role === "admin" || p.startsWith(me.id + "/"))) });
+        return json({ urls: await signedUrls(paths.filter((p) => me.role === "admin" || me.role === "kepsek" || p.startsWith(me.id + "/"))) });
       }
 
       case "jadwal_list": { // admin: jadwal reguler/tes semua pegawai

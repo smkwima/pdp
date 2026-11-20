@@ -310,21 +310,23 @@ async function masuk(user) {
   me = data; me.jabatan = { guru: "Guru", staf: "Staf", kepsek: "Kepala Sekolah", admin: "Admin" }[data.role];
   try { cfg = (await api("lokasi")).lokasi; }
   catch (e) { return gagalView("Gagal memuat pengaturan presensi (jika baru pertama kali, jalankan setup.sql di project presensi dan deploy fungsi presensi-api): " + e.message); }
+  const awal = (location.hash || "").replace("#", "");
+  if (awal === "rekap" && (me.role === "admin" || me.role === "kepsek")) { tab = "rekap"; history.replaceState({ d: 0, t: "rekap" }, ""); }
   shell();
 }
 
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
 const TAB_INFO = {
   presensi: ["Presensi", "Presensi", "map-pin"], riwayat: ["Riwayat Presensi", "Riwayat", "history"],
-  rekap: ["Rekap Harian", "Rekap", "clipboard-list"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
+  rekap: ["Rekap Presensi Online", "Rekap Online", "clipboard-list"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
   jadwal: ["Input Jadwal", "Input jadwal", "calendar-plus"], cek: ["Cek Jadwal", "Cek jadwal", "calendar-check"],
   atur: ["Pengaturan", "Pengaturan", "settings"], daftar: ["Pegawai", "Pegawai", "users"]
 };
 function shell() {
-  const saya = ["presensi", "riwayat"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : [], semua = [...saya, ...kelola];
+  const saya = ["presensi", "riwayat"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : me.role === "kepsek" ? ["rekap"] : [], semua = [...saya, ...kelola];
   const item = t => `<a href="#" class="menu-item${t === tab ? " menu-item--active" : ""}" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}><i data-lucide="${TAB_INFO[t][2]}" class="menu-icon"></i><span class="menu-item__title">${TAB_INFO[t][1]}</span></a>`;
   $("#menu").innerHTML = `<div class="sidebar__section-label">Presensi saya</div>${saya.map(item).join("")}`
-    + (kelola.length ? `<div class="sidebar__section-label">Pengelolaan</div>${kelola.map(item).join("")}` : "")
+    + (kelola.length ? `<div class="sidebar__section-label">${me.role === "admin" ? "Pengelolaan" : "Pemantauan"}</div>${kelola.map(item).join("")}` : "")
     + `<div class="sidebar__section-label">Lainnya</div><a href="portal.html" class="menu-item" id="navPortal"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>`;
   $("#roleLabel").textContent = me.jabatan;
   $("#userName").textContent = me.nama || "—"; $("#userRole").textContent = me.jabatan; $("#userAv").textContent = inisial(me.nama);
