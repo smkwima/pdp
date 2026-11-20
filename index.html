@@ -367,7 +367,7 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
     }
   }
 
-  if (DESKTOP) {
+  {   // berlaku di semua: aplikasi, Chrome/Safari, dan PWA
     document.getElementById('ingatWrap').style.display = 'flex';
     try { document.getElementById('ingatSaya').checked = localStorage.getItem(KUNCI_INGAT) !== '0'; } catch (e) { /* abaikan */ }
     masukOtomatis();
@@ -398,7 +398,7 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
 
     var userId = authResult.data.user.id;
 
-    if (DESKTOP) {
+    {   // berlaku di semua: aplikasi, Chrome/Safari, dan PWA
       try {
         localStorage.setItem(KUNCI_INGAT, document.getElementById('ingatSaya').checked ? '1' : '0');
         sessionStorage.setItem(KUNCI_SESI, '1');
