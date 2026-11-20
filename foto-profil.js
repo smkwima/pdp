@@ -9,6 +9,8 @@
  *    ganti / hapus foto + lengkapi data diri (NIP, NUPTK, tempat & tanggal
  *    lahir, No. HP, pendidikan terakhir; migrasi_profil_guru.sql).
  *    Berlaku untuk guru, kepala sekolah, dan admin. Tidak perlu menu di sidebar.
+ *  - Di jendela yang sama (hanya "Edit Profil" milik sendiri) ada bagian
+ *    "Ganti kata sandi": sandi lama + sandi baru, langsung berlaku tanpa persetujuan admin.
  *  - Admin juga bisa mengatur foto guru lain: admin.html -> menu Guru
  *    (memakai FotoProfil.bukaModal / FotoProfil.isiAvatar).
  *  - File disimpan di bucket privat "foto-guru" (migrasi_foto_guru.sql),
@@ -328,6 +330,16 @@
       '.user-chip__profil:hover{color:var(--primary,#4f46e5);}' +
       '.user-chip__profil.belum::after{content:"";width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;}' +
       '@media (max-width:520px){.fp-form{grid-template-columns:1fr;}.fp-profhead{flex-direction:column;text-align:center;}.fp-profhead .fp-row{justify-content:center;}}' +
+      '.fp-sandi{margin:12px 0 4px;border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:0 12px;}' +
+      '.fp-sandi>summary{cursor:pointer;padding:10px 0;font-size:13px;font-weight:700;list-style:none;display:flex;align-items:center;justify-content:space-between;}' +
+      '.fp-sandi>summary::-webkit-details-marker{display:none;}' +
+      '.fp-sandi>summary::after{content:"▾";font-size:12px;color:var(--ink-soft,#64748b);transition:transform .15s;}' +
+      '.fp-sandi[open]>summary::after{transform:rotate(180deg);}' +
+      '.fp-sandi .fp-form{grid-template-columns:1fr;margin:0 0 8px;}' +
+      '.fp-sandi .fp-pesan{margin:2px 0 8px;}' +
+      '.fp-sandi .fp-sandi-aksi{display:flex;justify-content:flex-end;margin:0 0 12px;}' +
+      '.fp-pw{position:relative;}.fp-pw input{padding-right:64px;}' +
+      '.fp-pw button{position:absolute;top:0;right:0;bottom:0;width:58px;border:0;background:none;color:var(--primary,#4f46e5);font-size:11.5px;font-weight:700;cursor:pointer;}' +
       '.fp-slrow{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:12.5px;color:var(--ink-soft,#64748b);}' +
       '.fp-slrow span{width:62px;text-align:left;flex-shrink:0;}.fp-slrow input{flex:1;min-width:0;}.fp-slrow b{width:42px;text-align:right;font-weight:600;color:var(--ink,#0f172a);}';
     document.head.appendChild(st);
@@ -536,6 +548,15 @@
       '<div class="fp-f"><label for="pfHp">No. HP / WhatsApp</label><input type="tel" id="pfHp" maxlength="30" inputmode="tel" placeholder="08xxxxxxxxxx" value="' + esc(d.no_hp) + '"></div>' +
       '<div class="fp-f"><label for="pfPend">Pendidikan terakhir</label><select id="pfPend">' + pilihPendidikan(d.pendidikan_terakhir) + '</select></div>' +
       '</div>' +
+      (opts.diriSendiri ?
+        '<details class="fp-sandi" id="fpSandiBox"><summary>Ganti kata sandi</summary>' +
+        '<div class="fp-form">' +
+        '<div class="fp-f"><label for="pwLama">Kata sandi saat ini</label><div class="fp-pw"><input type="password" id="pwLama" autocomplete="current-password"><button type="button" data-lihat="pwLama">Lihat</button></div></div>' +
+        '<div class="fp-f"><label for="pwBaru">Kata sandi baru <i>(minimal 6 karakter)</i></label><div class="fp-pw"><input type="password" id="pwBaru" autocomplete="new-password"><button type="button" data-lihat="pwBaru">Lihat</button></div></div>' +
+        '<div class="fp-f"><label for="pwUlang">Ulangi kata sandi baru</label><div class="fp-pw"><input type="password" id="pwUlang" autocomplete="new-password"><button type="button" data-lihat="pwUlang">Lihat</button></div></div>' +
+        '</div><div class="fp-pesan" id="fpSandiPesan"></div>' +
+        '<div class="fp-sandi-aksi"><button type="button" class="btn-small btn-small--primary" id="fpSandiSimpan">Ubah Kata Sandi</button></div>' +
+        '</details>' : '') +
       '<div class="fp-pesan" id="fpPesan"></div>' +
       '<div class="fp-aksi"><button type="button" class="btn-small" id="fpBatal">Tutup</button>' +
       '<button type="button" class="btn-small btn-small--primary" id="fpSimpan">Simpan</button></div>' +
@@ -597,6 +618,69 @@
       segarkan();
     });
     elNama.addEventListener('input', function () { if (!previewBaru && !(pathLama && !hapus)) segarkan(); });
+
+    // ---------- ganti kata sandi sendiri (tanpa persetujuan admin) ----------
+    // Alur: (1) cek sandi lama dengan login ulang -> (2) auth.updateUser({password})
+    // -> (3) sesi di perangkat lain dikeluarkan. Tidak ada tabel/migrasi baru.
+    var boxSandi = ov.querySelector('#fpSandiBox');
+    if (boxSandi) {
+      var pesanSandi = ov.querySelector('#fpSandiPesan'), btnSandi = ov.querySelector('#fpSandiSimpan');
+      function infoSandi(t, cls) { pesanSandi.textContent = t; pesanSandi.className = 'fp-pesan' + (cls ? ' ' + cls : ''); }
+      boxSandi.querySelectorAll('[data-lihat]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var inp = ov.querySelector('#' + b.getAttribute('data-lihat'));
+          var tampil = inp.type === 'password';
+          inp.type = tampil ? 'text' : 'password';
+          b.textContent = tampil ? 'Sembunyi' : 'Lihat';
+        });
+      });
+      async function ubahSandi() {
+        var lama = ov.querySelector('#pwLama').value;
+        var baruPw = ov.querySelector('#pwBaru').value;
+        var ulang = ov.querySelector('#pwUlang').value;
+        if (!lama) { infoSandi('Isi kata sandi saat ini.', 'err'); return; }
+        if (baruPw.length < 6) { infoSandi('Kata sandi baru minimal 6 karakter.', 'err'); return; }
+        if (baruPw !== ulang) { infoSandi('Pengulangan kata sandi baru tidak sama.', 'err'); return; }
+        if (baruPw === lama) { infoSandi('Kata sandi baru harus berbeda dari yang lama.', 'err'); return; }
+        btnSandi.disabled = true; btnSandi.textContent = 'Memproses...';
+        infoSandi('');
+        try {
+          var email = d.email || opts.email;
+          if (!email) {
+            var u = await sb().auth.getUser();
+            email = u && u.data && u.data.user && u.data.user.email;
+          }
+          if (!email) throw new Error('Email akun tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+          // 1. verifikasi sandi lama (sekaligus menyegarkan sesi, jadi lolos aturan "secure password change")
+          var cek = await sb().auth.signInWithPassword({ email: email, password: lama });
+          if (cek.error) { infoSandi('Kata sandi saat ini salah.', 'err'); return; }
+          // 2. ganti sandi
+          var res = await sb().auth.updateUser({ password: baruPw });
+          if (res.error) {
+            var m = res.error.message || '';
+            if (/different from the old|same_password/i.test(m + (res.error.code || ''))) m = 'Kata sandi baru harus berbeda dari yang lama.';
+            else if (/weak|at least|should be/i.test(m)) m = 'Kata sandi terlalu lemah / terlalu pendek. Gunakan kombinasi huruf dan angka.';
+            else m = 'Gagal mengubah kata sandi: ' + m;
+            infoSandi(m, 'err');
+            return;
+          }
+          // 3. keluarkan perangkat lain (opsional, gagal pun tidak masalah)
+          try { await sb().auth.signOut({ scope: 'others' }); } catch (x) { /* abaikan */ }
+          ['pwLama', 'pwBaru', 'pwUlang'].forEach(function (id) { var e = ov.querySelector('#' + id); e.value = ''; e.type = 'password'; });
+          boxSandi.querySelectorAll('[data-lihat]').forEach(function (b) { b.textContent = 'Lihat'; });
+          infoSandi('Kata sandi berhasil diubah. Gunakan kata sandi baru saat masuk berikutnya.', 'ok');
+          try { if (window.catatAktivitas) catatAktivitas('lainnya', 'Akun', 'Mengubah kata sandi sendiri'); } catch (x) { /* abaikan */ }
+        } catch (err) {
+          infoSandi(pesanError(err), 'err');
+        } finally {
+          btnSandi.disabled = false; btnSandi.textContent = 'Ubah Kata Sandi';
+        }
+      }
+      btnSandi.addEventListener('click', ubahSandi);
+      boxSandi.querySelectorAll('input').forEach(function (inp) {
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ubahSandi(); } });
+      });
+    }
 
     function nilai(id) { return ov.querySelector('#' + id).value.trim(); }
 

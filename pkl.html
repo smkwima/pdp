@@ -3,19 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0b2b4f">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PDP Wima">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
-<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
-<script src="pwa.js" defer></script>
 <title>Pengolahan Nilai PKL — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -26,20 +13,19 @@
 <script src="xlsx-autofit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="unsaved-guard.js?v=1"></script>
-<script src="supabase-client.js?v=3"></script>
-<script src="akses-guard.js?v=5"></script>
+<script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=12" defer></script>
-<script src="kepsek-readonly.js?v=13"></script>
-<script src="kepsek-nav.js?v=10"></script>
+<script src="app-switcher.js?v=8" defer></script>
+<script src="kepsek-readonly.js?v=12"></script>
+<script src="kepsek-nav.js?v=7"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
-<script src="mobile.js?v=2" defer></script>
-<script src="bottomnav.js?v=18" defer></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=10" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
-<script src="foto-profil.js?v=4" defer></script>
-<script src="pengingat-guru.js?v=3" defer></script>
+<script src="foto-profil.js?v=5" defer></script>
+<script src="pengingat-guru.js?v=2" defer></script>
 </head>
 <body>
 
@@ -385,10 +371,10 @@
 
       var skRes = await supabaseClient
         .from('siswa_kelas')
-        .select('siswa:siswa_id(id, nis, nama, status)')
+        .select('siswa:siswa_id(id, nis, nama)')
         .eq('kelas_id', kelasId)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
+      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
       siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
       if (!siswaList.length) {
@@ -674,10 +660,10 @@
 
       var skRes = await supabaseClient
         .from('siswa_kelas')
-        .select('siswa:siswa_id(id, nis, nama, status)')
+        .select('siswa:siswa_id(id, nis, nama)')
         .eq('kelas_id', kelasId)
         .eq('tahun_ajaran_id', tahunAktif.id);
-      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(siswaMasihAktif);
+      var siswaList = (skRes.data || []).map(function (r) { return r.siswa; }).filter(Boolean);
       siswaList.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
 
       if (!siswaList.length) {
@@ -2654,13 +2640,12 @@
     if (profileResult.error || !profileResult.data) { window.location.href = 'portal.html'; return; }
     if (profileResult.data.role === 'staf') { window.location.href = 'portal.html'; return; }
     nama = profileResult.data.nama || user.email;
-    var pengawas = profileResult.data.role === 'pengawas';
-    var kepsek = profileResult.data.role === 'kepsek' || pengawas; // kepsek & pengawas: tampilan admin, hanya lihat
-    var admin = profileResult.data.role === 'admin' || kepsek;
+    var kepsek = profileResult.data.role === 'kepsek';
+    var admin = profileResult.data.role === 'admin' || kepsek; // kepsek: tampilan admin, hanya lihat
 
     document.getElementById('userName').textContent = nama;
     document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
-    document.getElementById('userRoleLabel').textContent = pengawas ? 'Pengawas Sekolah' : (kepsek ? 'Kepala Sekolah' : (admin ? 'Admin' : 'Guru'));
+    document.getElementById('userRoleLabel').textContent = kepsek ? 'Kepala Sekolah' : (admin ? 'Admin' : 'Guru');
 
     // Tautan ke aplikasi lain sesuai role.
     document.getElementById('linkErapor').setAttribute('href', admin ? 'admin.html' : 'guru.html');

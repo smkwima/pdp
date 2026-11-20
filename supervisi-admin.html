@@ -3,43 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0b2b4f">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PDP Wima">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
-<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
-<script src="pwa.js" defer></script>
 <title>Admin Supervisi — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=23">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-client.js?v=3"></script>
-<script src="akses-guard.js?v=5"></script>
+<script src="supabase-client.js"></script>
 <script src="jadwal-kegiatan.js?v=1"></script>
-<script src="app-switcher.js?v=12" defer></script>
-<script src="kepsek-readonly.js?v=13"></script>
-<script src="kepsek-nav.js?v=10"></script>
+<script src="app-switcher.js?v=8" defer></script>
+<script src="kepsek-readonly.js?v=12"></script>
+<script src="kepsek-nav.js?v=7"></script>
 <script src="sticky-nama.js?v=1"></script>
-<script src="supervisi-form.js?v=7"></script>
+<script src="supervisi-form.js?v=5"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="supervisi-excel.js?v=4"></script>
 <script src="supervisi-ttd.js?v=1"></script>
-<script src="supervisi-pdf.js?v=8"></script>
-<script src="mobile.js?v=2" defer></script>
-<script src="bottomnav.js?v=18" defer></script>
+<script src="supervisi-pdf.js?v=7"></script>
+<script src="mobile.js?v=1" defer></script>
+<script src="bottomnav.js?v=10" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
-<script src="foto-profil.js?v=4" defer></script>
+<script src="foto-profil.js?v=5" defer></script>
 </head>
 <body>
 <div class="app">
@@ -52,7 +38,6 @@
     <div class="sidebar__section-label">Menu</div>
     <nav class="menu-list" id="menu">
       <a href="#" class="menu-item" data-view="jadwal"><i data-lucide="calendar-check" class="menu-icon"></i><span class="menu-item__title">Jadwal Supervisi</span></a>
-      <a href="supervisi.html" class="menu-item" id="menuIsiKepsek" style="display:none;"><i data-lucide="clipboard-pen-line" class="menu-icon"></i><span class="menu-item__title">Isi Instrumen Semua Guru</span></a>
       <a href="#" class="menu-item" data-view="hasil"><i data-lucide="file-check" class="menu-icon"></i><span class="menu-item__title">Hasil Supervisi</span></a>
       <a href="#" class="menu-item" data-view="form"><i data-lucide="clipboard-list" class="menu-icon"></i><span class="menu-item__title">Form Pra & Supervisi</span></a>
       <a href="#" class="menu-item" data-view="data"><i data-lucide="refresh-cw" class="menu-icon"></i><span class="menu-item__title">Data Guru & Mapel</span></a>
@@ -73,7 +58,7 @@
 <script>
   var content = document.getElementById('content');
   JadwalKegiatan.pasang({ modul: 'supervisi', tampilJika: function () { var a = document.querySelector('#menu .menu-item--active'); return !!a && a.dataset.view === 'jadwal'; } });
-  var guruList = [], mapelList = [], formList = [], profil = null, penugasanList = [], penugasanSiap = false, meRole = null;
+  var guruList = [], mapelList = [], formList = [], profil = null, penugasanList = [], penugasanSiap = false;
   // Mapel yang ditugaskan ke guru (salinan penugasan E-Rapor). Bila salinan belum pernah dimuat, semua mapel ditampilkan.
   function mapelGuru(guruId, tambah) {
     if (!penugasanSiap) return mapelList;
@@ -96,7 +81,7 @@
   // Semua form dalam paket (induk + sepaket) untuk jadwal j, siap dicetak ke satu PDF
   function paketPdf(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; });
-    return f ? { paket: SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)) } : {};
+    return f ? { paket: SvForm.isianPaket(j, SvForm.paket(f, formList)) } : {};
   }
 
   function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -134,7 +119,7 @@
     var tabelTtd = '<div class="form-section-title" style="margin-top:22px;">NIP & Tanda Tangan Guru / Supervisor</div>' +
       '<div class="panel-note">Dipakai pada blok tanda tangan PDF hasil supervisi. Tanda tangan Kepala Sekolah diatur di Pengaturan Sekolah → Profil Sekolah.</div>' +
       (tt.error ? '<div class="panel-note" style="margin-top:8px;">Tabel belum siap — jalankan <strong>migrasi_supervisi_ttd.sql</strong> di Supabase SQL Editor. (' + esc(tt.error.message) + ')</div>' : '') +
-      '<div class="table-wrap" style="margin-top:10px;"><table class="data-table" data-kartu><thead><tr><th>Nama</th><th>NIP</th><th>Tanda Tangan</th><th></th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-top:10px;"><table class="data-table"><thead><tr><th>Nama</th><th>NIP</th><th>Tanda Tangan</th><th></th></tr></thead><tbody>' +
       (guruList.length ? guruList.map(function (g) { var t = ttdMap[g.id] || {};
         return '<tr><td>' + esc(g.nama) + '</td><td>' + esc(t.nip || '—') + '</td><td>' + (t.ttd ? '<img src="' + t.ttd + '" alt="ttd" style="max-height:34px;max-width:110px;object-fit:contain;">' : '—') + '</td><td><button class="btn-small" data-ttd="' + g.id + '">Atur</button></td></tr>';
       }).join('') : '<tr><td colspan="4">Belum ada guru. Klik Muat Ulang dari E-Rapor.</td></tr>') + '</tbody></table></div>';
@@ -183,12 +168,12 @@
     var r = await supabaseClient.from('supervisi_jadwal').select('*').order('tanggal', { ascending: false });
     var rows = r.data || [];
     content.innerHTML = '<div style="margin-bottom:14px;"><button class="btn-small btn-small--primary" id="btnTambah">+ Tambah Jadwal</button> <button class="btn-small" id="btnTplJadwal">Unduh Template</button> <button class="btn-small" id="btnImpJadwal">Import Excel</button> <button class="btn-small" id="btnPdfJadwal">Unduh PDF Jadwal</button></div>' +
-      '<div class="table-wrap"><table class="data-table" data-kartu><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru Disupervisi</th><th>Mapel</th><th>Supervisor / Kepala Sekolah</th><th>Form</th><th>Status</th><th></th></tr></thead><tbody>' +
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru Disupervisi</th><th>Mapel</th><th>Supervisor / Kepala Sekolah</th><th>Form</th><th>Status</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (j) {
         return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td><td>' + esc(nm(guruList, j.supervisor_id)) + (profil && profil.kepala_sekolah ? ' / ' + esc(profil.kepala_sekolah) : '') + '</td><td>' + esc(nm(formList, j.form_id)) + jmlPaket(j) + '</td>' +
           '<td><span class="chip ' + (j.status === 'selesai' ? 'chip--aktif' : 'chip--muted') + '">' + j.status + '</span></td>' +
           '<td>' + (j.status === 'selesai' ? '<button class="btn-small" data-lihat="' + j.id + '">Lihat Hasil</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button> ' : '') +
-          (meRole === 'kepsek' ? '<a class="btn-small btn-small--primary" href="supervisi.html?isi=' + j.id + '">' + (j.status === 'selesai' ? 'Lihat / Ubah Isian' : 'Isi Instrumen') + '</a> ' : '') + SvForm.buktiTautan(j, 'Buka Bukti') + ' ' + '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
+          '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
       }).join('') : '<tr><td colspan="8">Belum ada jadwal.</td></tr>') + '</tbody></table></div>';
     document.getElementById('btnTambah').addEventListener('click', function () { modalJadwal(null); });
     document.getElementById('btnTplJadwal').addEventListener('click', tplJadwal);
@@ -232,9 +217,7 @@
 
   function jmlPaket(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; }), n = f ? SvForm.paket(f, formList).length - 1 : 0;
-    var tb = f ? SvForm.paketJadwal(j, f, formList).slice(n + 1) : [];
-    return (n > 0 ? ' <span class="chip chip--muted">+' + n + ' sepaket</span>' : '') +
-      tb.map(function (x) { return '<div style="margin-top:3px;font-size:12.5px;">+ ' + esc(x.judul) + '</div>'; }).join('');
+    return n > 0 ? ' <span class="chip chip--muted">+' + n + ' sepaket</span>' : '';
   }
 
   function modal(judul, html) {
@@ -255,34 +238,17 @@
       '<div class="field"><label>Supervisor</label><select id="fSpv">' + opts(guruList, j && j.supervisor_id) + '</select></div>' +
       '<div class="field"><label>Mata Pelajaran</label><select id="fMapel"></select><div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" id="fMapelInfo"></div></div>' +
       '<div class="field"><label>Form</label><select id="fForm"></select></div>' +
-      '<div class="field field--full"><label>Instrumen Tambahan (opsional)</label><div id="fTambah" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow:auto;border:1px solid var(--line,#d8dee6);border-radius:8px;padding:8px 10px;"></div><div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">Centang bila pada jadwal ini ada instrumen lain yang ikut dipakai, mis. supervisi penggunaan media tertentu. Supervisor mengisi semua instrumen dalam satu jadwal dan semuanya ikut tercetak dalam satu PDF.</div></div>' +
       '<div class="field field--full"><label>Kelas (otomatis dari Penugasan Guru, boleh diubah)</label><input id="fKelas"></div></div>' +
       '<div class="panel-note" id="fHint" style="margin-top:10px;">Pra-Supervisi yang sudah dipaketkan dengan Supervisi tidak perlu dijadwalkan sendiri: jadwalkan form <strong>Supervisi</strong>-nya, Pra-Supervisi ikut otomatis.</div>' +
       '<div style="margin-top:18px;"><button class="btn-small btn-small--primary" id="fSimpan">Simpan</button></div>');
-    var fJenis = o.querySelector('#fJenis'), fForm = o.querySelector('#fForm'), fTambah = o.querySelector('#fTambah'), pilihTambah = {};
-    SvForm.tambahan(j).forEach(function (id) { pilihTambah[id] = 1; });
-    // Instrumen tambahan: form sejenis selain form utama dan selain yang sudah ikut paketnya
-    function isiTambah() {
-      var induk = formList.find(function (x) { return x.id === fForm.value; });
-      var sudah = {}; if (induk) SvForm.paket(induk, formList).forEach(function (x) { sudah[x.id] = 1; });
-      var l = formList.filter(function (x) {
-        return x.jenis === fJenis.value && !sudah[x.id] && x.id !== fForm.value &&
-          !(x.jenis === 'pra' && SvForm.indukDari(x, formList).length && !pilihTambah[x.id]);
-      });
-      fTambah.innerHTML = !induk ? '<div style="font-size:12.5px;color:var(--ink-soft);">Pilih form utama dulu.</div>' :
-        l.length ? l.map(function (x) {
-          return '<label style="display:flex;gap:8px;align-items:flex-start;font-weight:500;cursor:pointer;"><input type="checkbox" value="' + x.id + '"' + (pilihTambah[x.id] ? ' checked' : '') + ' style="margin-top:3px;"> <span>' + esc(x.judul) + '</span></label>';
-        }).join('') : '<div style="font-size:12.5px;color:var(--ink-soft);">Belum ada form lain yang bisa ditambahkan.</div>';
-      fTambah.querySelectorAll('input').forEach(function (c) { c.addEventListener('change', function () { if (c.checked) pilihTambah[c.value] = 1; else delete pilihTambah[c.value]; }); });
-    }
+    var fJenis = o.querySelector('#fJenis'), fForm = o.querySelector('#fForm');
     // Pra-Supervisi yang sudah dipaketkan ke form Supervisi tidak dijadwalkan sendiri (ikut jadwal induknya)
     function isiForm() {
       fForm.innerHTML = opts(formList.filter(function (f) { return f.jenis === fJenis.value && !(f.jenis === 'pra' && SvForm.indukDari(f, formList).length && !(j && j.form_id === f.id)); }), j && j.form_id, '— pilih form —');
       var h = o.querySelector('#fHint'); if (h) h.style.display = fJenis.value === 'pra' ? '' : 'none';
-      isiTambah();
     }
     if (j) { fJenis.value = j.jenis; o.querySelector('#fTgl').value = j.tanggal; }
-    isiForm(); fJenis.addEventListener('change', isiForm); fForm.addEventListener('change', isiTambah);
+    isiForm(); fJenis.addEventListener('change', isiForm);
     var fKelas = o.querySelector('#fKelas'), fG = o.querySelector('#fGuru'), fM = o.querySelector('#fMapel');
     function autoKelas() { fKelas.value = kelasOtomatis(fG.value, fM.value); }
     // Mapel hanya yang ditugaskan ke guru terpilih
@@ -300,20 +266,16 @@
       var uj = unitJenjang(); d.unit_kerja = uj.unit_kerja; d.jenjang = uj.jenjang;
       if (!d.tanggal) { alert('Tanggal wajib diisi.'); return; }
       if (d.guru_id === d.supervisor_id) { alert('Supervisor tidak boleh sama dengan guru yang disupervisi.'); return; }
-      // Hanya pilihan yang masih tampil (form utama sudah dipilih) yang disimpan; urutan mengikuti daftar form
-      var tambah = d.form_id ? Array.prototype.map.call(fTambah.querySelectorAll('input:checked'), function (c) { return c.value; }) : [];
-      if (tambah.length || SvForm.tambahan(j).length) d.form_tambahan = tambah; // kolom baru: hanya dikirim bila dipakai
       var res = j ? await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id) : await supabaseClient.from('supervisi_jadwal').insert(d);
-      if (res.error) { alert('Gagal: ' + res.error.message + (d.form_tambahan ? '\n\nJalankan migrasi_supervisi_instrumen_tambahan.sql di Supabase SQL Editor bila belum.' : '')); return; }
+      if (res.error) { alert('Gagal: ' + res.error.message); return; }
       o.remove(); viewJadwal();
     });
   }
 
   function modalHasil(j) {
     var f = formList.find(function (x) { return x.id === j.form_id; });
-    var isi = f ? SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)) : [];
+    var isi = f ? SvForm.isianPaket(j, SvForm.paket(f, formList)) : [];
     var o = modal('Hasil ' + JENIS[j.jenis], '<div style="margin-bottom:10px;"><button class="btn-small btn-small--primary" id="hsCetak">Cetak</button> <button class="btn-small" id="hsPdf">Unduh PDF</button></div>' + SvForm.identitas(idn(j)) +
-      (SvForm.buktiUrl(j.bukti_link) ? '<div class="sv-q"><div class="sv-q__t">Bukti Pelaksanaan Supervisi (foto)</div><div>' + SvForm.buktiTautan(j, 'Buka Bukti Pelaksanaan') + '</div></div>' : '') +
       (f ? isi.map(function (x) {
         return (isi.length > 1 ? '<div class="form-section-title" style="margin-top:18px;">' + esc(x.form.judul) + '</div>' : '') + SvForm.hasil(x.form, x.jawaban) +
           '<div class="sv-q"><div class="sv-q__t">Catatan</div><div>' + esc(x.catatan || '—') + '</div></div>';
@@ -364,7 +326,7 @@
       '<button class="btn-small btn-small--primary" id="hsCetakPilih" disabled>Cetak Terpilih</button>' +
       '<button class="btn-small" id="hsUnduhPilih" disabled>Unduh PDF Terpilih</button>' +
       '<span id="hsInfo" style="font-size:12.5px;color:var(--ink-soft);"></span></div>' +
-      '<div id="hsRekap"></div><div id="hsTabel"></div>' +
+      '<div id="hsTabel"></div>' +
       '<div class="panel-note" style="margin-top:12px;">Hasil yang dipilih digabung dalam <strong>satu PDF</strong>, tiap guru mulai di halaman baru lengkap dengan kop, rekap skor, dan tanda tangan. ' +
       'Pra-Supervisi yang dipaketkan ikut tercetak bersama jadwal Supervisi induknya.</div>';
 
@@ -388,39 +350,8 @@
       document.getElementById('hsUnduhPilih').disabled = n === 0;
       document.getElementById('hsInfo').textContent = n ? n + ' hasil dipilih' : 'Centang hasil yang mau dicetak.';
     }
-    // Rekap nilai SEMUA instrumen yang dinilai per guru (mengikuti filter di atas)
-    function gambarRekap(rows) {
-      var per = {}, urut = [];
-      rows.forEach(function (j) {
-        var f = formList.find(function (x) { return x.id === j.form_id; });
-        if (!f) return;
-        var g = per[j.guru_id]; if (!g) { g = per[j.guru_id] = { id: j.guru_id, nama: nm(guruList, j.guru_id), item: [] }; urut.push(g); }
-        SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)).forEach(function (x) {
-          g.item.push({ judul: x.form.judul, tgl: j.tanggal, sk: SvPdf.rekapSkor(x.form, x.jawaban) });
-        });
-      });
-      urut.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
-      var html = '<div class="form-section-title" style="margin:6px 0 8px;">Rekap Nilai Semua Instrumen per Guru</div>';
-      if (!urut.length) { document.getElementById('hsRekap').innerHTML = html + '<div class="panel-note">Tidak ada hasil pada filter ini.</div>'; return; }
-      html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Guru</th><th>Instrumen &amp; Nilai</th><th style="text-align:center;">Rata-rata Semua Instrumen</th></tr></thead><tbody>' +
-        urut.map(function (g) {
-          var n = 0, tot = 0;
-          g.item.sort(function (a, b) { return a.tgl.localeCompare(b.tgl) || a.judul.localeCompare(b.judul); });
-          var baris = g.item.map(function (x) {
-            if (x.sk) { n++; tot += x.sk.persen; }
-            return '<div class="rk-baris"><span class="rk-baris__t">' + esc(x.judul) + ' <span style="font-size:12px;color:var(--ink-soft);">· ' + tglId(x.tgl) + '</span></span>' +
-              '<strong class="rk-baris__n">' + (x.sk ? x.sk.persen + '% <span style="font-weight:500;font-size:12px;">(' + esc(x.sk.pred) + ')</span>' : '<span style="font-weight:500;color:var(--ink-soft);">tanpa skor</span>') + '</strong></div>';
-          }).join('');
-          var rata = n ? Math.round(tot / n) : null;
-          return '<tr><td class="td-nama" style="vertical-align:top;font-weight:600;">' + esc(g.nama) + '</td><td class="td-lebar">' + baris + '</td>' +
-            '<td class="td-lebar rk-rata" style="text-align:center;vertical-align:top;white-space:nowrap;">' + (rata === null ? '—' : '<strong style="font-size:16px;">' + rata + '%</strong><br><span style="font-size:12px;">' + esc(SvPdf.predikat(rata)) + '</span><br><span style="font-size:11.5px;color:var(--ink-soft);">dari ' + n + ' instrumen</span>') + '</td></tr>';
-        }).join('') + '</tbody></table></div>' +
-        '<div class="panel-note" style="margin:8px 0 14px;">Nilai tiap instrumen = jumlah skor butir skala ÷ skor maksimum. Rata-rata = rata-rata nilai semua instrumen yang berskor (tiap instrumen bobotnya sama).</div>';
-      document.getElementById('hsRekap').innerHTML = html;
-    }
     function gambarTabel() {
       var rows = tersaring();
-      gambarRekap(rows);
       var semuaTercentang = rows.length > 0 && rows.every(function (j) { return dipilih[j.id]; });
       document.getElementById('hsTabel').innerHTML =
         '<div class="table-wrap"><table class="data-table"><thead><tr><th style="width:34px;"><input type="checkbox" id="hsSemua"' + (semuaTercentang ? ' checked' : '') + ' aria-label="Pilih semua yang tampil"></th>' +
@@ -429,7 +360,7 @@
           return '<tr><td><input type="checkbox" data-pilih="' + j.id + '"' + (dipilih[j.id] ? ' checked' : '') + ' aria-label="Pilih"></td>' +
             '<td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + jmlPaket(j) + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td>' +
             '<td>' + esc(nm(guruList, j.supervisor_id)) + '</td><td>' + (j.selesai_at ? tglId(String(j.selesai_at).slice(0, 10)) : '—') + '</td>' +
-            '<td style="white-space:nowrap;"><button class="btn-small" data-lihat="' + j.id + '">Lihat</button> <button class="btn-small btn-small--primary" data-cetak="' + j.id + '">Cetak</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button> ' + SvForm.buktiTautan(j, 'Buka Bukti') + '</td></tr>';
+            '<td style="white-space:nowrap;"><button class="btn-small" data-lihat="' + j.id + '">Lihat</button> <button class="btn-small btn-small--primary" data-cetak="' + j.id + '">Cetak</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button></td></tr>';
         }).join('') : '<tr><td colspan="8">Tidak ada hasil pada filter ini.</td></tr>') + '</tbody></table></div>';
       var wrap = document.getElementById('hsTabel');
       var semuaEl = wrap.querySelector('#hsSemua');
@@ -472,14 +403,11 @@
   }
 
   // ================= FORM BUILDER =================
-  // Mode isi otomatis sebuah form: 'penuh' (angka + komentar), 'angka' (angka saja, tanpa komentar), 'manual'
-  function modeOto(f) { return (f && f.mode_otomatis) || ((f && f.nilai_otomatis === false) ? 'manual' : 'penuh'); }
-  var LABEL_OTO = { penuh: 'Otomatis', angka: 'Otomatis angka', manual: 'Manual' };
   async function viewForm() {
     await muatMaster();
     content.innerHTML = '<div style="margin-bottom:14px;"><button class="btn-small btn-small--primary" id="btnForm">+ Buat Form</button> <button class="btn-small" id="btnTplForm">Unduh Template</button> <button class="btn-small" id="btnImpForm">Import Excel</button></div>' +
-      '<div class="table-wrap"><table class="data-table" data-kartu><thead><tr><th>Judul</th><th>Jenis</th><th>Jumlah Pertanyaan</th><th>Pengisian</th><th>Sepaket dengan</th><th></th></tr></thead><tbody>' +
-      (formList.length ? formList.map(function (f) { return '<tr><td>' + esc(f.judul) + '</td><td>' + JENIS[f.jenis] + '</td><td>' + f.pertanyaan.length + '</td><td>' + LABEL_OTO[modeOto(f)] + '</td><td>' + ((f.jenis === 'pra' ? SvForm.indukDari(f, formList).map(function (x) { return 'Induk: ' + esc(x.judul); }) : SvForm.paket(f, formList).slice(1).map(function (x) { return esc(x.judul); })).join('<br>') || '—') + '</td><td><button class="btn-small" data-ef="' + f.id + '">Ubah</button> <button class="btn-small" data-hf="' + f.id + '">Hapus</button></td></tr>'; }).join('') : '<tr><td colspan="5">Belum ada form.</td></tr>') + '</tbody></table></div>';
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>Judul</th><th>Jenis</th><th>Jumlah Pertanyaan</th><th>Sepaket dengan</th><th></th></tr></thead><tbody>' +
+      (formList.length ? formList.map(function (f) { return '<tr><td>' + esc(f.judul) + '</td><td>' + JENIS[f.jenis] + '</td><td>' + f.pertanyaan.length + '</td><td>' + ((f.jenis === 'pra' ? SvForm.indukDari(f, formList).map(function (x) { return 'Induk: ' + esc(x.judul); }) : SvForm.paket(f, formList).slice(1).map(function (x) { return esc(x.judul); })).join('<br>') || '—') + '</td><td><button class="btn-small" data-ef="' + f.id + '">Ubah</button> <button class="btn-small" data-hf="' + f.id + '">Hapus</button></td></tr>'; }).join('') : '<tr><td colspan="5">Belum ada form.</td></tr>') + '</tbody></table></div>';
     document.getElementById('btnForm').addEventListener('click', function () { modalForm(null); });
     document.getElementById('btnTplForm').addEventListener('click', tplForm);
     document.getElementById('btnImpForm').addEventListener('click', function () { SvXlsx.pilihFile(importForm, 'judul form'); });
@@ -494,13 +422,12 @@
     var qs = f ? JSON.parse(JSON.stringify(f.pertanyaan)) : [{ id: 'q1', teks: '', tipe: 'skala' }];
     var o = modal(f ? 'Ubah Form' : 'Buat Form',
       '<div class="form-grid"><div class="field field--full"><label>Judul Form</label><input id="fmJudul"></div>' +
-      '<div class="field"><label>Jenis</label><select id="fmJenis"><option value="pra">Pra-Supervisi Akademik</option><option value="supervisi">Supervisi</option></select></div>' +
-      '<div class="field"><label>Cara Pengisian</label><select id="fmOto"><option value="penuh">Otomatis — angka + komentar</option><option value="angka">Otomatis angka — tanpa komentar</option><option value="manual">Manual — tanpa fitur otomatis</option></select></div></div>' +
+      '<div class="field"><label>Jenis</label><select id="fmJenis"><option value="pra">Pra-Supervisi Akademik</option><option value="supervisi">Supervisi</option></select></div></div>' +
       '<div class="form-section-title">Form Sepaket (opsional)</div><div id="fmPaketWrap"></div>' +
       '<div class="form-section-title">Pertanyaan / Indikator</div><div id="fmQ"></div>' +
       '<div style="margin-top:12px;"><button class="btn-small" id="fmAdd">+ Tambah Pertanyaan</button></div>' +
       '<div style="margin-top:18px;"><button class="btn-small btn-small--primary" id="fmSimpan">Simpan Form</button></div>');
-    if (f) { o.querySelector('#fmJudul').value = f.judul; o.querySelector('#fmJenis').value = f.jenis; o.querySelector('#fmOto').value = modeOto(f); }
+    if (f) { o.querySelector('#fmJudul').value = f.judul; o.querySelector('#fmJenis').value = f.jenis; }
     // Induk paket = form Supervisi. Checklist hanya muncul di form Supervisi dan hanya berisi form Pra-Supervisi.
     var pkTerpilih = f ? (f.paket_ids || []).slice() : [];
     function gambarPaket() {
@@ -549,10 +476,8 @@
       // Hanya form Supervisi yang punya paket, dan isinya hanya form Pra-Supervisi (Pra tidak boleh jadi induk)
       var pk = d.jenis === 'supervisi' ? pkTerpilih.filter(function (id) { var x = formList.find(function (y) { return y.id === id; }); return x && x.jenis === 'pra'; }) : [];
       if (pk.length || (f && (f.paket_ids || []).length)) d.paket_ids = pk; // kolom baru: hanya dikirim bila dipakai
-      var oto = o.querySelector('#fmOto').value;
-      if (oto !== 'penuh' || (f && modeOto(f) !== 'penuh')) d.mode_otomatis = oto; // kolom baru: hanya dikirim bila dipakai
       var res = f ? await supabaseClient.from('supervisi_form').update(d).eq('id', f.id) : await supabaseClient.from('supervisi_form').insert(d);
-      if (res.error) { alert('Gagal: ' + res.error.message + (d.paket_ids ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + ('mode_otomatis' in d ? '\n\nJalankan migrasi_supervisi_mode_otomatis.sql di Supabase SQL Editor bila belum.' : '')); return; }
+      if (res.error) { alert('Gagal: ' + res.error.message + (d.paket_ids ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '')); return; }
       o.remove(); viewForm();
     });
   }
@@ -606,59 +531,24 @@
     });
     urut = urut.filter(function (j) { if (!grup[j].jenis) { err.push('Form "' + j + '": Jenis harus pra atau supervisi'); return false; } return true; });
     if (!urut.length) { alert('Tidak ada form valid.' + (err.length ? '\n\n' + err.join('\n') : '')); return; }
-    var pilih = await dialogImportForm(urut.length, err);
-    if (!pilih) return;
-    var oto = pilih.mode;
+    if (!confirm(urut.length + ' form akan disimpan (judul yang sama diperbarui).' + (err.length ? '\n\nDilewati:\n' + err.slice(0, 10).join('\n') : '') + '\n\nLanjutkan?')) return;
     for (var x = 0; x < urut.length; x++) {
       var j = urut[x], lama = cari(formList, j, 'judul'), pakai = {};
       if (lama) lama.pertanyaan.forEach(function (q) { pakai[q.teks] = q.id; }); // pertahankan id supaya hasil lama tetap terbaca
       grup[j].q.forEach(function (q, i) { q.id = pakai[q.teks] || ('n' + Date.now().toString(36) + i); });
       var d = { judul: j, jenis: grup[j].jenis, pertanyaan: grup[j].q };
-      if (oto !== 'penuh' || (lama && modeOto(lama) !== 'penuh')) d.mode_otomatis = oto; // kolom baru: hanya dikirim bila dipakai
       var res = lama ? await supabaseClient.from('supervisi_form').update(d).eq('id', lama.id) : await supabaseClient.from('supervisi_form').insert(d);
-      if (res.error) { alert('Gagal menyimpan "' + j + '": ' + res.error.message + ('mode_otomatis' in d ? '\n\nJalankan migrasi_supervisi_mode_otomatis.sql di Supabase SQL Editor bila belum.' : '')); return; }
+      if (res.error) { alert('Gagal menyimpan "' + j + '": ' + res.error.message); return; }
     }
     viewForm();
-  }
-
-  // Dialog konfirmasi import form + pilihan fitur nilai otomatis (berlaku untuk semua form dalam file)
-  function dialogImportForm(jumlah, err) {
-    return new Promise(function (selesai) {
-      var o = modal('Import Form',
-        '<div class="panel-note">' + jumlah + ' form akan disimpan (judul yang sama diperbarui).' + (err.length ? '<br><br><strong>Dilewati:</strong><br>' + err.slice(0, 10).map(esc).join('<br>') : '') + '</div>' +
-        '<div class="form-section-title" style="margin-top:14px;">Cara Pengisian Form</div>' +
-        '<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;"><input type="radio" name="impOto" value="penuh" checked style="margin-top:3px;"> <span><strong>Otomatis</strong><br><span style="font-size:12.5px;color:var(--ink-soft);">Supervisor mengetik target nilai, lalu angka <em>dan</em> komentar/catatan terisi sebagai draft.</span></span></label>' +
-        '<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;"><input type="radio" name="impOto" value="angka" style="margin-top:3px;"> <span><strong>Otomatis angka (tanpa komentar)</strong><br><span style="font-size:12.5px;color:var(--ink-soft);">Hanya angka/pilihan yang terisi otomatis dari target nilai. Komentar, bukti, dan catatan dikosongkan untuk diisi sendiri.</span></span></label>' +
-        '<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;"><input type="radio" name="impOto" value="manual" style="margin-top:3px;"> <span><strong>Manual</strong><br><span style="font-size:12.5px;color:var(--ink-soft);">Form diisi sepenuhnya manual; panel Isi Otomatis disembunyikan.</span></span></label>' +
-        '<div style="font-size:12.5px;color:var(--ink-soft);">Pilihan ini berlaku untuk semua form dalam file dan bisa diubah per form lewat tombol Ubah.</div>' +
-        '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-small btn-small--primary" id="impLanjut">Lanjutkan Import</button> <button class="btn-small" id="impBatal">Batal</button></div>');
-      var selesaiSekali = false;
-      function tutup(v) { if (selesaiSekali) return; selesaiSekali = true; o.remove(); selesai(v); }
-      o.querySelector('#impLanjut').addEventListener('click', function () { tutup({ mode: o.querySelector('input[name="impOto"]:checked').value }); });
-      o.querySelector('#impBatal').addEventListener('click', function () { tutup(null); });
-      o.querySelector('.modal-box__close').addEventListener('click', function () { tutup(null); });
-    });
   }
 
   (async function () {
     var s = (await supabaseClient.auth.getSession()).data.session;
     if (!s) { location.href = 'index.html'; return; }
-    // Coba beberapa kali: gangguan jaringan sesaat tidak boleh melempar Kepala Sekolah/Admin ke halaman guru
-    var p = { data: null }, galat = null;
-    for (var i = 0; i < 3 && !p.data; i++) {
-      try { var q = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single(); if (!q.error && q.data) p.data = q.data; else galat = q.error; }
-      catch (e) { galat = e; }
-      if (!p.data && i < 2) await new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); });
-    }
-    if (!p.data) {
-      var h = ''; try { h = localStorage.getItem('kepsek_hint') || ''; } catch (e) { /* abaikan */ }
-      if (h === '1') p.data = { nama: s.user.email, role: 'kepsek' }; // cek gagal: pakai peran terakhir yang diketahui
-      else { document.getElementById('content').innerHTML = '<div class="panel-note">Gagal memuat data akun (koneksi bermasalah). <button class="btn-small btn-small--primary" onclick="location.reload()">Muat ulang</button></div>'; document.getElementById('userName').textContent = s.user.email; return; }
-    }
-    if (p.data.role !== 'admin' && p.data.role !== 'kepsek' && p.data.role !== 'pengawas') { location.href = 'supervisi.html'; return; }
+    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
+    if (!p.data || (p.data.role !== 'admin' && p.data.role !== 'kepsek')) { location.href = 'supervisi.html'; return; }
     document.getElementById('userName').textContent = p.data.nama || s.user.email;
-    meRole = p.data.role;
-    if (meRole === 'kepsek') { var mi = document.getElementById('menuIsiKepsek'); if (mi) mi.style.display = ''; }
     lucide.createIcons();
     buka('jadwal');
   })();
