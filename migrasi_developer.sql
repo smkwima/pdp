@@ -89,6 +89,7 @@ insert into public.akses_aplikasi (kode, nama) values
   ('pgd',      'Pengaduan Siswa'),
   ('cat',      'Catatan Pengawas'),
   ('ijin',     'Ijin & Dinas Luar'),
+  ('presensi', 'Presensi'),
   ('disiplin', 'Rekap Kedisiplinan'),
   ('set',      'Pengaturan Sekolah'),
   ('log',      'Log Aktivitas')

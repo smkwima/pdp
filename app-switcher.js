@@ -30,11 +30,13 @@
     { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Ajukan bukti kinerja ke Kepala Sekolah' },
     { href: 'penilaian-rekan.html',  judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
+    { href: '#', sso: 'presensi', judul: 'Presensi',          ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi datang & pulang (selfie + lokasi)' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_STAF = [
     { href: 'kinerja.html',         judul: 'Kinerja Saya',        ikon: 'award',              warna: 'oranye', desc: 'Tulis & ajukan bukti kinerja ke Kepala Sekolah' },
     { href: 'penilaian-rekan.html', judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
+    { href: '#', sso: 'presensi', judul: 'Presensi',          ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi datang & pulang (selfie + lokasi)' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_ADMIN = [
@@ -49,6 +51,7 @@
     { href: 'penilaian-rekan.html',   judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Atur penilaian anonim & pantau progres' },
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'pengaduan.html',         judul: 'Pengaduan Siswa',     ikon: 'megaphone',          warna: 'merah',  desc: 'Laporan bullying & pelanggaran dari siswa' },
+    { href: '#', sso: 'presensi', judul: 'Presensi',            ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi, jadwal, lokasi & rekap kehadiran' },
     { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },
     { href: 'https://wima15.github.io/rekap-presensi/', luar: true,  judul: 'Rekap Absen Fingerprint', ikon: 'fingerprint',      warna: 'hijau',  desc: 'Rekap kehadiran guru & staf (tab baru)' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' }
@@ -121,7 +124,7 @@
     wrap.className = 'as-wrap';
     var items = daftar.map(function (a) {
       var aktif = a.href.toLowerCase() === kini;
-      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (a.sso ? ' data-sso="rpp"' : '') + (a.luar ? ' target="_blank" rel="noopener"' : '') + (aktif ? ' aria-current="page"' : '') + '>' +
+      return '<a class="as-item' + (aktif ? ' is-aktif' : '') + '" href="' + esc(a.href) + '"' + (a.sso ? ' data-sso="' + (a.sso === true ? 'rpp' : a.sso) + '"' : '') + (a.luar ? ' target="_blank" rel="noopener"' : '') + (aktif ? ' aria-current="page"' : '') + '>' +
         '<span class="as-ic as-ic--' + a.warna + '"><i data-lucide="' + a.ikon + '"></i></span>' +
         '<span style="min-width:0;"><span class="as-t">' + esc(a.judul) + (aktif ? '<span class="as-now">Dibuka</span>' : '') + '</span>' +
         '<span class="as-d" style="display:block;">' + esc(a.desc) + '</span></span></a>';

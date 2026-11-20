@@ -36,8 +36,8 @@
   };
   // Halaman tanpa kode aplikasi, tetapi tetap ikut mode pemeliharaan & pengumuman.
   var HALAMAN_UMUM = { 'portal.html': 1, 'siswa.html': 1, 'developer.html': 1 };
-  // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker tidak punya halaman, href '#').
-  var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
+  // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker & Presensi tidak punya halaman di PDP, href '#').
+  var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp', 'Presensi': 'presensi' };
 
   function berkasSekarang() {
     var b = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
