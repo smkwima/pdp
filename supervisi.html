@@ -20,7 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="supervisi-excel.js?v=4"></script>
 <script src="supervisi-bank.js?v=1"></script>
-<script src="supervisi-otomatis.js?v=6"></script>
+<script src="supervisi-otomatis.js?v=7"></script>
 <script src="supervisi-ttd.js?v=1"></script>
 <script src="supervisi-pdf.js?v=8"></script>
 <script src="mobile.js?v=2" defer></script>
@@ -232,13 +232,16 @@
       if (tanya && ganti && ada && !confirm('Isian manual yang sudah ada akan ikut diganti' + (banyak ? ' (semua form dalam paket)' : '') + '. Lanjutkan?')) return;
       var skor = [];
       forms.forEach(function (f, i) {
-        if (i < mulai || f.nilai_otomatis === false) return; // form tanpa fitur nilai otomatis dibiarkan (isi manual)
+        if (i < mulai || modeOto(f) === 'manual') return; // form tanpa fitur nilai otomatis dibiarkan (isi manual)
         var cur = SvForm.baca(pn(i)), tetap = {};
         if (!ganti) Object.keys(manual[i]).forEach(function (k) { if (cur[k] !== undefined && cur[k] !== '') tetap[k] = cur[k]; });
-        var r = SvOto.isi(f, tg, { mapel: nm(mapelList, j.mapel_id), kelas: j.kelas || '', tanggal: j.tanggal, jawabanAwal: cur, tetap: tetap });
-        var jw = Object.assign({}, r.jawaban, tetap);
+        var angka = modeOto(f) === 'angka';
+        var r = SvOto.isi(f, tg, { mapel: nm(mapelList, j.mapel_id), kelas: j.kelas || '', tanggal: j.tanggal, jawabanAwal: cur, tetap: tetap, hanyaAngka: angka });
+        // Mode angka: isian teks/komentar yang sudah ada dipertahankan, hanya angka yang diganti
+        var jw = angka ? Object.assign({}, cur, r.jawaban, tetap) : Object.assign({}, r.jawaban, tetap);
         pn(i).querySelector('.svBody').innerHTML = SvForm.render(f, jw, idn(j), isian[i].dariGuru);
-        if (ganti || !manual[i]['\u0000cat'] || !cat(i).value) { cat(i).value = r.catatan; if (ganti) manual[i] = {}; }
+        if (angka) { /* tanpa komentar: catatan tidak disentuh */ }
+        else if (ganti || !manual[i]['\u0000cat'] || !cat(i).value) { cat(i).value = r.catatan; if (ganti) manual[i] = {}; }
         if (r.skor) {
           // Skor akhir dihitung dari isian di form (termasuk butir manual)
           var tot = 0, n = 0, jj = SvForm.baca(pn(i));
@@ -260,11 +263,13 @@
     // Panel Isi Otomatis hanya tampil bila form yang sedang dibuka (tab aktif) memakai nilai otomatis.
     // Form dengan nilai otomatis "Tidak ada": panel disembunyikan (tombol tidak muncul), isi manual saja.
     function aturPanelOto() {
-      var pnlO = btnO.closest('.panel-note'), ada = forms[aktif].nilai_otomatis !== false;
+      var pnlO = btnO.closest('.panel-note'), md = modeOto(forms[aktif]), ada = md !== 'manual';
       if (pnlO) pnlO.style.display = ada ? '' : 'none';
+      btnO.textContent = md === 'angka' ? 'Isi Angka Otomatis' : 'Isi Otomatis';
+      btnO.title = md === 'angka' ? 'Hanya mengisi angka/pilihan; komentar & catatan tidak diisi' : '';
     }
     aturPanelOto();
-    if (forms[aktif].nilai_otomatis === false) target = null;
+    if (modeOto(forms[aktif]) === 'manual') target = null;
     if (target) { selT.value = target; infoTarget(); oto(false); }
     o.querySelector('#svTpl').addEventListener('click', function () {
       var f = forms[aktif];
@@ -408,11 +413,13 @@
       '<button class="btn-small btn-small--primary" id="btnTtd">Atur NIP & Tanda Tangan</button>';
     document.getElementById('btnTtd').addEventListener('click', function () { SvTtd.buka(meId, meNama, renderTtd); });
   }
+  // Mode isi otomatis sebuah form: 'penuh' (angka + komentar), 'angka' (angka saja, tanpa komentar), 'manual' (tanpa fitur)
+  function modeOto(f) { return (f && f.mode_otomatis) || ((f && f.nilai_otomatis === false) ? 'manual' : 'penuh'); }
   // Instrumen boleh memakai Isi Otomatis? (admin bisa mematikannya per form lewat kolom nilai_otomatis)
   function adaOtoJadwal(j) {
     var f0 = formList.find(function (x) { return x.id === j.form_id; });
     if (!f0) return false;
-    return f0.nilai_otomatis !== false; // ikut instrumen utama yang dipilih untuk jadwal ini
+    return modeOto(f0) !== 'manual'; // ikut instrumen utama yang dipilih untuk jadwal ini
   }
   function renderIsi(today) {
     var siap = rows.filter(function (j) { return j.status !== 'selesai' && adaOtoJadwal(j); });

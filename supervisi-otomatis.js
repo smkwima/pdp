@@ -614,6 +614,15 @@ var SvOto = (function () {
     var skor = skala.length ? { rata: (total / skala.length).toFixed(2).replace('.', ','), persen: Math.round(total / (skala.length * 4) * 100) } : null;
     if (skor) skor.kat = kategori(skor.persen);
     var cat = done(catatanUmum(katAkhir, lemah, gForm));
+    if (ctx.hanyaAngka) {
+      // Mode "otomatis angka": hanya butir berskor/pilihan yang diisi; komentar, bukti, catatan, dan isian teks dikosongkan
+      var ja = {};
+      pq.forEach(function (q) {
+        if ((q.tipe === 'skala' || q.tipe === 'pilihan') && jw[q.id] !== undefined && !(pen && q.id === pen.id)) ja[q.id] = jw[q.id];
+      });
+      if (pen && awal[pen.id]) ja[pen.id] = String(awal[pen.id]);
+      return { jawaban: ja, catatan: '', skor: skor };
+    }
     return { jawaban: jw, catatan: cat, skor: skor };
   }
   return { isi: isi, baca: baca, kategori: kategori, AMBANG: AMBANG, TERENDAH: TERENDAH, MIN_PERSEN: MIN_PERSEN };
