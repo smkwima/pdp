@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presensi — PDP SMK Widya Mandala Tambak</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
+<script src="bottomnav.js?v=18" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--ink:#14302c;--paper:#f6f7f4;--card:#fff;--line:#d9dfd9;--main:#0f6b5c;--warn:#b4570a;--bad:#a32424;--ok:#17743a;--mut:#5d6f6a;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--ink:#e8efec;--paper:#0f1a18;--card:#16241f;--line:#2b3d37;--main:#3fb59f;--warn:#e19a4b;--bad:#ef7b7b;--ok:#5bc788;--mut:#9ab0a9;color-scheme:dark}}
+*{box-sizing:border-box}
+@keyframes sp{to{transform:rotate(360deg)}}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:0}h2{font-size:1.1rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 3px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--main);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button.alt{background:transparent;color:var(--main);border:1px solid var(--main)}
+button:disabled{opacity:.5}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin:12px 0}.tabs button{flex:none}
+.clock{font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.mut{color:var(--mut);font-size:.9rem}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+video,canvas,img.prev{width:100%;border-radius:10px;background:#000;aspect-ratio:3/4;object-fit:cover}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 12px;margin:4px 6px 4px 0;font-size:.85rem}
+.chip.fm{border-color:#7b4fb8}.chip button{padding:0 8px;background:transparent;color:var(--bad);font-size:1.1rem;line-height:1.3}
+.stl{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px}
+.stc{display:flex;gap:8px;align-items:center;margin:0;padding:5px 2px;color:var(--ink);font-size:.9rem}.stc input{width:auto}
+.warnbox{border:1px solid var(--bad);color:var(--bad);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.9rem}
+h3{font-size:.98rem;margin:16px 0 4px}details summary{cursor:pointer;font-weight:600}
+#msg{position:sticky;top:8px;z-index:5}.m{padding:10px 14px;border-radius:8px;margin-bottom:8px;background:var(--ink);color:var(--paper)}
+</style>
+</head>
+<body>
+<main>
+<div id="msg" role="status"></div>
+<div id="app"></div>
+</main>
+<script>
+// e-Rapor/PDP dipakai HANYA untuk membaca: login dan data pegawai (tabel profiles).
+// Semua data presensi (lokasi, jadwal, log, foto) disimpan di project presensi lewat Edge Function.
+// Presensi memakai sesi login PDP (satu situs, satu sesi): tidak ada login sendiri di sini.
+// supabaseClient dibuat oleh supabase-client.js (project e-Rapor/PDP).
+const sb = supabaseClient;
+// Database presensi ada di project Supabase TERPISAH (nrwexyezcbmsokelgkmp). Browser tidak memegang
+// kunci project itu: semua baca/tulis lewat Edge Function yang memverifikasi sesi login e-Rapor.
+const API_FN = "https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api";
+async function api(action, body = {}) {
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { location.href = "index.html"; throw new Error("Sesi login habis. Silakan masuk lagi di PDP."); }
+  const r = await fetch(API_FN, { method: "POST", headers: { "Content-Type": "application/json", "x-rapor-token": data.session.access_token }, body: JSON.stringify({ action, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Server presensi menolak (" + r.status + ")");
+  return j;
+}
+const $ = s => document.querySelector(s);
+const HARI = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+let me = null, cfg = null, stream = null, tab = "presensi", timer = null, watchId = null, depth = 0;
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function toast(t, bad) { const d = document.createElement("div"); d.className = "m"; if (bad) d.style.background = "var(--bad)"; d.textContent = t; $("#msg").append(d); setTimeout(() => d.remove(), 5000); }
+const wib = d => new Date(d.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+const ymd = d => { const w = wib(d); return `${w.getFullYear()}-${String(w.getMonth() + 1).padStart(2, "0")}-${String(w.getDate()).padStart(2, "0")}`; };
+const hhmm = d => wib(d).toTimeString().slice(0, 8);
+const hariKe = d => wib(d).getDay() || 7;
+function jarak(a, b, c, d) { const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return Math.round(12742000 * Math.asin(Math.sqrt(h))); }
+
+/* ---------- Masuk: memakai sesi login PDP ---------- */
+async function init() {
+  history.replaceState({ d: 0, t: "presensi" }, "");
+  if (window.PdpLihat && PdpLihat.aktif()) return blokView("Presensi tidak tersedia dalam mode Lihat sebagai, karena mencatat kehadiran atas nama akun.");
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { location.href = "index.html"; return; }
+  await masuk(data.session.user);
+}
+// Sesi PDP berakhir (keluar di tab lain, kata sandi diganti, dsb.): kembali ke halaman masuk PDP.
+sb.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT") { stop(); location.href = "index.html"; } });
+// Pesan henti (akun tidak berhak, mode Lihat sebagai): tanpa fitur apa pun, cukup tombol kembali.
+function blokView(pesan) {
+  stop(); me = null;
+  $("#app").innerHTML = `<div class="card"><h1>Presensi</h1><p class="bad">${esc(pesan)}</p><p><button id="kembali">Menu Utama</button></p></div>`;
+  $("#kembali").onclick = keluar;
+}
+// Tampil saat data gagal dimuat (mis. tidak ada internet). Pengguna TETAP login, cukup coba lagi.
+function gagalView(pesan) {
+  $("#app").innerHTML = `<div class="card"><h1>Tidak bisa memuat data</h1><p class="bad">${esc(pesan)}</p><p class="mut">Anda tetap masuk. Periksa koneksi internet lalu coba lagi.</p>
+  <div class="row"><button id="ulang">Coba lagi</button><button class="alt" id="out2">Menu Utama</button></div></div>`;
+  $("#ulang").onclick = () => init();
+  $("#out2").onclick = keluar;
+}
+// "Keluar" dari Presensi = kembali ke Menu Utama PDP (tidak mengeluarkan akun dari PDP).
+function keluar() { stop(); location.href = "portal.html"; }
+async function masuk(user) {
+  const { data, error: pe } = await sb.from("profiles").select("id,nama,email,role,kode_mesin,nip").eq("id", user.id).maybeSingle();
+  if (pe) return gagalView("Gagal membaca profil e-Rapor: " + pe.message);
+  if (!data) return blokView("Profil e-Rapor tidak ditemukan untuk akun ini.");
+  if (!["guru", "staf", "kepsek", "admin"].includes(data.role)) return blokView("Akun ini (peran " + data.role + ") tidak dipakai untuk presensi.");
+  me = data; me.jabatan = { guru: "Guru", staf: "Staf", kepsek: "Kepala Sekolah", admin: "Admin" }[data.role];
+  try { cfg = (await api("lokasi")).lokasi; }
+  catch (e) { return gagalView("Gagal memuat pengaturan presensi (jika baru pertama kali, jalankan setup.sql di project presensi dan deploy fungsi presensi-api): " + e.message); }
+  shell();
+}
+function shell() {
+  const tabs = [["presensi", "Presensi"], ["riwayat", "Riwayat"]];
+  if (me.role === "admin") tabs.push(["rekap", "Rekap"], ["lokasi", "Lokasi"], ["jadwal", "Input jadwal"], ["cek", "Cek jadwal"], ["atur", "Pengaturan"], ["daftar", "Pegawai"]);
+  $("#app").innerHTML = `<div class="row"><div><h1>${esc(me.nama)}</h1><div class="mut">${esc(me.jabatan)}</div></div><div style="flex:none"><button class="alt" id="out">Menu Utama</button></div></div>
+  <div class="tabs">${tabs.map(t => `<button class="${t[0] === tab ? "" : "alt"}" data-t="${t[0]}">${t[1]}</button>`).join("")}</div><div id="view"></div>`;
+  $("#out").onclick = keluar;
+  document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => goTab(b.dataset.t));
+  ({ presensi, riwayat, rekap, lokasi, jadwal, cek, atur, daftar })[tab]();
+}
+function stop() { clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
+
+/* ---------- Navigasi: gestur/tombol kembali & tarik-untuk-refresh ---------- */
+// Setiap pindah tab menambah satu entri riwayat, sehingga gestur kembali Android (dan tombol back browser) kembali ke tab sebelumnya.
+function goTab(t) {
+  if (t === tab) return;
+  depth++; history.pushState({ d: depth, t }, "");
+  tab = t; stop(); shell();
+}
+window.addEventListener("popstate", e => {
+  if (!me) return;
+  depth = e.state?.d ?? 0; tab = e.state?.t ?? "presensi";
+  stop(); shell();
+});
+/* ---------- Kompres foto presensi (maks. FOTO_MAX_KB) ---------- */
+const FOTO_MAX_KB = 20;
+function kompres(v, c, label) {
+  const g = c.getContext("2d"), batas = FOTO_MAX_KB * 1024, rasio = v.videoHeight / v.videoWidth;
+  for (const w of [480, 400, 320, 260, 200, 160]) {
+    c.width = w; c.height = Math.round(w * rasio);
+    g.drawImage(v, 0, 0, c.width, c.height);
+    const fs = Math.max(8, Math.round(w / 34)), bar = fs * 2.2;
+    g.fillStyle = "rgba(0,0,0,.55)"; g.fillRect(0, c.height - bar, c.width, bar);
+    g.fillStyle = "#fff"; g.font = fs + "px sans-serif"; g.fillText(label, 4, c.height - bar / 2 + fs / 3, c.width - 8);
+    for (let q = 0.7; q >= 0.3; q -= 0.1) {
+      const b64 = c.toDataURL("image/jpeg", q).split(",")[1];
+      if (Math.floor(b64.length * 3 / 4) <= batas) return b64;
+    }
+  }
+  return null;
+}
+
+/* ---------- Presensi ---------- */
+async function presensi() {
+  const now = new Date();
+  let hi; try { hi = await api("hari_ini"); } catch (e) { return toast("Gagal memuat presensi: " + e.message, true); }
+  const tgl = hi.tanggal, hr = hi.log, ef = hi.ef, libur = ef.tipe === "libur" || ef.tipe === "fm";
+  const datang = hr.find(x => x.jenis === "datang"), pulang = hr.find(x => x.jenis === "pulang");
+  const jenis = libur ? null : !datang ? "datang" : !pulang ? "pulang" : null;
+  $("#view").innerHTML = `<div class="card"><div class="clock" id="clk"></div>
+  <div class="mut">${HARI[hi.hari]}, ${tgl}</div>
+  <p>${ef.tipe === "kerja" ? `Jadwal hari ini: <b>${ef.masuk}–${ef.pulang}</b> <span class="mut">(${esc(ef.sumber)})</span>` : ef.tipe === "libur" ? `<span class="warn">Hari ini libur.</span>` : ef.tipe === "fm" ? `<span class="warn">Force Majeure${ef.ket ? " — " + esc(ef.ket) : ""}. Presensi tidak diperlukan.</span>` : `<span class="warn">Tidak ada jadwal hari ini.</span>`}</p>
+  <div class="mut">Datang: ${datang ? `${hhmm(new Date(datang.waktu))} (${esc(datang.status)})` : "belum"} · Pulang: ${pulang ? `${hhmm(new Date(pulang.waktu))} (${esc(pulang.status)})` : "belum"}</div></div>
+  ${jenis ? `<div class="card"><h2>Foto presensi ${jenis}</h2><video id="vid" autoplay playsinline muted></video><canvas id="cv" hidden></canvas>
+  <p id="loc" class="mut">Mencari lokasi…</p><div class="row"><button id="snap">Ambil foto & kirim</button></div></div>`
+      : libur ? "" : `<div class="card ok">Presensi hari ini sudah lengkap. Terima kasih.</div>`}`;
+  timer = setInterval(() => { const e = $("#clk"); if (e) e.textContent = hhmm(new Date()); }, 1000); $("#clk").textContent = hhmm(new Date());
+  if (!jenis) return;
+  if (!navigator.mediaDevices?.getUserMedia) toast("Kamera tidak didukung di perangkat ini.", true);
+  else try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640 }, audio: false }); $("#vid").srcObject = stream; }
+  catch { toast("Kamera tidak bisa diakses. Izinkan kamera di pengaturan browser.", true); }
+  let pos = null;
+  watchId = navigator.geolocation.watchPosition(p => {
+    pos = p.coords; const d = jarak(cfg.lat, cfg.lng, pos.latitude, pos.longitude), ok = d <= cfg.radius_m;
+    $("#loc").innerHTML = `<span class="${ok ? "ok" : "bad"}">${ok ? "Di dalam area" : "Di luar area"}</span> — ${d} m dari ${esc(cfg.nama_lokasi)} (batas ${cfg.radius_m} m, akurasi ±${Math.round(pos.accuracy)} m)`;
+  }, () => { $("#loc").innerHTML = `<span class="bad">Lokasi tidak aktif. Aktifkan GPS dan izinkan akses lokasi.</span>`; }, { enableHighAccuracy: true });
+  $("#snap").onclick = async () => {
+    if (!pos) return toast("Lokasi belum didapat.", true);
+    if (jarak(cfg.lat, cfg.lng, pos.latitude, pos.longitude) > cfg.radius_m) return toast("Anda di luar radius presensi.", true);
+    const v = $("#vid"), c = $("#cv"); if (!v.videoWidth) return toast("Kamera belum siap.", true);
+    const label = `${me.nama} · ${tgl} ${hhmm(new Date())} · ${pos.latitude.toFixed(5)},${pos.longitude.toFixed(5)}`;
+    const b64 = kompres(v, c, label);
+    if (!b64) return toast("Foto tidak bisa diperkecil hingga " + FOTO_MAX_KB + " KB. Coba lagi.", true);
+    $("#snap").disabled = true;
+    let hasil;
+    try { hasil = await api("absen", { jenis, foto: b64, lat: pos.latitude, lng: pos.longitude }); }
+    catch (e) { $("#snap").disabled = false; return toast(e.message, true); }
+    const status = hasil.status;
+    toast(`Presensi ${jenis} tercatat (${status}).`); stop(); shell();
+  };
+}
+
+/* ---------- Riwayat & Rekap ---------- */
+async function riwayat() {
+  let data; try { data = (await api("riwayat")).log; } catch (e) { return toast("Gagal memuat riwayat: " + e.message, true); }
+  $("#view").innerHTML = `<div class="card wrap"><table><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak</th></tr>${data.map(r => `<tr><td>${r.tanggal}</td><td>${r.jenis}</td><td>${hhmm(new Date(r.waktu))}</td><td class="${r.status === "terlambat" ? "warn" : ""}">${esc(r.status)}</td><td>${r.jarak_m} m</td></tr>`).join("") || `<tr><td>Belum ada data.</td></tr>`}</table></div>`;
+}
+async function rekap() {
+  $("#view").innerHTML = `<div class="card"><div class="row"><input type="date" id="d" value="${ymd(new Date())}"><button id="cari" style="flex:none">Tampilkan</button></div><div class="wrap" id="hasil"></div></div>`;
+  const load = async () => {
+    const d = $("#d").value;
+    let pg, pr, urls = {}, hari = { tipe: "biasa" };
+    try {
+      const [prof, rk] = await Promise.all([sb.from("profiles").select("id,kode_mesin,nama").in("role", ["guru", "staf", "kepsek"]).order("nama"), api("rekap", { tanggal: d })]);
+      if (prof.error) throw new Error("Gagal membaca data pegawai e-Rapor: " + prof.error.message);
+      pg = prof.data; pr = rk.log; urls = rk.urls; hari = rk.hari;
+    } catch (e) { return toast("Gagal memuat rekap: " + e.message, true); }
+    const rows = await Promise.all(pg.map(async p => {
+      const f = j => pr.find(x => x.pegawai_id === p.id && x.jenis === j);
+      const cell = async r => { if (!r) return `<td class="bad">—</td><td></td>`; const u = urls[r.foto_path]; return `<td>${hhmm(new Date(r.waktu))} <span class="${r.status === "terlambat" ? "warn" : "mut"}">${esc(r.status)}</span></td><td>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener">foto</a>` : ""}</td>`; };
+      return `<tr><td>${esc(p.nama)}</td>${await cell(f("datang"))}${await cell(f("pulang"))}</tr>`;
+    }));
+    $("#hasil").innerHTML = (hari.tipe === "libur" ? `<p class="warn">Tanggal ini libur.</p>` : hari.tipe === "fm" ? `<p class="warn">Tanggal ini Force Majeure${hari.ket ? " — " + esc(hari.ket) : ""}.</p>` : "") + `<table><tr><th>Nama</th><th>Datang</th><th></th><th>Pulang</th><th></th></tr>${rows.join("")}</table>`;
+  };
+  $("#cari").onclick = load; load();
+}
+
+/* ---------- Admin: lokasi ---------- */
+function lokasi() {
+  $("#view").innerHTML = `<div class="card"><h2>Titik lokasi & radius absen</h2>
+  <label>Nama lokasi</label><input id="nm" value="${esc(cfg.nama_lokasi)}">
+  <div class="row"><div><label>Latitude</label><input id="la" type="number" step="any" value="${cfg.lat}"></div><div><label>Longitude</label><input id="lo" type="number" step="any" value="${cfg.lng}"></div></div>
+  <div class="row"><div><label>Radius (meter)</label><input id="rd" type="number" min="10" value="${cfg.radius_m}"></div><div><label>Toleransi terlambat (menit)</label><input id="tl" type="number" min="0" value="${cfg.toleransi_menit}"></div></div>
+  <p class="row"><button class="alt" id="gps">Pakai lokasi saya sekarang</button><button id="sv">Simpan</button></p>
+  <p class="mut"><a id="mp" target="_blank" rel="noopener">Lihat titik di peta</a></p></div>`;
+  const mp = () => $("#mp").href = `https://www.google.com/maps?q=${$("#la").value},${$("#lo").value}`; mp();
+  $("#gps").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#la").value = p.coords.latitude; $("#lo").value = p.coords.longitude; mp(); }, () => toast("Lokasi tidak bisa diakses.", true), { enableHighAccuracy: true });
+  $("#sv").onclick = async () => {
+    const v = { nama_lokasi: $("#nm").value, lat: +$("#la").value, lng: +$("#lo").value, radius_m: +$("#rd").value, toleransi_menit: +$("#tl").value };
+    try { await api("lokasi_simpan", v); Object.assign(cfg, v); toast("Lokasi tersimpan."); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+
+/* ---------- Data pegawai (e-Rapor, hanya baca) & pengaturan admin ---------- */
+let PROF = null, A = null;
+const PERAN = ["guru", "staf", "kepsek", "admin"];
+async function muatProf(paksa) {
+  if (PROF && !paksa) return PROF;
+  const { data, error } = await sb.from("profiles").select("id,nama,role,kode_mesin").in("role", PERAN).order("nama");
+  if (error) throw new Error("Gagal membaca data pegawai e-Rapor: " + error.message);
+  return PROF = data;
+}
+async function muatAdmin(paksa) {
+  if (A && !paksa) return A;
+  const [a] = await Promise.all([api("cfg_get"), muatProf(paksa)]);
+  return A = a;
+}
+const kodeNorm = v => { const k = parseInt(v, 10); return Number.isNaN(k) ? "" : String(k); };
+const namaDari = id => PROF?.find(p => p.id === id)?.nama || id;
+const simpanCfg = (key, value) => api("cfg_simpan", { key, value });
+const tglIdn = d => d.slice(8) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4);
+const hariNama = d => HARI[new Date(d + "T00:00:00Z").getUTCDay() || 7];
+const MODE_LB = { reguler: "Reguler", tes: "Tes", pasca: "Pasca tes", piket: "Piket" };
+
+/* ---------- Baca berkas Excel (format sama dengan aplikasi rekap) ---------- */
+const DAYS = { SENIN: 1, SELASA: 2, RABU: 3, KAMIS: 4, JUMAT: 5, SABTU: 6 };
+const tsec = v => { if (typeof v === "number") return Math.round(v * 86400); const m = typeof v === "string" && v.trim().match(/^(\d{1,2})[:.](\d{2})/); return m ? (+m[1] * 3600 + +m[2] * 60) : null; };
+const jamStr = s => String(Math.floor(s / 3600)).padStart(2, "0") + ":" + String(Math.floor(s % 3600 / 60)).padStart(2, "0");
+function adaXlsx() { if (!window.XLSX) { toast("Pustaka Excel gagal dimuat (periksa internet), muat ulang halaman.", true); return false; } return true; }
+function bacaXlsx(file) {
+  return new Promise((ok, no) => {
+    const r = new FileReader(); r.onerror = () => no(new Error("File tidak bisa dibaca"));
+    r.onload = e => { try { ok(XLSX.read(e.target.result, { type: "array" })); } catch (x) { no(new Error("Bukan file Excel yang valid")); } };
+    r.readAsArrayBuffer(file);
+  });
+}
+const barisXls = ws => XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+// Sheet JADWAL: HARI | JAM AWAL | s.d. | JAM AKHIR | JP KE | JENIS | kolom kelas/ruang berisi kode mesin guru.
+// Hasil: { kodeMesin: { hari: { in, out, jp, cls[] } } }  (jam masuk = jam awal paling pagi, pulang = jam akhir paling akhir)
+function parseJadwal(wb) {
+  const sj = wb.SheetNames.find(n => /jadwal/i.test(n)) || wb.SheetNames[0];
+  const a = barisXls(wb.Sheets[sj]);
+  const hi = a.findIndex(r => r && String(r[0]).toUpperCase() === "HARI");
+  if (hi < 0) throw new Error("Baris judul “HARI” tidak ditemukan di sheet jadwal.");
+  const h = a[hi], cols = [];
+  for (let j = 6; j < h.length; j++) if (h[j]) cols.push([j, String(h[j])]);
+  const sched = {}; let prevEnd = null;
+  for (let i = hi + 1; i < a.length; i++) {
+    const r = a[i]; if (!r) continue; const d = DAYS[String(r[0]).toUpperCase()]; if (!d) continue;
+    const dur = String(r[5]).toUpperCase() === "S2" ? 25 : 30;
+    const t1 = tsec(r[1]), t3 = tsec(r[3]); const st = t1 != null ? t1 : prevEnd;
+    if (st == null) continue;
+    let en = t3 != null ? t3 : st + dur * 60;
+    if (en <= st) en = st + dur * 60;
+    prevEnd = en;
+    cols.forEach(([j, cn]) => {
+      const v = r[j]; if (v == null || v === "") return;
+      const id = String(parseInt(v, 10)); if (id === "NaN") return;
+      const o = ((sched[id] = sched[id] || {})[d] = sched[id][d] || { in: st, out: en, jp: 0, cls: new Set() });
+      o.in = Math.min(o.in, st); o.out = Math.max(o.out, en); o.jp++; o.cls.add(cn);
+    });
+  }
+  Object.values(sched).forEach(dd => Object.values(dd).forEach(o => o.cls = [...o.cls]));
+  return { sched };
+}
+function petakanJadwal(sched) {
+  const peta = Object.fromEntries(PROF.filter(p => kodeNorm(p.kode_mesin)).map(p => [kodeNorm(p.kode_mesin), p.id]));
+  const rows = [], miss = [], ada = new Set();
+  for (const kode in sched) {
+    const id = peta[kode]; if (!id) { miss.push(kode); continue; }
+    ada.add(id);
+    for (const h in sched[kode]) { const o = sched[kode][h]; rows.push({ pegawai_id: id, hari: +h, jam_masuk: jamStr(o.in), jam_pulang: jamStr(o.out), jp: o.jp, kelas: o.cls.join(", ") }); }
+  }
+  return { rows, miss, n: ada.size };
+}
+// Jadwal piket: (A) kolom per hari (SENIN ... SABTU) berisi nama / kode mesin, atau (B) baris per hari.
+const dayOf = v => {
+  if (v == null) return null;
+  const m = String(v).trim().toLowerCase().match(/^(senin|selasa|rabu|kamis|jum['’`]?at|sabtu|minggu|ahad)(?![a-z])/); if (!m) return null;
+  return { senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, sabtu: 6, minggu: 7, ahad: 7 }[m[1].replace(/[^a-z]/g, "")];
+};
+const PK_SKIP = /^(no\.?|nama|name|id|kode|keterangan|ket\.?|hari|guru|petugas|piket|jam|peserta|tanggal)$/i;
+function pkCells(v) {
+  if (v == null || v === "") return [];
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? [{ k: "id", v: String(v) }] : [];
+  return String(v).split(/\r?\n|;|\s\/\s/).map(x => x.trim().replace(/^\d+[.)]\s+/, "")).filter(x => x && !PK_SKIP.test(x)).map(x => /^\d+$/.test(x) ? { k: "id", v: x } : { k: "nm", v: x });
+}
+function parsePiket(wb) {
+  const sn = wb.SheetNames.find(n => /piket/i.test(n)) || wb.SheetNames[0];
+  const a = barisXls(wb.Sheets[sn]), list = {};
+  const add = (d, es) => { if (!es.length) return; const l = (list[d] = list[d] || []); es.forEach(e => { if (!l.some(x => x.k === e.k && x.v === e.v)) l.push(e); }); };
+  const hi = a.findIndex(r => r && r.filter(c => dayOf(c) != null).length >= 2);
+  if (hi >= 0) {
+    const cols = []; a[hi].forEach((c, j) => { const d = dayOf(c); if (d != null) cols.push([j, d]); });
+    for (let i = hi + 1; i < a.length; i++) { const r = a[i]; if (!r) continue; cols.forEach(([j, d]) => add(d, pkCells(r[j]))); }
+  } else {
+    let cur = null;
+    for (const r of a) {
+      if (!r) continue;
+      const j = r.findIndex(c => dayOf(c) != null);
+      if (j >= 0) { cur = dayOf(r[j]); add(cur, r.slice(j + 1).flatMap(pkCells)); }
+      else if (cur != null) add(cur, r.flatMap(c => typeof c === "string" ? pkCells(c) : []));
+    }
+  }
+  if (!Object.keys(list).length) throw new Error("Format jadwal piket tidak dikenali. Gunakan kolom per hari (SENIN sampai SABTU) atau baris per hari berisi nama peserta.");
+  return list;
+}
+const nrm = t => String(t).toLowerCase().replace(/,.*$/, "").replace(/[^a-z0-9 ]/g, " ").replace(/\b(drs|dra|dr|hj|h|ir)\b/g, " ").replace(/\s+/g, " ").trim();
+function petakanPiket(list) {
+  const byN = PROF.map(p => [nrm(p.nama || ""), p.id]).filter(x => x[0]);
+  const byK = Object.fromEntries(PROF.filter(p => kodeNorm(p.kode_mesin)).map(p => [kodeNorm(p.kode_mesin), p.id]));
+  const find = v => {
+    const n = nrm(v); if (!n) return null;
+    let m = byN.filter(x => x[0] === n);
+    if (!m.length && n.length >= 4) m = byN.filter(x => x[0].includes(n) || n.includes(x[0]));
+    const u = [...new Set(m.map(x => x[1]))]; return u.length === 1 ? u[0] : null;
+  };
+  const out = {}, belum = new Set();
+  for (const d in list) {
+    const set = new Set();
+    list[d].forEach(e => { const id = e.k === "id" ? byK[kodeNorm(e.v)] : find(e.v); id ? set.add(id) : belum.add(e.v); });
+    if (set.size) out[d] = [...set];
+  }
+  return { out, belum: [...belum] };
+}
+function unduh(nama, sheets) {
+  if (!adaXlsx()) return;
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(([n, rows]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), n));
+  XLSX.writeFile(wb, nama);
+}
+function tplJadwal(kolom) {
+  const H = ["HARI", "JAM AWAL", "S.D.", "JAM AKHIR", "JP KE", "JENIS (kosongkan; isi S2 jika 25 menit)", ...kolom];
+  const row = (h, a, b, n, ...c) => { const o = {}; H.forEach((k, i) => o[k] = i === 0 ? h : i === 1 ? a : i === 2 ? "s.d." : i === 3 ? b : i === 4 ? n : i === 5 ? "" : (c[i - 6] ?? "")); return o; };
+  return [["JADWAL", [row("SENIN", "07:00", "07:45", 1, 1, 2), row("SENIN", "07:45", "08:30", 2, 1, ""), row("SENIN", "08:30", "09:15", 3, "", 2),
+    row("SELASA", "07:00", "07:45", 1, 2, 1), row("SELASA", "07:45", "08:30", 2, 2, ""), row("SABTU", "07:00", "07:45", 1, 1, 2)]]];
+}
+function tplPiket() {
+  const n = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"], ct = [["Contoh Guru Satu", "Contoh Guru Dua"], ["Contoh Guru Tiga"], ["Contoh Guru Satu"], ["Contoh Guru Dua", "Contoh Guru Tiga"], ["Contoh Guru Tiga"], ["Contoh Guru Satu"]];
+  return [["PIKET", [0, 1].map(i => Object.fromEntries(n.map((h, j) => [h, ct[j][i] || ""])))]];
+}
+async function unggahJadwal(jenis, file) {
+  if (!file) return toast("Pilih file Excel dulu.", true);
+  if (!adaXlsx()) return;
+  try {
+    await muatProf();
+    const { sched } = parseJadwal(await bacaXlsx(file));
+    const { rows, miss, n } = petakanJadwal(sched);
+    if (!rows.length) return toast("Tidak ada kode mesin di file yang cocok dengan data pegawai e-Rapor." + (miss.length ? " Kode tidak ditemukan: " + miss.slice(0, 8).join(", ") : ""), true);
+    const nama = jenis === "tes" ? "jadwal tes" : "jadwal reguler";
+    if (!confirm(`Ganti SELURUH ${nama} dengan file ini?\n\n${n} pegawai terjadwal, ${rows.length} baris hari.` + (miss.length ? `\n${miss.length} kode mesin tidak cocok dengan data pegawai (dilewati): ${miss.slice(0, 8).join(", ")}${miss.length > 8 ? "…" : ""}` : ""))) return;
+    const r = await api("jadwal_unggah", { jenis, rows, file: file.name });
+    toast(`${r.pegawai} pegawai, ${r.tersimpan} baris ${nama} tersimpan.` + (miss.length ? ` ${miss.length} kode mesin dilewati.` : ""));
+    A = null; jadwal();
+  } catch (e) { toast(e.message, true); }
+}
+async function unggahPiket(file) {
+  if (!file) return toast("Pilih file Excel dulu.", true);
+  if (!adaXlsx()) return;
+  try {
+    await muatProf();
+    const { out, belum } = petakanPiket(parsePiket(await bacaXlsx(file)));
+    const n = Object.values(out).reduce((t, l) => t + l.length, 0);
+    if (!n) return toast("Tidak ada nama/kode mesin piket yang cocok dengan data pegawai e-Rapor." + (belum.length ? " Contoh: " + belum.slice(0, 5).join(", ") : ""), true);
+    if (!confirm(`Ganti SELURUH jadwal piket dengan file ini?\n\n${n} peserta di ${Object.keys(out).length} hari.` + (belum.length ? `\n${belum.length} nama belum cocok (dilewati): ${belum.slice(0, 6).join(", ")}${belum.length > 6 ? "…" : ""}` : ""))) return;
+    await api("piket_simpan", { list: out, belum, file: file.name });
+    toast(`Jadwal piket tersimpan (${n} peserta).` + (belum.length ? ` ${belum.length} nama belum cocok.` : ""));
+    A = null; jadwal();
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- Admin: input jadwal (acuan 1 reguler, 2 tes, 4 piket) ---------- */
+async function jadwal() {
+  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat jadwal: " + e.message, true); }
+  const P = A.pengaturan, nReg = A.ada_reguler.length, nTes = A.ada_tes.length, pk = A.piket;
+  const nPk = pk ? Object.values(pk.list).reduce((t, l) => t + l.length, 0) : 0;
+  const kartu = (id, judul, info, status, ok, adaData) => `<div class="card"><h2>${judul}</h2><p class="mut">${info}</p><p class="${ok ? "ok" : "warn"}">${status}</p>
+    <input type="file" id="f${id}" accept=".xlsx,.xls"><p class="row"><button id="u${id}">Unggah</button>${adaData ? `<button class="alt" id="x${id}">Hapus</button>` : ""}</p></div>`;
+  $("#view").innerHTML =
+    kartu(1, "Acuan 1 · Jadwal reguler", "File .xlsx sheet JADWAL: kolom HARI, JAM AWAL, JAM AKHIR, lalu kolom kelas berisi kode mesin guru. Kode mesin dicocokkan dengan data pegawai e-Rapor. Mengunggah MENGGANTI seluruh jadwal reguler.",
+      nReg ? `Terpasang: ${esc(A.file_reguler || "jadwal")} · ${nReg} pegawai terjadwal` : "Belum ada jadwal reguler.", nReg, nReg) +
+    kartu(2, "Acuan 2 · Jadwal tes", "Format sama dengan acuan 1, tetapi kolomnya ruang (pengawas tes). Tanggal berlakunya diatur di menu Pengaturan.",
+      nTes ? `Terpasang: ${esc(A.file_tes || "jadwal tes")} · ${nTes} guru terjadwal` : "Belum ada jadwal tes (opsional).", nTes, nTes) +
+    `<div class="card"><h2>Acuan 3 · Pasca tes</h2><p class="mut">Tanpa berkas. Hari dan orang yang terjadwal sama dengan jadwal reguler; hanya jam masuk dan pulangnya diganti jam kerja pasca tes.</p>
+      <p class="${P.pasca.dari && P.pasca.sampai ? "ok" : "mut"}">${P.pasca.dari && P.pasca.sampai ? `Jam ${P.pasca.masuk}–${P.pasca.pulang}, berlaku ${tglIdn(P.pasca.dari)} s.d. ${tglIdn(P.pasca.sampai)}` : "Belum diaktifkan (isi tanggal di Pengaturan)."}</p>
+      <p><button class="alt" id="gop">Atur jam & tanggal →</button></p></div>` +
+    kartu(4, "Acuan 4 · Jadwal piket", "File .xlsx: kolom per hari (SENIN … SABTU) berisi nama atau kode mesin, atau baris per hari. Dipakai pada rentang libur semester (diatur di Pengaturan).",
+      pk ? `Terpasang: ${esc(pk.file || "piket")} · ${nPk} peserta di ${Object.keys(pk.list).length} hari` + ((pk.belum || []).length ? ` · ${pk.belum.length} nama belum cocok: ${esc(pk.belum.slice(0, 4).join(", "))}${pk.belum.length > 4 ? "…" : ""}` : "") : "Belum ada jadwal piket (opsional).", pk && !(pk.belum || []).length, !!pk) +
+    `<div class="card"><h2>Unduh template</h2><p class="row"><button class="alt" id="t1">Jadwal reguler</button><button class="alt" id="t2">Jadwal tes</button><button class="alt" id="t4">Jadwal piket</button></p>
+      <p class="mut">Isi template lalu unggah kembali. Jam boleh ditulis 07:00. Pastikan kode mesin pegawai sudah diisi di menu Guru PDP.</p></div>`;
+  $("#u1").onclick = () => unggahJadwal("reguler", $("#f1").files[0]);
+  $("#u2").onclick = () => unggahJadwal("tes", $("#f2").files[0]);
+  $("#u4").onclick = () => unggahPiket($("#f4").files[0]);
+  const hapus = (id, nama, fn) => { const b = $("#x" + id); if (b) b.onclick = async () => { if (!confirm("Hapus " + nama + "?")) return; try { await fn(); A = null; jadwal(); } catch (e) { toast(e.message, true); } }; };
+  hapus(1, "jadwal reguler", () => api("jadwal_hapus", { jenis: "reguler" }));
+  hapus(2, "jadwal tes", () => api("jadwal_hapus", { jenis: "tes" }));
+  hapus(4, "jadwal piket", () => api("piket_hapus"));
+  $("#gop").onclick = () => goTab("atur");
+  $("#t1").onclick = () => unduh("template-jadwal-reguler.xlsx", tplJadwal(["X-A", "X-B"]));
+  $("#t2").onclick = () => unduh("template-jadwal-tes.xlsx", tplJadwal(["RUANG 01", "RUANG 02"]));
+  $("#t4").onclick = () => unduh("template-jadwal-piket.xlsx", tplPiket());
+}
+
+/* ---------- Admin: pengaturan (jam staf, libur, force majeure, tugas tambahan staf, acuan tanggal) ---------- */
+function bentrokPeng(P) {
+  const R = [["Jadwal tes", P.tes.dari, P.tes.sampai], ["Pasca tes", P.pasca.dari, P.pasca.sampai], ["Piket", P.piket.dari, P.piket.sampai]].filter(r => r[1] && r[2] && r[1] <= r[2]);
+  const m = [];
+  for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++) {
+    const f = R[i][1] > R[j][1] ? R[i][1] : R[j][1], t = R[i][2] < R[j][2] ? R[i][2] : R[j][2];
+    if (f <= t) m.push(`${R[i][0]} dan ${R[j][0]} bertabrakan pada ${f === t ? tglIdn(f) : tglIdn(f) + " s.d. " + tglIdn(t)}`);
+  }
+  return m;
+}
+const bacaPeng = () => ({
+  staf: Object.fromEntries([1, 2, 3, 4, 5, 6].map(h => [h, { masuk: $("#sm" + h).value, pulang: $("#sp" + h).value }])),
+  tes: { dari: $("#a2f").value, sampai: $("#a2t").value },
+  pasca: { masuk: $("#a3i").value, pulang: $("#a3o").value, dari: $("#a3f").value, sampai: $("#a3t").value },
+  piket: { dari: $("#a4f").value, sampai: $("#a4t").value, masuk: $("#a4i").value, pulang: $("#a4o").value },
+});
+function fmGroups(fm) {
+  const g = [];
+  fm.forEach(x => {
+    const l = g[g.length - 1];
+    const gap = l ? (Date.parse(x.d + "T00:00:00Z") - Date.parse(l.e + "T00:00:00Z")) / 864e5 : 0;
+    const ok = l && l.ket === x.ket && (gap === 1 || (gap === 2 && new Date(Date.parse(l.e + "T00:00:00Z") + 864e5).getUTCDay() === 0));
+    if (ok) l.e = x.d; else g.push({ s: x.d, e: x.d, ket: x.ket });
+  });
+  return g;
+}
+async function atur() {
+  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat pengaturan: " + e.message, true); }
+  const P = A.pengaturan;
+  $("#view").innerHTML = `
+  <div class="card"><h2>Jam kerja staf</h2>
+    ${[1, 2, 3, 4, 5, 6].map(h => `<div class="row"><div style="flex:.6"><label for="sm${h}">${HARI[h]} · masuk</label><input id="sm${h}" type="time" value="${P.staf[h].masuk}"></div><div><label for="sp${h}">pulang</label><input id="sp${h}" type="time" value="${P.staf[h].pulang}"></div></div>`).join("")}
+    <p class="mut">Jam masuk dan pulang staf diatur per hari, Senin–Sabtu. Kosongkan jam masuk dan pulang pada hari yang tidak bekerja (misalnya Sabtu). Dipakai staf, kepala sekolah, dan admin yang tidak punya jadwal mengajar, serta guru yang dicentang bertugas tambahan staf. Simpan lewat tombol di bagian Acuan jadwal.</p></div>
+  <div class="card"><h2>Hari libur</h2><div class="row"><input id="hd" type="date"><button id="ha" style="flex:none">Tambah libur</button></div><div id="hl"></div>
+    <p class="mut">Pada tanggal libur tidak ada jadwal dan presensi tidak diperlukan.</p></div>
+  <div class="card"><h2>Force Majeure</h2>
+    <div class="row"><div><label for="fd1">Mulai</label><input id="fd1" type="date"></div><div><label for="fd2">Sampai (opsional)</label><input id="fd2" type="date"></div></div>
+    <label for="fk">Keterangan</label><input id="fk" type="text" maxlength="80" placeholder="Contoh: Listrik padam seharian">
+    <p><button id="fa">Tambah Force Majeure</button></p><div id="fl"></div>
+    <p class="mut">Untuk kendala di luar kendali guru/staf. Diperlakukan seperti libur: tidak ada jadwal, tidak dihitung terlambat atau pulang cepat. Pada rentang, hari Minggu dilewati (maks. 62 hari per entri).</p></div>
+  <div class="card"><h2>Tugas tambahan staf</h2><p class="mut" id="stn"></p>
+    <div class="row"><input type="search" id="stq" placeholder="Cari nama guru"><button class="alt" id="stclr" style="flex:none">Hapus semua centang</button></div>
+    <p class="mut">Guru yang dicentang memakai jam kerja staf pada semua hari kerja, bukan jadwal mengajarnya. Tersimpan otomatis.</p>
+    <div class="stl" id="stl"></div><p class="mut" id="sfn"></p></div>
+  <div class="card"><h2>Acuan jadwal tambahan</h2>
+    <p class="mut">Tanggal acuan 2, 3, dan 4 tidak boleh bertabrakan. Tanggal yang tidak diisi memakai jadwal reguler.</p>
+    <div class="warnbox" id="bt" hidden></div>
+    <h3>Acuan 2 · Tes</h3><div class="row"><div><label for="a2f">Berlaku mulai</label><input id="a2f" type="date" value="${P.tes.dari}"></div><div><label for="a2t">Sampai</label><input id="a2t" type="date" value="${P.tes.sampai}"></div></div>
+    <p class="mut">Pada rentang ini guru memakai jadwal tes (guru yang tidak ada di jadwal tes dianggap tidak punya jadwal). Staf tetap memakai jam staf.</p>
+    <h3>Acuan 3 · Pasca tes</h3><div class="row"><div><label for="a3i">Jam masuk</label><input id="a3i" type="time" value="${P.pasca.masuk}"></div><div><label for="a3o">Jam pulang</label><input id="a3o" type="time" value="${P.pasca.pulang}"></div></div>
+    <div class="row"><div><label for="a3f">Berlaku mulai</label><input id="a3f" type="date" value="${P.pasca.dari}"></div><div><label for="a3t">Sampai</label><input id="a3t" type="date" value="${P.pasca.sampai}"></div></div>
+    <h3>Acuan 4 · Piket</h3><div class="row"><div><label for="a4f">Berlaku mulai</label><input id="a4f" type="date" value="${P.piket.dari}"></div><div><label for="a4t">Sampai</label><input id="a4t" type="date" value="${P.piket.sampai}"></div></div>
+    <div class="row"><div><label for="a4i">Jam mulai piket</label><input id="a4i" type="time" value="${P.piket.masuk}"></div><div><label for="a4o">Jam akhir piket</label><input id="a4o" type="time" value="${P.piket.pulang}"></div></div>
+    <p class="mut">Untuk rentang libur semester: hanya peserta di jadwal piket yang terjadwal (sesuai hari piketnya); selain itu tanpa jadwal.</p>
+    <p><button id="sv">Simpan jam staf & acuan</button></p></div>`;
+
+  const gambarBt = () => { const m = bentrokPeng(bacaPeng()); const b = $("#bt"); b.hidden = !m.length; b.textContent = m.length ? m.join("; ") + ". Perbaiki dulu sebelum menyimpan." : ""; };
+  ["a2f", "a2t", "a3f", "a3t", "a4f", "a4t"].forEach(i => $("#" + i).addEventListener("input", gambarBt)); gambarBt();
+  $("#sv").onclick = async () => {
+    const v = bacaPeng(), m = bentrokPeng(v);
+    if (m.length) return toast("Tidak disimpan: " + m.join("; "), true);
+    $("#sv").disabled = true;
+    try { await simpanCfg("pengaturan", v); A.pengaturan = v; toast("Pengaturan tersimpan."); }
+    catch (e) { toast(e.message, true); }
+    $("#sv").disabled = false;
+  };
+
+  // Libur
+  const gambarLibur = () => { $("#hl").innerHTML = A.libur.length ? A.libur.map(d => `<span class="chip">${hariNama(d)}, ${tglIdn(d)}<button data-d="${d}" aria-label="Hapus libur ${d}">×</button></span>`).join("") : `<span class="mut">Belum ada hari libur.</span>`; };
+  const ubah = async (kunci, baru) => { const lama = A[kunci]; A[kunci] = baru; try { await simpanCfg(kunci, baru); return true; } catch (e) { A[kunci] = lama; toast(e.message, true); return false; } };
+  $("#ha").onclick = async () => { const v = $("#hd").value; if (!v) return; if (await ubah("libur", [...new Set([...A.libur, v])].sort())) $("#hd").value = ""; gambarLibur(); };
+  $("#hl").onclick = async e => { const d = e.target.dataset?.d; if (!d) return; await ubah("libur", A.libur.filter(x => x !== d)); gambarLibur(); };
+  gambarLibur();
+
+  // Force majeure
+  const gambarFm = () => { $("#fl").innerHTML = A.fm.length ? fmGroups(A.fm).map(g => `<span class="chip fm">${hariNama(g.s).slice(0, 3)}, ${tglIdn(g.s)}${g.e !== g.s ? " – " + tglIdn(g.e) : ""}${g.ket ? " · " + esc(g.ket) : ""}<button data-s="${g.s}" data-e="${g.e}" aria-label="Hapus force majeure ${g.s}">×</button></span>`).join("") : `<span class="mut">Belum ada tanggal force majeure.</span>`; };
+  $("#fa").onclick = async () => {
+    const a = $("#fd1").value, b = $("#fd2").value || a, ket = $("#fk").value.trim().slice(0, 80);
+    if (!a) return toast("Pilih tanggal mulai force majeure.", true);
+    if (b < a) return toast("Tanggal sampai tidak boleh sebelum tanggal mulai.", true);
+    const t0 = Date.parse(a + "T00:00:00Z"), t1 = Date.parse(b + "T00:00:00Z");
+    if ((t1 - t0) / 864e5 > 62) return toast("Rentang force majeure maksimal 62 hari. Pisahkan menjadi beberapa entri.", true);
+    const m = new Map(A.fm.map(x => [x.d, x]));
+    for (let t = t0; t <= t1; t += 864e5) { const d = new Date(t).toISOString().slice(0, 10); if (a !== b && new Date(t).getUTCDay() === 0) continue; m.set(d, { d, ket }); }
+    if (await ubah("fm", [...m.values()].sort((x, y) => x.d < y.d ? -1 : 1))) $("#fd1").value = $("#fd2").value = $("#fk").value = "";
+    gambarFm();
+  };
+  $("#fl").onclick = async e => { const b = e.target.closest("button[data-s]"); if (!b) return; await ubah("fm", A.fm.filter(x => x.d < b.dataset.s || x.d > b.dataset.e)); gambarFm(); };
+  gambarFm();
+
+  // Tugas tambahan staf
+  let tmr;
+  const gambarStaf = () => {
+    const q = ($("#stq").value || "").trim().toLowerCase(), cand = PROF.filter(p => p.role === "guru" || A.staf.includes(p.id));
+    const L = cand.filter(p => !q || (p.nama || "").toLowerCase().includes(q));
+    $("#stn").textContent = cand.length ? `${A.staf.length} dari ${cand.length} guru bertugas tambahan staf` : "Belum ada data guru.";
+    const top = $("#stl").scrollTop;
+    $("#stl").innerHTML = L.map(p => `<label class="stc"><input type="checkbox" data-id="${p.id}"${A.staf.includes(p.id) ? " checked" : ""}><span>${esc(p.nama)}${p.kode_mesin ? ` <small class="mut">ID ${esc(p.kode_mesin)}</small>` : ""}</span></label>`).join("") || `<span class="mut">Tidak ada guru yang cocok.</span>`;
+    $("#stl").scrollTop = top;
+    const reg = new Set(A.ada_reguler), nStaf = PROF.filter(p => p.role !== "guru" && !reg.has(p.id) && !A.staf.includes(p.id)).length;
+    $("#sfn").textContent = `${nStaf} staf memakai jam staf` + (A.staf.length ? ` · ${A.staf.length} guru bertugas tambahan staf` : "") + ".";
+  };
+  const simpanStaf = () => { clearTimeout(tmr); tmr = setTimeout(async () => { try { await simpanCfg("staf", A.staf); } catch (e) { toast("Gagal menyimpan tugas staf: " + e.message, true); } }, 600); };
+  $("#stl").onchange = e => { const id = e.target.dataset?.id; if (!id) return; A.staf = e.target.checked ? [...new Set([...A.staf, id])] : A.staf.filter(x => x !== id); gambarStaf(); simpanStaf(); };
+  $("#stq").oninput = gambarStaf;
+  $("#stclr").onclick = () => { if (!A.staf.length) return; A.staf = []; gambarStaf(); simpanStaf(); };
+  gambarStaf();
+}
+
+/* ---------- Admin: cek jadwal ---------- */
+async function isiMingguan(jenis, el) {
+  try {
+    const { jadwal: jd } = await api("jadwal_list");
+    const per = {}; jd.filter(r => r.jenis === jenis).forEach(r => ((per[r.pegawai_id] = per[r.pegawai_id] || {})[r.hari] = r));
+    const ids = Object.keys(per).sort((a, b) => namaDari(a).localeCompare(namaDari(b), "id")), H = [1, 2, 3, 4, 5, 6];
+    el.innerHTML = ids.length ? `<table><tr><th>Nama</th>${H.map(h => `<th>${HARI[h].slice(0, 3)}</th>`).join("")}</tr>${ids.map(id => `<tr><td>${esc(namaDari(id))}</td>${H.map(h => { const r = per[id][h]; return `<td>${r ? r.jam_masuk.slice(0, 5) + "–" + r.jam_pulang.slice(0, 5) : "–"}</td>`; }).join("")}</tr>`).join("")}</table>` : `<span class="mut">Belum ada.</span>`;
+  } catch (e) { el.textContent = e.message; }
+}
+async function cek() {
+  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat data: " + e.message, true); }
+  const P = A.pengaturan, ps = [];
+  const add = (t, x) => ps.push(`<p class="${t}">${t === "ok" ? "✓" : t === "warn" ? "⚠" : "✗"} ${x}</p>`);
+  bentrokPeng(P).forEach(m => add("bad", esc(m) + ". Jadwal tes, pasca tes, dan piket tidak boleh bertabrakan."));
+  if (!A.ada_reguler.length) add("bad", "Jadwal reguler (acuan 1) belum diunggah."); else add("ok", `Jadwal reguler: ${A.ada_reguler.length} pegawai terjadwal.`);
+  const tanpaKode = PROF.filter(p => p.role === "guru" && !kodeNorm(p.kode_mesin)).length;
+  if (tanpaKode) add("warn", `${tanpaKode} guru belum punya kode mesin di e-Rapor, jadwalnya tidak bisa dipasang.`);
+  const rg = (a, b) => a && b && a <= b ? `${tglIdn(a)} s.d. ${tglIdn(b)}` : "";
+  if (A.ada_tes.length) add(rg(P.tes.dari, P.tes.sampai) ? "ok" : "warn", rg(P.tes.dari, P.tes.sampai) ? `Jadwal tes berlaku ${rg(P.tes.dari, P.tes.sampai)} (${A.ada_tes.length} guru terjadwal).` : "Jadwal tes sudah diunggah, tetapi tanggal berlakunya belum benar (Pengaturan).");
+  else if (P.tes.dari && P.tes.sampai) add("warn", "Tanggal jadwal tes sudah diisi, tetapi jadwal tes belum diunggah. Pada tanggal itu yang berlaku tetap jadwal reguler.");
+  if (rg(P.pasca.dari, P.pasca.sampai)) add("ok", `Pasca tes: jam ${P.pasca.masuk}–${P.pasca.pulang}, berlaku ${rg(P.pasca.dari, P.pasca.sampai)}.`);
+  if (A.piket) {
+    const okp = rg(P.piket.dari, P.piket.sampai) && P.piket.masuk && P.piket.pulang && P.piket.pulang > P.piket.masuk;
+    add(okp ? "ok" : "warn", okp ? `Piket berlaku ${rg(P.piket.dari, P.piket.sampai)}, jam ${P.piket.masuk}–${P.piket.pulang}.` : "Jadwal piket sudah diunggah, tetapi tanggal atau jam piket belum benar (Pengaturan).");
+    if ((A.piket.belum || []).length) add("warn", `${A.piket.belum.length} nama piket belum cocok dengan data pegawai: ${esc(A.piket.belum.slice(0, 6).join(", "))}.`);
+  } else if (P.piket.dari && P.piket.sampai) add("warn", "Tanggal piket sudah diisi, tetapi jadwal piket belum diunggah. Tanggal itu belum diperlakukan sebagai piket.");
+  if (A.staf.length) add("ok", `${A.staf.length} guru bertugas tambahan staf memakai jam staf per hari.`);
+  add("ok", `${A.libur.length} hari libur, ${A.fm.length} tanggal force majeure terdaftar.`);
+  $("#view").innerHTML = `<div class="card"><h2>Hasil cek</h2>${ps.join("")}</div>
+  <div class="card"><h2>Jadwal pada tanggal tertentu</h2><div class="row"><input type="date" id="ctg" value="${ymd(new Date())}"><button id="cgo" style="flex:none">Tampilkan</button></div><div class="wrap" id="chs"></div></div>
+  <div class="card"><details id="dr"><summary>Jadwal reguler per pegawai</summary><div class="wrap" id="tr"></div></details></div>
+  ${A.ada_tes.length ? `<div class="card"><details id="dt"><summary>Jadwal tes per pegawai</summary><div class="wrap" id="tt"></div></details></div>` : ""}`;
+  const lihat = async () => {
+    const t = $("#ctg").value; if (!t) return;
+    try {
+      const r = await api("efektif_hari", { tanggal: t, pegawai: PROF.map(p => ({ id: p.id, role: p.role })) });
+      const info = r.tipe === "libur" ? `<span class="warn">Libur</span>` : r.tipe === "fm" ? `<span class="warn">Force Majeure</span>` : `Mode jadwal: <b>${MODE_LB[r.mode] || r.mode}</b>`;
+      $("#chs").innerHTML = `<p>${HARI[r.hari]}, ${tglIdn(t)} · ${info}</p><table><tr><th>Nama</th><th>Peran</th><th>Jadwal</th><th>Acuan</th></tr>${PROF.map(p => { const e = r.hasil[p.id] || {}; return `<tr><td>${esc(p.nama)}</td><td>${esc(p.role)}</td><td>${e.tipe === "kerja" ? e.masuk + "–" + e.pulang : "—"}</td><td class="mut">${e.tipe === "kerja" ? esc(e.sumber) : e.tipe === "libur" ? "Libur" : e.tipe === "fm" ? "Force Majeure" : "Tidak ada jadwal"}</td></tr>`; }).join("")}</table>`;
+    } catch (e) { toast("Gagal memuat jadwal: " + e.message, true); }
+  };
+  $("#cgo").onclick = lihat; lihat();
+  $("#dr").addEventListener("toggle", function () { if (this.open && !$("#tr").innerHTML) isiMingguan("reguler", $("#tr")); });
+  $("#dt")?.addEventListener("toggle", function () { if (this.open && !$("#tt").innerHTML) isiMingguan("tes", $("#tt")); });
+}
+
+/* ---------- Admin: data guru (sinkron e-Rapor) ---------- */
+async function daftar() {
+  const { data } = await sb.from("profiles").select("nama,email,role,kode_mesin").in("role", ["guru", "staf", "kepsek"]).order("nama");
+  const kosong = data.filter(p => !p.kode_mesin).length;
+  $("#view").innerHTML = `<div class="card wrap"><h2>${data.length} pegawai dari e-Rapor</h2>
+  <p class="mut">Data dibaca langsung dari e-Rapor (hanya baca), tanpa sinkron. Kode mesin diisi di menu Guru PDP. ${kosong ? `<span class="warn">${kosong} orang belum punya kode mesin, jadwalnya tidak bisa diunggah.</span>` : ""}</p>
+  <table><tr><th>Kode mesin</th><th>Nama</th><th>Email</th><th>Peran</th></tr>${data.map(p => `<tr><td>${esc(p.kode_mesin) || "—"}</td><td>${esc(p.nama)}</td><td>${esc(p.email)}</td><td>${esc(p.role)}</td></tr>`).join("")}</table></div>`;
+}
+init();
+</script>
+</body>
+</html>

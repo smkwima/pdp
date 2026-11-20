@@ -30,14 +30,15 @@
     'pengaduan.html': 'pgd',
     'catatan-pengawas.html': 'cat',
     'ijin.html': 'ijin',
+    'presensi.html': 'presensi',
     'disiplin.html': 'disiplin',
     'pengaturan-admin.html': 'set',
     'log-admin.html': 'log'
   };
   // Halaman tanpa kode aplikasi, tetapi tetap ikut mode pemeliharaan & pengumuman.
   var HALAMAN_UMUM = { 'portal.html': 1, 'siswa.html': 1, 'developer.html': 1 };
-  // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker & Presensi tidak punya halaman di PDP, href '#').
-  var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp', 'Presensi': 'presensi' };
+  // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker tidak punya halaman, href '#').
+  var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
 
   function berkasSekarang() {
     var b = (location.pathname.split('/').pop() || 'index.html').toLowerCase();

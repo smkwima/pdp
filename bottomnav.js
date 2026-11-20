@@ -64,6 +64,7 @@
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
   else if (berkas === 'pengaduan.html') { kunciAktif = 'pgd'; }
   else if (berkas === 'ijin.html') { kunciAktif = 'ijin'; }
+  else if (berkas === 'presensi.html') { kunciAktif = 'presensi'; }
   else if (berkas === 'disiplin.html') { kunciAktif = 'disiplin'; }
   else { return; } // halaman lain (login, siswa, dll): tidak dipasang
 
@@ -84,7 +85,7 @@
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
       { k: 'pgd',   label: 'Pengaduan',   judul: 'Pengaduan Siswa',     href: 'pengaduan.html', warna: 'merah', sheetSaja: true, hanyaPimpinan: true },
       { k: 'cat',   label: 'Catatan',     judul: 'Catatan Pengawas',    href: 'catatan-pengawas.html', warna: 'ungu', sheetSaja: true, hanyaCatatan: true },
-      { k: 'presensi', label: 'Presensi', judul: 'Presensi',          href: '#', sso: 'presensi', warna: 'hijau' },
+      { k: 'presensi', label: 'Presensi', judul: 'Presensi',          href: 'presensi.html', warna: 'hijau' },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
@@ -189,7 +190,7 @@
   }
 
   function ikonSvg(k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + IKON[k] + '</svg>'; }
-  function atributSso(it) { return (it.sso ? ' data-sso="' + (it.sso === true ? 'rpp' : it.sso) + '"' : '') + (it.luar ? ' target="_blank" rel="noopener"' : ''); }
+  function atributSso(it) { return (it.sso ? ' data-sso="rpp"' : '') + (it.luar ? ' target="_blank" rel="noopener"' : ''); }
 
   // ---------- render ----------
   var rolePakai = 'guru';
@@ -216,7 +217,7 @@
         var btn = e.target.closest ? e.target.closest('#bnavSemua') : null;
         if (btn) { bukaSheet(); return; }
         var a = e.target.closest ? e.target.closest('a[data-k]') : null;
-        if (a && a.getAttribute('data-sso')) catat(rolePakai, a.getAttribute('data-k')); // RPP Maker pindah situs, tidak lewat halaman PDP
+        if (a && a.getAttribute('data-k') === 'rpp') catat(rolePakai, 'rpp'); // RPP Maker pindah situs, tidak lewat halaman PDP
       });
     }
     nav.innerHTML = dua.map(function (it) {
@@ -241,7 +242,7 @@
         if (t.classList && (t.classList.contains('bnav-sheet__bg') || t.classList.contains('bnav-sheet__x'))) { tutupSheet(); return; }
         var a = t.closest ? t.closest('a[data-k]') : null;
         if (a) {
-          if (a.getAttribute('data-sso')) catat(rolePakai, a.getAttribute('data-k'));
+          if (a.getAttribute('data-k') === 'rpp') catat(rolePakai, 'rpp');
           tutupSheet();
         }
       });
