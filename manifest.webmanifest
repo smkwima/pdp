@@ -1,0 +1,25 @@
+{
+  "id": "./index.html",
+  "name": "Portal Data dan Penilaian SMK Widya Mandala Tambak",
+  "short_name": "PDP Wima",
+  "description": "Portal Data dan Penilaian SMK Widya Mandala Tambak",
+  "lang": "id",
+  "dir": "ltr",
+  "start_url": "./index.html?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b2b4f",
+  "theme_color": "#0b2b4f",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Portal", "short_name": "Portal", "url": "./portal.html", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Presensi", "short_name": "Presensi", "url": "./presensi.html", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
