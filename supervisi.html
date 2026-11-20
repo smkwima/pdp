@@ -231,7 +231,7 @@
       if (tanya && ganti && ada && !confirm('Isian manual yang sudah ada akan ikut diganti' + (banyak ? ' (semua form dalam paket)' : '') + '. Lanjutkan?')) return;
       var skor = [];
       forms.forEach(function (f, i) {
-        if (i < mulai) return;
+        if (i < mulai || f.nilai_otomatis === false) return; // form tanpa fitur nilai otomatis dibiarkan (isi manual)
         var cur = SvForm.baca(pn(i)), tetap = {};
         if (!ganti) Object.keys(manual[i]).forEach(function (k) { if (cur[k] !== undefined && cur[k] !== '') tetap[k] = cur[k]; });
         var r = SvOto.isi(f, tg, { mapel: nm(mapelList, j.mapel_id), kelas: j.kelas || '', tanggal: j.tanggal, jawabanAwal: cur, tetap: tetap });
@@ -256,6 +256,8 @@
     selT.addEventListener('input', infoTarget);
     selT.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !btnO.disabled) { e.preventDefault(); oto(true); } });
     btnO.addEventListener('click', function () { oto(true); });
+    // Tak ada form dalam paket yang memakai nilai otomatis: panel Isi Otomatis disembunyikan
+    if (!forms.some(function (f, i) { return i >= mulai && f.nilai_otomatis !== false; })) { var pnlO = btnO.closest('.panel-note'); if (pnlO) pnlO.style.display = 'none'; target = null; }
     if (target) { selT.value = target; infoTarget(); oto(false); }
     o.querySelector('#svTpl').addEventListener('click', function () {
       var f = forms[aktif];
@@ -399,8 +401,14 @@
       '<button class="btn-small btn-small--primary" id="btnTtd">Atur NIP & Tanda Tangan</button>';
     document.getElementById('btnTtd').addEventListener('click', function () { SvTtd.buka(meId, meNama, renderTtd); });
   }
+  // Instrumen boleh memakai Isi Otomatis? (admin bisa mematikannya per form lewat kolom nilai_otomatis)
+  function adaOtoJadwal(j) {
+    var f0 = formList.find(function (x) { return x.id === j.form_id; });
+    if (!f0) return false;
+    return SvForm.paketJadwal(j, f0, formList).some(function (f) { return f.nilai_otomatis !== false; });
+  }
   function renderIsi(today) {
-    var siap = rows.filter(function (j) { return j.status !== 'selesai'; });
+    var siap = rows.filter(function (j) { return j.status !== 'selesai' && adaOtoJadwal(j); });
     content.innerHTML = '<div class="panel-note">Ketik <strong>target nilai</strong> lebih dulu, lalu klik <strong>Isi Otomatis</strong>. ' + KET_NILAI + ' Jawaban terisi sebagai draft di formulir — semua kolom tetap bisa diisi/diubah manual, lalu simpan.</div>' +
       '<div class="table-wrap" style="margin-top:12px;"><table class="data-table" data-kartu><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th><th>Target Nilai (angka)</th><th></th></tr></thead><tbody>' +
       (siap.length ? siap.map(function (j) {

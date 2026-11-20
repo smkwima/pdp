@@ -462,8 +462,8 @@
   async function viewForm() {
     await muatMaster();
     content.innerHTML = '<div style="margin-bottom:14px;"><button class="btn-small btn-small--primary" id="btnForm">+ Buat Form</button> <button class="btn-small" id="btnTplForm">Unduh Template</button> <button class="btn-small" id="btnImpForm">Import Excel</button></div>' +
-      '<div class="table-wrap"><table class="data-table" data-kartu><thead><tr><th>Judul</th><th>Jenis</th><th>Jumlah Pertanyaan</th><th>Sepaket dengan</th><th></th></tr></thead><tbody>' +
-      (formList.length ? formList.map(function (f) { return '<tr><td>' + esc(f.judul) + '</td><td>' + JENIS[f.jenis] + '</td><td>' + f.pertanyaan.length + '</td><td>' + ((f.jenis === 'pra' ? SvForm.indukDari(f, formList).map(function (x) { return 'Induk: ' + esc(x.judul); }) : SvForm.paket(f, formList).slice(1).map(function (x) { return esc(x.judul); })).join('<br>') || '—') + '</td><td><button class="btn-small" data-ef="' + f.id + '">Ubah</button> <button class="btn-small" data-hf="' + f.id + '">Hapus</button></td></tr>'; }).join('') : '<tr><td colspan="5">Belum ada form.</td></tr>') + '</tbody></table></div>';
+      '<div class="table-wrap"><table class="data-table" data-kartu><thead><tr><th>Judul</th><th>Jenis</th><th>Jumlah Pertanyaan</th><th>Nilai Otomatis</th><th>Sepaket dengan</th><th></th></tr></thead><tbody>' +
+      (formList.length ? formList.map(function (f) { return '<tr><td>' + esc(f.judul) + '</td><td>' + JENIS[f.jenis] + '</td><td>' + f.pertanyaan.length + '</td><td>' + (f.nilai_otomatis === false ? 'Tidak ada' : 'Ada') + '</td><td>' + ((f.jenis === 'pra' ? SvForm.indukDari(f, formList).map(function (x) { return 'Induk: ' + esc(x.judul); }) : SvForm.paket(f, formList).slice(1).map(function (x) { return esc(x.judul); })).join('<br>') || '—') + '</td><td><button class="btn-small" data-ef="' + f.id + '">Ubah</button> <button class="btn-small" data-hf="' + f.id + '">Hapus</button></td></tr>'; }).join('') : '<tr><td colspan="5">Belum ada form.</td></tr>') + '</tbody></table></div>';
     document.getElementById('btnForm').addEventListener('click', function () { modalForm(null); });
     document.getElementById('btnTplForm').addEventListener('click', tplForm);
     document.getElementById('btnImpForm').addEventListener('click', function () { SvXlsx.pilihFile(importForm, 'judul form'); });
@@ -478,12 +478,13 @@
     var qs = f ? JSON.parse(JSON.stringify(f.pertanyaan)) : [{ id: 'q1', teks: '', tipe: 'skala' }];
     var o = modal(f ? 'Ubah Form' : 'Buat Form',
       '<div class="form-grid"><div class="field field--full"><label>Judul Form</label><input id="fmJudul"></div>' +
-      '<div class="field"><label>Jenis</label><select id="fmJenis"><option value="pra">Pra-Supervisi Akademik</option><option value="supervisi">Supervisi</option></select></div></div>' +
+      '<div class="field"><label>Jenis</label><select id="fmJenis"><option value="pra">Pra-Supervisi Akademik</option><option value="supervisi">Supervisi</option></select></div>' +
+      '<div class="field"><label>Nilai Otomatis (fitur Isi Otomatis)</label><select id="fmOto"><option value="ada">Ada — supervisor bisa memakai Isi Otomatis</option><option value="tidak">Tidak ada — diisi manual saja</option></select></div></div>' +
       '<div class="form-section-title">Form Sepaket (opsional)</div><div id="fmPaketWrap"></div>' +
       '<div class="form-section-title">Pertanyaan / Indikator</div><div id="fmQ"></div>' +
       '<div style="margin-top:12px;"><button class="btn-small" id="fmAdd">+ Tambah Pertanyaan</button></div>' +
       '<div style="margin-top:18px;"><button class="btn-small btn-small--primary" id="fmSimpan">Simpan Form</button></div>');
-    if (f) { o.querySelector('#fmJudul').value = f.judul; o.querySelector('#fmJenis').value = f.jenis; }
+    if (f) { o.querySelector('#fmJudul').value = f.judul; o.querySelector('#fmJenis').value = f.jenis; o.querySelector('#fmOto').value = f.nilai_otomatis === false ? 'tidak' : 'ada'; }
     // Induk paket = form Supervisi. Checklist hanya muncul di form Supervisi dan hanya berisi form Pra-Supervisi.
     var pkTerpilih = f ? (f.paket_ids || []).slice() : [];
     function gambarPaket() {
@@ -532,8 +533,10 @@
       // Hanya form Supervisi yang punya paket, dan isinya hanya form Pra-Supervisi (Pra tidak boleh jadi induk)
       var pk = d.jenis === 'supervisi' ? pkTerpilih.filter(function (id) { var x = formList.find(function (y) { return y.id === id; }); return x && x.jenis === 'pra'; }) : [];
       if (pk.length || (f && (f.paket_ids || []).length)) d.paket_ids = pk; // kolom baru: hanya dikirim bila dipakai
+      var oto = o.querySelector('#fmOto').value !== 'tidak';
+      if (!oto || (f && f.nilai_otomatis === false)) d.nilai_otomatis = oto; // kolom baru: hanya dikirim bila dipakai
       var res = f ? await supabaseClient.from('supervisi_form').update(d).eq('id', f.id) : await supabaseClient.from('supervisi_form').insert(d);
-      if (res.error) { alert('Gagal: ' + res.error.message + (d.paket_ids ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '')); return; }
+      if (res.error) { alert('Gagal: ' + res.error.message + (d.paket_ids ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + ('nilai_otomatis' in d ? '\n\nJalankan migrasi_supervisi_nilai_otomatis.sql di Supabase SQL Editor bila belum.' : '')); return; }
       o.remove(); viewForm();
     });
   }
@@ -587,16 +590,37 @@
     });
     urut = urut.filter(function (j) { if (!grup[j].jenis) { err.push('Form "' + j + '": Jenis harus pra atau supervisi'); return false; } return true; });
     if (!urut.length) { alert('Tidak ada form valid.' + (err.length ? '\n\n' + err.join('\n') : '')); return; }
-    if (!confirm(urut.length + ' form akan disimpan (judul yang sama diperbarui).' + (err.length ? '\n\nDilewati:\n' + err.slice(0, 10).join('\n') : '') + '\n\nLanjutkan?')) return;
+    var pilih = await dialogImportForm(urut.length, err);
+    if (!pilih) return;
+    var oto = pilih.oto;
     for (var x = 0; x < urut.length; x++) {
       var j = urut[x], lama = cari(formList, j, 'judul'), pakai = {};
       if (lama) lama.pertanyaan.forEach(function (q) { pakai[q.teks] = q.id; }); // pertahankan id supaya hasil lama tetap terbaca
       grup[j].q.forEach(function (q, i) { q.id = pakai[q.teks] || ('n' + Date.now().toString(36) + i); });
       var d = { judul: j, jenis: grup[j].jenis, pertanyaan: grup[j].q };
+      if (!oto || (lama && lama.nilai_otomatis === false)) d.nilai_otomatis = oto; // kolom baru: hanya dikirim bila dipakai
       var res = lama ? await supabaseClient.from('supervisi_form').update(d).eq('id', lama.id) : await supabaseClient.from('supervisi_form').insert(d);
-      if (res.error) { alert('Gagal menyimpan "' + j + '": ' + res.error.message); return; }
+      if (res.error) { alert('Gagal menyimpan "' + j + '": ' + res.error.message + ('nilai_otomatis' in d ? '\n\nJalankan migrasi_supervisi_nilai_otomatis.sql di Supabase SQL Editor bila belum.' : '')); return; }
     }
     viewForm();
+  }
+
+  // Dialog konfirmasi import form + pilihan fitur nilai otomatis (berlaku untuk semua form dalam file)
+  function dialogImportForm(jumlah, err) {
+    return new Promise(function (selesai) {
+      var o = modal('Import Form',
+        '<div class="panel-note">' + jumlah + ' form akan disimpan (judul yang sama diperbarui).' + (err.length ? '<br><br><strong>Dilewati:</strong><br>' + err.slice(0, 10).map(esc).join('<br>') : '') + '</div>' +
+        '<div class="form-section-title" style="margin-top:14px;">Fitur Nilai Otomatis</div>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;"><input type="radio" name="impOto" value="ada" checked style="margin-top:3px;"> <span><strong>Ada</strong><br><span style="font-size:12.5px;color:var(--ink-soft);">Supervisor dapat memakai Isi Otomatis (ketik target nilai, jawaban terisi sebagai draft).</span></span></label>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;"><input type="radio" name="impOto" value="tidak" style="margin-top:3px;"> <span><strong>Tidak ada</strong><br><span style="font-size:12.5px;color:var(--ink-soft);">Form diisi manual; panel Isi Otomatis disembunyikan.</span></span></label>' +
+        '<div style="font-size:12.5px;color:var(--ink-soft);">Pilihan ini berlaku untuk semua form dalam file dan bisa diubah per form lewat tombol Ubah.</div>' +
+        '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-small btn-small--primary" id="impLanjut">Lanjutkan Import</button> <button class="btn-small" id="impBatal">Batal</button></div>');
+      var selesaiSekali = false;
+      function tutup(v) { if (selesaiSekali) return; selesaiSekali = true; o.remove(); selesai(v); }
+      o.querySelector('#impLanjut').addEventListener('click', function () { tutup({ oto: o.querySelector('input[name="impOto"]:checked').value !== 'tidak' }); });
+      o.querySelector('#impBatal').addEventListener('click', function () { tutup(null); });
+      o.querySelector('.modal-box__close').addEventListener('click', function () { tutup(null); });
+    });
   }
 
   (async function () {
