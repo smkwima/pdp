@@ -11,8 +11,8 @@ android {
         applicationId = "id.sch.smkwima.pdp"
         minSdk = 29            // Android 10+ (simpan ke folder Download tanpa izin penyimpanan)
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     // Kunci tanda tangan tetap (pdp-wima.jks) supaya APK versi baru bisa menimpa versi lama.

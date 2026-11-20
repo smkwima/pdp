@@ -1,11 +1,13 @@
 package id.sch.smkwima.pdp
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
@@ -23,9 +25,11 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
 import android.webkit.JsResult
 import android.webkit.MimeTypeMap
+import android.webkit.PermissionRequest
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -40,6 +44,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -312,6 +317,35 @@ class MainActivity : AppCompatActivity() {
         pilihFileCallback = null
         cb?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(hasil.resultCode, hasil.data))
     }
+
+    // Izin kamera & lokasi untuk halaman Presensi (selfie + titik lokasi). Hanya untuk halaman portal sendiri.
+    private var izinKamera: PermissionRequest? = null
+    private var geoOrigin: String? = null
+    private var geoCallback: GeolocationPermissions.Callback? = null
+
+    private val mintaKamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { boleh ->
+        val req = izinKamera
+        izinKamera = null
+        if (req != null) {
+            if (boleh) req.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else req.deny()
+        }
+    }
+
+    private val mintaLokasi = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { hasil ->
+        val cb = geoCallback
+        val asal = geoOrigin
+        geoCallback = null
+        geoOrigin = null
+        if (cb != null && asal != null) {
+            val boleh = hasil[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                hasil[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            cb.invoke(asal, boleh, false)
+        }
+    }
+
+    private fun izinLokasiSudahAda(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     @Suppress("DEPRECATION")
     @SuppressLint("SetJavaScriptEnabled")
@@ -697,6 +731,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private inner class KlienChrome : WebChromeClient() {
+        // Kamera (getUserMedia): hanya video, hanya dari halaman portal sendiri.
+        override fun onPermissionRequest(request: PermissionRequest) {
+            val res = request.resources
+            if (!halamanAman || res.any { it != PermissionRequest.RESOURCE_VIDEO_CAPTURE }) {
+                request.deny()
+                return
+            }
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                request.grant(res)
+            } else {
+                izinKamera?.deny()
+                izinKamera = request
+                mintaKamera.launch(Manifest.permission.CAMERA)
+            }
+        }
+
+        override fun onPermissionRequestCanceled(request: PermissionRequest) {
+            if (izinKamera === request) izinKamera = null
+        }
+
+        // Lokasi (navigator.geolocation): hanya dari halaman portal sendiri.
+        override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
+            if (!halamanAman) {
+                callback.invoke(origin, false, false)
+                return
+            }
+            if (izinLokasiSudahAda()) {
+                callback.invoke(origin, true, false)
+            } else {
+                geoCallback?.invoke(geoOrigin ?: origin, false, false)
+                geoOrigin = origin
+                geoCallback = callback
+                mintaLokasi.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            }
+        }
+
         override fun onShowFileChooser(
             webView: WebView,
             callback: ValueCallback<Array<Uri>>,
