@@ -395,12 +395,12 @@
           g.item.sort(function (a, b) { return a.tgl.localeCompare(b.tgl) || a.judul.localeCompare(b.judul); });
           var baris = g.item.map(function (x) {
             if (x.sk) { n++; tot += x.sk.persen; }
-            return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed var(--border);"><span>' + esc(x.judul) + ' <span style="font-size:12px;color:var(--ink-soft);">· ' + tglId(x.tgl) + '</span></span>' +
-              '<strong style="white-space:nowrap;">' + (x.sk ? x.sk.persen + '% <span style="font-weight:500;font-size:12px;">(' + esc(x.sk.pred) + ')</span>' : '<span style="font-weight:500;color:var(--ink-soft);">tanpa skor</span>') + '</strong></div>';
+            return '<div class="rk-baris"><span class="rk-baris__t">' + esc(x.judul) + ' <span style="font-size:12px;color:var(--ink-soft);">· ' + tglId(x.tgl) + '</span></span>' +
+              '<strong class="rk-baris__n">' + (x.sk ? x.sk.persen + '% <span style="font-weight:500;font-size:12px;">(' + esc(x.sk.pred) + ')</span>' : '<span style="font-weight:500;color:var(--ink-soft);">tanpa skor</span>') + '</strong></div>';
           }).join('');
           var rata = n ? Math.round(tot / n) : null;
-          return '<tr><td style="vertical-align:top;font-weight:600;">' + esc(g.nama) + '</td><td>' + baris + '</td>' +
-            '<td style="text-align:center;vertical-align:top;white-space:nowrap;">' + (rata === null ? '—' : '<strong style="font-size:16px;">' + rata + '%</strong><br><span style="font-size:12px;">' + esc(SvPdf.predikat(rata)) + '</span><br><span style="font-size:11.5px;color:var(--ink-soft);">dari ' + n + ' instrumen</span>') + '</td></tr>';
+          return '<tr><td class="td-nama" style="vertical-align:top;font-weight:600;">' + esc(g.nama) + '</td><td class="td-lebar">' + baris + '</td>' +
+            '<td class="td-lebar rk-rata" style="text-align:center;vertical-align:top;white-space:nowrap;">' + (rata === null ? '—' : '<strong style="font-size:16px;">' + rata + '%</strong><br><span style="font-size:12px;">' + esc(SvPdf.predikat(rata)) + '</span><br><span style="font-size:11.5px;color:var(--ink-soft);">dari ' + n + ' instrumen</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<div class="panel-note" style="margin:8px 0 14px;">Nilai tiap instrumen = jumlah skor butir skala ÷ skor maksimum. Rata-rata = rata-rata nilai semua instrumen yang berskor (tiap instrumen bobotnya sama).</div>';
       document.getElementById('hsRekap').innerHTML = html;

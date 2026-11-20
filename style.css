@@ -2924,6 +2924,7 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
   .user-chip__name { display: none; }
 }
 
+
 @media screen and (max-width: 380px) {
   .stat-grid { grid-template-columns: 1fr; }
   .toolbar .btn-small { flex-basis: 100%; }
@@ -3430,3 +3431,12 @@ table.rapor-cetak__nilai tbody tr.rapor-cetak__section-row td {
 /* Pengingat ke guru */
 .dx-guru__ingat { display: flex; justify-content: flex-end; }
 .dx-guru__name .pk-diingat { margin-top: 2px; }
+
+/* Rekap nilai per guru (supervisi-admin): baris instrumen + skor */
+.rk-baris { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; border-bottom: 1px dashed var(--border); }
+.rk-baris__t { flex: 1; min-width: 0; }
+.rk-baris__n { white-space: nowrap; flex-shrink: 0; }
+@media screen and (max-width: 480px) {
+  .rk-baris { flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 0; }
+  .data-table--cards td.rk-rata { white-space: normal !important; text-align: left !important; }
+}
