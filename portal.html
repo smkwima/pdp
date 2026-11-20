@@ -10,12 +10,12 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=3"></script>
-<script src="akses-guard.js?v=3"></script>
+<script src="akses-guard.js?v=4"></script>
 <script src="rpp-launcher.js"></script>
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="pengumuman-kepsek.js?v=2"></script>
-<script src="dashboard-kepsek.js?v=6"></script>
-<script src="bottomnav.js?v=16" defer></script>
+<script src="dashboard-kepsek.js?v=7"></script>
+<script src="bottomnav.js?v=17" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=3" defer></script>
@@ -586,6 +586,7 @@
     // Aplikasi yang dikunci developer: tetap tampil, tetapi bergembok dan tidak bisa dibuka.
     try {
       var ak = window.AksesAplikasi ? await AksesAplikasi.muat() : null;
+      if (ak) mods = AksesAplikasi.saring(mods, ak); // aplikasi yang disembunyikan developer: hilang sama sekali (developer tetap melihat)
       if (ak) mods.forEach(function (m) {
         var info = ak.kunci[AksesAplikasi.kodeDariHref(m.href, m.judul)];
         if (info) m.kunci = info.keterangan || 'Aplikasi ini sedang dikunci.';

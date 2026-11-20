@@ -190,9 +190,13 @@
 
   // ---------- render ----------
   var rolePakai = 'guru';
+  // Aplikasi yang disembunyikan developer dibuang dari menu bawah (developer tetap melihat semuanya).
+  var aksesD = null, sudahRender = false;
+  function saringAkses(items) { return (window.AksesAplikasi && aksesD) ? AksesAplikasi.saring(items, aksesD) : items; }
   function render(role) {
     rolePakai = role;
-    var items = daftar(role);
+    sudahRender = true;
+    var items = saringAkses(daftar(role));
     var dua = pilihDua(items, role);
     var adaDiBar = dua.some(function (it) { return it.k === kunciAktif; });
     pastikanRppLauncher();
@@ -294,6 +298,9 @@
 
   async function mulai() {
     pasangGaya();
+    if (window.AksesAplikasi) {
+      AksesAplikasi.muat().then(function (d) { aksesD = d; if (sudahRender) render(rolePakai); }).catch(function () { /* gagal baca: tampilkan semua */ });
+    }
     var roleAkhir = roleDariBerkas;
     var halamanAdmin = roleDariBerkas === 'admin' || roleDariBerkas === 'kepsek';
     if (roleDariBerkas && !halamanAdmin) {

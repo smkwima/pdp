@@ -10,7 +10,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=3"></script>
-<script src="akses-guard.js?v=3"></script>
+<script src="akses-guard.js?v=4"></script>
 <script src="mobile.js?v=2" defer></script>
 <style>
   .ak-row { display:grid; grid-template-columns: 220px 1fr; gap:14px; align-items:center; padding:14px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px; }
@@ -27,6 +27,9 @@
   .ak-sw input:focus-visible + span { outline:2px solid #1d4ed8; outline-offset:2px; }
   .ak-ket { width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:13px; }
   .ak-ket:disabled { background:#f1f5f9; color:#94a3b8; }
+  .ak-sbn { display:none; align-items:center; gap:8px; margin-top:8px; font-size:12.5px; color:#475569; cursor:pointer; }
+  .ak-row.is-kunci .ak-sbn { display:flex; }
+  .ak-sbn input { width:16px; height:16px; }
   .ak-flash { font-size:12px; color:#16a34a; min-height:16px; margin-top:4px; }
   .dv-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:14px; }
   .dv-card h3 { margin:0 0 4px; font-size:15px; color:#0f172a; }
@@ -182,36 +185,47 @@
       '<div class="ak-nama"><label class="ak-sw"><input type="checkbox" ' + (a.aktif ? 'checked' : '') + ' aria-label="Aplikasi ' + esc(a.nama) + ' aktif"><span></span></label>' +
       '<div>' + esc(a.nama) + '<div class="ak-status">' + (a.aktif ? 'Aktif' : 'Dikunci') + '</div></div></div>' +
       '<div><input type="text" class="ak-ket" maxlength="200" placeholder="Keterangan yang tampil saat dikunci (opsional)" value="' + esc(a.keterangan || '') + '"' + (a.aktif ? ' disabled' : '') + '>' +
+      '<label class="ak-sbn"><input type="checkbox" ' + (a.tersembunyi ? 'checked' : '') + ' aria-label="Sembunyikan ' + esc(a.nama) + ' dari menu"> Sembunyikan dari menu (hilang dari portal, tetap terkunci)</label>' +
       '<div class="ak-flash"></div></div></div>';
   }
 
   async function simpan(baris, aktif) {
     var kode = baris.dataset.kode;
+    var sembunyi = !aktif && baris.querySelector('.ak-sbn input').checked; // hanya berlaku bila dikunci
     var ket = baris.querySelector('.ak-ket').value.trim();
     var flash = baris.querySelector('.ak-flash');
     var r = await supabaseClient.from('akses_aplikasi')
-      .update({ aktif: aktif, keterangan: ket || null, diubah_pada: new Date().toISOString() })
+      .update({ aktif: aktif, tersembunyi: sembunyi, keterangan: ket || null, diubah_pada: new Date().toISOString() })
       .eq('kode', kode);
-    if (r.error) { flashDi(flash, false, 'Gagal menyimpan: ' + r.error.message); return false; }
+    if (r.error) { flashDi(flash, false, 'Gagal menyimpan: ' + r.error.message + (/tersembunyi/i.test(r.error.message) ? ' (jalankan migrasi_sembunyikan_aplikasi.sql di Supabase)' : '')); return false; }
     flashDi(flash, true, 'Tersimpan.');
     return true;
   }
 
   async function renderKunci() {
-    var r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan').order('nama');
+    var r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan, tersembunyi').order('nama');
+    if (r.error) r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan').order('nama'); // kolom tersembunyi belum dimigrasi
     if (r.error) {
       content.innerHTML = '<div class="panel-note">Tabel akses_aplikasi belum bisa dibaca. Jalankan migrasi_developer.sql di Supabase terlebih dahulu. (' + esc(r.error.message) + ')</div>';
       return;
     }
     content.innerHTML =
       '<div class="panel-head"><div><div class="panel-head__title">Kunci Aplikasi</div>' +
-      '<div class="panel-head__desc">Matikan saklar untuk mengunci aplikasi. Guru, admin, kepala sekolah, pengawas, dan staf tidak bisa membukanya; mereka melihat gembok dan keterangan di bawah. Developer tetap bisa masuk. Perubahan langsung berlaku.</div></div></div>' +
+      '<div class="panel-head__desc">Matikan saklar untuk mengunci aplikasi. Guru, admin, kepala sekolah, pengawas, dan staf tidak bisa membukanya; mereka melihat gembok dan keterangan di bawah. Developer tetap bisa masuk. Setelah dikunci, centang <b>Sembunyikan dari menu</b> bila kartunya tidak perlu terlihat (hilang dari portal dan menu, susunan kartu lain tetap rapi, halamannya tetap terkunci). Perubahan langsung berlaku.</div></div></div>' +
       '<div id="ak-list">' + r.data.map(barisHtml).join('') + '</div>';
 
     var daftar = document.getElementById('ak-list');
     daftar.addEventListener('change', async function (e) {
       var baris = e.target.closest('.ak-row');
       if (!baris) return;
+      if (e.target.closest('.ak-sbn')) {
+        var cb = e.target;
+        cb.disabled = true;
+        var oke = await simpan(baris, false);
+        cb.disabled = false;
+        if (!oke) cb.checked = !cb.checked;
+        return;
+      }
       if (e.target.type === 'checkbox') {
         var aktif = e.target.checked;
         var nm = baris.querySelector('.ak-nama div').firstChild.textContent;
@@ -223,6 +237,7 @@
         baris.classList.toggle('is-kunci', !aktif);
         baris.querySelector('.ak-status').textContent = aktif ? 'Aktif' : 'Dikunci';
         baris.querySelector('.ak-ket').disabled = aktif;
+        if (aktif) baris.querySelector('.ak-sbn input').checked = false;
       } else if (e.target.classList.contains('ak-ket')) {
         await simpan(baris, baris.querySelector('input[type=checkbox]').checked);
       }

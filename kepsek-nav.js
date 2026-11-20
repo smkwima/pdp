@@ -101,6 +101,32 @@
   }
 
   // ---------- sidebar = aplikasi ----------
+  // Aplikasi yang disembunyikan developer dibuang dari daftar (developer tetap melihat semuanya).
+  // Judul grup yang isinya habis ikut hilang karena judul hanya dibuat saat ada item.
+  var aksesD = null;
+  function htmlAplikasi() {
+    var daftarApp = PERAN === 'pengawas' ? APLIKASI_PENGAWAS : APLIKASI;
+    if (window.AksesAplikasi && aksesD) daftarApp = AksesAplikasi.saring(daftarApp, aksesD);
+    var h = '', grupTerakhir = '__awal__';
+    daftarApp.forEach(function (a) {
+      if (a.grup !== grupTerakhir) {
+        if (a.grup) h += '<div class="sidebar__section-label">' + esc(a.grup) + '</div>';
+        grupTerakhir = a.grup;
+      }
+      var aktif = a.href === berkas;
+      h += '<a href="' + a.href + '" class="menu-item' + (aktif ? ' menu-item--active' : '') + '"' +
+        (aktif ? ' aria-current="page"' : '') + '>' +
+        '<i data-lucide="' + a.ikon + '" class="menu-icon"></i>' +
+        '<span class="menu-item__title">' + esc(a.judul) + '</span></a>';
+    });
+    return h;
+  }
+  function segarkanSidebarAplikasi() {
+    var nav = document.querySelector('.sidebar .kn-apps');
+    if (!nav) return;
+    nav.innerHTML = htmlAplikasi();
+    if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } }
+  }
   function pasangSidebarAplikasi() {
     var sidebar = document.querySelector('.app > .sidebar');
     if (!sidebar || sidebar.querySelector('.kn-apps')) return;
@@ -123,23 +149,10 @@
       role.appendChild(document.createTextNode(' ' + LABEL[PERAN]));
     }
 
-    var h = '', grupTerakhir = '__awal__';
-    (PERAN === 'pengawas' ? APLIKASI_PENGAWAS : APLIKASI).forEach(function (a) {
-      if (a.grup !== grupTerakhir) {
-        if (a.grup) h += '<div class="sidebar__section-label">' + esc(a.grup) + '</div>';
-        grupTerakhir = a.grup;
-      }
-      var aktif = a.href === berkas;
-      h += '<a href="' + a.href + '" class="menu-item' + (aktif ? ' menu-item--active' : '') + '"' +
-        (aktif ? ' aria-current="page"' : '') + '>' +
-        '<i data-lucide="' + a.ikon + '" class="menu-icon"></i>' +
-        '<span class="menu-item__title">' + esc(a.judul) + '</span></a>';
-    });
-
     var nav = document.createElement('nav');
     nav.className = 'menu-list kn-apps';
     nav.setAttribute('aria-label', 'Aplikasi');
-    nav.innerHTML = h;
+    nav.innerHTML = htmlAplikasi();
     var foot = sidebar.querySelector('.sidebar__footer');
     if (foot) sidebar.insertBefore(nav, foot); else sidebar.appendChild(nav);
     if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } }
@@ -331,6 +344,9 @@
   }
 
   function mulai() {
+    if (window.AksesAplikasi) {
+      AksesAplikasi.muat().then(function (d) { aksesD = d; segarkanSidebarAplikasi(); }).catch(function () { /* gagal baca: tampilkan semua */ });
+    }
     var hint = adaHint();
     if (hint) aktifkan(hint);                   // langsung, tanpa menunggu jaringan
     cariPeran().then(function (peran) {

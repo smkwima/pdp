@@ -51,11 +51,12 @@
   }
 
   var cache = null;
-  // Hasil: { peran, kunci: { kode: { nama, keterangan } } (hanya yang dikunci), sistem: baris pengaturan_sistem | null }
+  // Hasil: { peran, kunci: { kode: { nama, keterangan } } (hanya yang dikunci),
+  //          sembunyi: { kode: true } (dikunci DAN disembunyikan dari menu), sistem: baris pengaturan_sistem | null }
   async function muat() {
     if (cache) return cache;
     cache = (async function () {
-      var hasil = { peran: null, kunci: {}, sistem: null };
+      var hasil = { peran: null, kunci: {}, sembunyi: {}, sistem: null };
       try {
         var ses = await supabaseClient.auth.getSession();
         var user = ses.data && ses.data.session && ses.data.session.user;
@@ -63,13 +64,20 @@
         var pr = await supabaseClient.from('profiles').select('role').eq('id', user.id).maybeSingle();
         hasil.peran = pr.data ? String(pr.data.role) : null;
         var hs = await Promise.all([
-          supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan'),
+          supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan, tersembunyi'),
           supabaseClient.from('pengaturan_sistem').select('*').eq('id', 1).maybeSingle()
         ]);
         var r = hs[0], s = hs[1];
+        if (r.error) {
+          // Kolom 'tersembunyi' belum ada (migrasi belum dijalankan): baca tanpa kolom itu supaya kunci tetap jalan.
+          r = await supabaseClient.from('akses_aplikasi').select('kode, nama, aktif, keterangan');
+        }
         if (!r.error && r.data) { // tabel belum ada -> semua aktif
           r.data.forEach(function (a) {
-            if (a.aktif === false) hasil.kunci[a.kode] = { nama: a.nama, keterangan: a.keterangan || '' };
+            if (a.aktif === false) {
+              hasil.kunci[a.kode] = { nama: a.nama, keterangan: a.keterangan || '' };
+              if (a.tersembunyi === true) hasil.sembunyi[a.kode] = true; // tersembunyi selalu ikut terkunci
+            }
           });
         }
         if (!s.error && s.data) hasil.sistem = s.data;
@@ -331,6 +339,16 @@
     if (bolehBanner) mulaiPengumuman();
   }
 
-  window.AksesAplikasi = { muat: muat, kodeDariHref: kodeDariHref };
+  // Buang aplikasi yang disembunyikan dari sebuah daftar menu (item punya href dan judul).
+  // Developer tetap melihat semuanya. Hasil muat() 'd' boleh null (gagal baca -> daftar apa adanya).
+  function saring(daftar, d) {
+    if (!d || d.peran === 'developer' || !d.sembunyi) return daftar;
+    return daftar.filter(function (it) {
+      var kode = kodeDariHref(it.href, it.judul);
+      return !(kode && d.sembunyi[kode]);
+    });
+  }
+
+  window.AksesAplikasi = { muat: muat, kodeDariHref: kodeDariHref, saring: saring };
   jaga();
 })();

@@ -169,9 +169,12 @@
 
   async function mulai() {
     var role = await tentukanRole();
-    if (role === 'admin') bangun(APP_ADMIN);
-    else if (role === 'guru') bangun(APP_GURU);
-    else if (role === 'staf') bangun(APP_STAF);
+    var akses = null; // aplikasi yang disembunyikan developer dibuang dari menu (developer tetap melihat semuanya)
+    try { akses = window.AksesAplikasi ? await AksesAplikasi.muat() : null; } catch (e) { /* tampilkan semua */ }
+    function saring(l) { return akses ? AksesAplikasi.saring(l, akses) : l; }
+    if (role === 'admin') bangun(saring(APP_ADMIN));
+    else if (role === 'guru') bangun(saring(APP_GURU));
+    else if (role === 'staf') bangun(saring(APP_STAF));
     // 'kepsek' / siswa / belum login: biarkan seperti semula.
   }
 

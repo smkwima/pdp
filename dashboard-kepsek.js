@@ -64,7 +64,7 @@
     var st = document.createElement('style');
     st.id = 'dkStyle';
     st.textContent =
-      '.dk-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}' +
+      '.dk-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;}' +
       '.dk-card{display:flex;flex-direction:column;gap:6px;padding:16px;border:1px solid var(--border,#e2e8f0);border-radius:16px;background:var(--surface,#fff);color:inherit;text-decoration:none;transition:box-shadow .15s,transform .15s;}' +
       '.dk-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.09);transform:translateY(-1px);}' +
       '.dk-card__h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft,#64748b);}' +
@@ -718,6 +718,17 @@
       kartu('dkSupervisi', 'clipboard-check', 'Supervisi', 'supervisi-admin.html') +
       '</div><div id="dkGalat"></div><div id="dkTabel"></div><div id="dkRiwayat"></div><div id="dkWa"></div>';
     if (window.lucide) lucide.createIcons();
+    // Kartu aplikasi yang disembunyikan developer ikut hilang (developer tetap melihat); kartu lain mengisi tempatnya.
+    if (window.AksesAplikasi) {
+      AksesAplikasi.muat().then(function (d) {
+        if (!d || d.peran === 'developer' || !d.sembunyi) return;
+        var peta = { dkErapor: 'rapor', dkKinerja: 'kin', dkPkl: 'pkl', dkSupervisi: 'sup' };
+        Object.keys(peta).forEach(function (id) {
+          var k = document.getElementById(id);
+          if (k && d.sembunyi[peta[id]]) k.style.display = 'none';
+        });
+      }).catch(function () { /* tampilkan semua */ });
+    }
     el.addEventListener('click', onKlik);
     el.addEventListener('change', onUbah);
 
