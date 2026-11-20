@@ -311,8 +311,12 @@
       var teksAwal = btnSimpan.textContent;
       btnSimpan.disabled = true; btnSimpan.textContent = 'Menyimpan...';
       var res;
-      try { res = await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id); }
+      try { res = await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id).select('id'); }
       catch (err) { res = { error: { message: (err && err.message) || 'Koneksi bermasalah, coba lagi.' } }; }
+      // RLS yang menolak update sering TIDAK memberi error, hanya 0 baris berubah: jangan dianggap berhasil
+      if (!res.error && (!res.data || !res.data.length)) {
+        res = { error: { message: 'Tidak ada data yang tersimpan — akun ini belum diizinkan mengubah jadwal supervisi ini (ditolak oleh database).' } };
+      }
       if (res.error) {
         btnSimpan.disabled = false; btnSimpan.textContent = teksAwal;
         alert('Gagal menyimpan: ' + res.error.message + ((banyak || anak) ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + (d.bukti_link ? '\n\nJalankan migrasi_supervisi_bukti.sql di Supabase SQL Editor bila belum.' : '') + (meRole === 'kepsek' ? '\n\nUntuk akun Kepala Sekolah, jalankan migrasi_supervisi_kepsek.sql di Supabase SQL Editor bila belum.' : ''));
