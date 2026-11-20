@@ -22,7 +22,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="supervisi-excel.js?v=4"></script>
 <script src="supervisi-ttd.js?v=1"></script>
-<script src="supervisi-pdf.js?v=7"></script>
+<script src="supervisi-pdf.js?v=8"></script>
 <script src="mobile.js?v=1" defer></script>
 <script src="bottomnav.js?v=14" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
@@ -39,6 +39,7 @@
     <div class="sidebar__section-label">Menu</div>
     <nav class="menu-list" id="menu">
       <a href="#" class="menu-item" data-view="jadwal"><i data-lucide="calendar-check" class="menu-icon"></i><span class="menu-item__title">Jadwal Supervisi</span></a>
+      <a href="supervisi.html" class="menu-item" id="menuIsiKepsek" style="display:none;"><i data-lucide="clipboard-pen-line" class="menu-icon"></i><span class="menu-item__title">Isi Instrumen Semua Guru</span></a>
       <a href="#" class="menu-item" data-view="hasil"><i data-lucide="file-check" class="menu-icon"></i><span class="menu-item__title">Hasil Supervisi</span></a>
       <a href="#" class="menu-item" data-view="form"><i data-lucide="clipboard-list" class="menu-icon"></i><span class="menu-item__title">Form Pra & Supervisi</span></a>
       <a href="#" class="menu-item" data-view="data"><i data-lucide="refresh-cw" class="menu-icon"></i><span class="menu-item__title">Data Guru & Mapel</span></a>
@@ -59,7 +60,7 @@
 <script>
   var content = document.getElementById('content');
   JadwalKegiatan.pasang({ modul: 'supervisi', tampilJika: function () { var a = document.querySelector('#menu .menu-item--active'); return !!a && a.dataset.view === 'jadwal'; } });
-  var guruList = [], mapelList = [], formList = [], profil = null, penugasanList = [], penugasanSiap = false;
+  var guruList = [], mapelList = [], formList = [], profil = null, penugasanList = [], penugasanSiap = false, meRole = null;
   // Mapel yang ditugaskan ke guru (salinan penugasan E-Rapor). Bila salinan belum pernah dimuat, semua mapel ditampilkan.
   function mapelGuru(guruId, tambah) {
     if (!penugasanSiap) return mapelList;
@@ -174,7 +175,7 @@
         return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td><td>' + esc(nm(guruList, j.supervisor_id)) + (profil && profil.kepala_sekolah ? ' / ' + esc(profil.kepala_sekolah) : '') + '</td><td>' + esc(nm(formList, j.form_id)) + jmlPaket(j) + '</td>' +
           '<td><span class="chip ' + (j.status === 'selesai' ? 'chip--aktif' : 'chip--muted') + '">' + j.status + '</span></td>' +
           '<td>' + (j.status === 'selesai' ? '<button class="btn-small" data-lihat="' + j.id + '">Lihat Hasil</button> <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button> ' : '') +
-          SvForm.buktiTautan(j, 'Buka Bukti') + ' ' + '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
+          (meRole === 'kepsek' ? '<a class="btn-small btn-small--primary" href="supervisi.html?isi=' + j.id + '">' + (j.status === 'selesai' ? 'Lihat / Ubah Isian' : 'Isi Instrumen') + '</a> ' : '') + SvForm.buktiTautan(j, 'Buka Bukti') + ' ' + '<button class="btn-small" data-edit="' + j.id + '">Ubah</button> <button class="btn-small" data-hapus="' + j.id + '">Hapus</button></td></tr>';
       }).join('') : '<tr><td colspan="8">Belum ada jadwal.</td></tr>') + '</tbody></table></div>';
     document.getElementById('btnTambah').addEventListener('click', function () { modalJadwal(null); });
     document.getElementById('btnTplJadwal').addEventListener('click', tplJadwal);
@@ -350,7 +351,7 @@
       '<button class="btn-small btn-small--primary" id="hsCetakPilih" disabled>Cetak Terpilih</button>' +
       '<button class="btn-small" id="hsUnduhPilih" disabled>Unduh PDF Terpilih</button>' +
       '<span id="hsInfo" style="font-size:12.5px;color:var(--ink-soft);"></span></div>' +
-      '<div id="hsTabel"></div>' +
+      '<div id="hsRekap"></div><div id="hsTabel"></div>' +
       '<div class="panel-note" style="margin-top:12px;">Hasil yang dipilih digabung dalam <strong>satu PDF</strong>, tiap guru mulai di halaman baru lengkap dengan kop, rekap skor, dan tanda tangan. ' +
       'Pra-Supervisi yang dipaketkan ikut tercetak bersama jadwal Supervisi induknya.</div>';
 
@@ -374,8 +375,39 @@
       document.getElementById('hsUnduhPilih').disabled = n === 0;
       document.getElementById('hsInfo').textContent = n ? n + ' hasil dipilih' : 'Centang hasil yang mau dicetak.';
     }
+    // Rekap nilai SEMUA instrumen yang dinilai per guru (mengikuti filter di atas)
+    function gambarRekap(rows) {
+      var per = {}, urut = [];
+      rows.forEach(function (j) {
+        var f = formList.find(function (x) { return x.id === j.form_id; });
+        if (!f) return;
+        var g = per[j.guru_id]; if (!g) { g = per[j.guru_id] = { id: j.guru_id, nama: nm(guruList, j.guru_id), item: [] }; urut.push(g); }
+        SvForm.isianPaket(j, SvForm.paketJadwal(j, f, formList)).forEach(function (x) {
+          g.item.push({ judul: x.form.judul, tgl: j.tanggal, sk: SvPdf.rekapSkor(x.form, x.jawaban) });
+        });
+      });
+      urut.sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+      var html = '<div class="form-section-title" style="margin:6px 0 8px;">Rekap Nilai Semua Instrumen per Guru</div>';
+      if (!urut.length) { document.getElementById('hsRekap').innerHTML = html + '<div class="panel-note">Tidak ada hasil pada filter ini.</div>'; return; }
+      html += '<div class="table-wrap"><table class="data-table"><thead><tr><th>Guru</th><th>Instrumen &amp; Nilai</th><th style="text-align:center;">Rata-rata Semua Instrumen</th></tr></thead><tbody>' +
+        urut.map(function (g) {
+          var n = 0, tot = 0;
+          g.item.sort(function (a, b) { return a.tgl.localeCompare(b.tgl) || a.judul.localeCompare(b.judul); });
+          var baris = g.item.map(function (x) {
+            if (x.sk) { n++; tot += x.sk.persen; }
+            return '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed var(--border);"><span>' + esc(x.judul) + ' <span style="font-size:12px;color:var(--ink-soft);">· ' + tglId(x.tgl) + '</span></span>' +
+              '<strong style="white-space:nowrap;">' + (x.sk ? x.sk.persen + '% <span style="font-weight:500;font-size:12px;">(' + esc(x.sk.pred) + ')</span>' : '<span style="font-weight:500;color:var(--ink-soft);">tanpa skor</span>') + '</strong></div>';
+          }).join('');
+          var rata = n ? Math.round(tot / n) : null;
+          return '<tr><td style="vertical-align:top;font-weight:600;">' + esc(g.nama) + '</td><td>' + baris + '</td>' +
+            '<td style="text-align:center;vertical-align:top;white-space:nowrap;">' + (rata === null ? '—' : '<strong style="font-size:16px;">' + rata + '%</strong><br><span style="font-size:12px;">' + esc(SvPdf.predikat(rata)) + '</span><br><span style="font-size:11.5px;color:var(--ink-soft);">dari ' + n + ' instrumen</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="panel-note" style="margin:8px 0 14px;">Nilai tiap instrumen = jumlah skor butir skala ÷ skor maksimum. Rata-rata = rata-rata nilai semua instrumen yang berskor (tiap instrumen bobotnya sama).</div>';
+      document.getElementById('hsRekap').innerHTML = html;
+    }
     function gambarTabel() {
       var rows = tersaring();
+      gambarRekap(rows);
       var semuaTercentang = rows.length > 0 && rows.every(function (j) { return dipilih[j.id]; });
       document.getElementById('hsTabel').innerHTML =
         '<div class="table-wrap"><table class="data-table"><thead><tr><th style="width:34px;"><input type="checkbox" id="hsSemua"' + (semuaTercentang ? ' checked' : '') + ' aria-label="Pilih semua yang tampil"></th>' +
@@ -573,6 +605,8 @@
     var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
     if (!p.data || (p.data.role !== 'admin' && p.data.role !== 'kepsek' && p.data.role !== 'pengawas')) { location.href = 'supervisi.html'; return; }
     document.getElementById('userName').textContent = p.data.nama || s.user.email;
+    meRole = p.data.role;
+    if (meRole === 'kepsek') { var mi = document.getElementById('menuIsiKepsek'); if (mi) mi.style.display = ''; }
     lucide.createIcons();
     buka('jadwal');
   })();

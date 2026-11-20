@@ -56,7 +56,7 @@
   else if (berkas === 'penugasan-admin.html') { kunciAktif = 'gp'; roleDariBerkas = 'admin'; }
   else if (berkas === 'pkl.html') { kunciAktif = 'pkl'; }
   else if (berkas === 'supervisi-admin.html') { kunciAktif = 'sup'; roleDariBerkas = 'admin'; }
-  else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; roleDariBerkas = 'guru'; }
+  else if (berkas === 'supervisi.html') { kunciAktif = 'sup'; } // dipakai guru dan Kepala Sekolah: role dari akun
   else if (berkas === 'kinerja.html') { kunciAktif = 'kin'; }
   else if (berkas === 'penilaian-rekan.html') { kunciAktif = 'rekan'; }
   else if (berkas === 'catatan-pengawas.html') { kunciAktif = 'cat'; }

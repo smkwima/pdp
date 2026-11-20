@@ -22,9 +22,9 @@
 <script src="supervisi-bank.js?v=1"></script>
 <script src="supervisi-otomatis.js?v=6"></script>
 <script src="supervisi-ttd.js?v=1"></script>
-<script src="supervisi-pdf.js?v=7"></script>
+<script src="supervisi-pdf.js?v=8"></script>
 <script src="mobile.js?v=1" defer></script>
-<script src="bottomnav.js?v=14" defer></script>
+<script src="bottomnav.js?v=15" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=3" defer></script>
@@ -68,6 +68,7 @@
       <div class="sidebar__section-label">Saat Saya Menyupervisi</div>
       <a href="#" class="menu-item menu-item--active" data-view="jadwal"><i data-lucide="calendar-check" class="menu-icon"></i><span class="menu-item__title">Jadwal Menyupervisi</span></a>
       <a href="#" class="menu-item" data-view="isi"><i data-lucide="wand-sparkles" class="menu-icon"></i><span class="menu-item__title">Isi Form Otomatis</span></a>
+      <a href="supervisi-admin.html" class="menu-item" id="menuLihatKepsek" style="display:none;"><i data-lucide="file-check" class="menu-icon"></i><span class="menu-item__title">Hasil &amp; Rekap Nilai</span></a>
       <a href="#" class="menu-item" data-view="ttd"><i data-lucide="pen-line" class="menu-icon"></i><span class="menu-item__title">Tanda Tangan Saya</span></a>
 
       <div class="sidebar__section-label">Saat Saya Disupervisi</div>
@@ -93,6 +94,7 @@
   JadwalKegiatan.pasang({ modul: 'supervisi', tampilJika: function () { var a = document.querySelector('.menu-list .menu-item--active'); return !!a && a.dataset.view === 'jadwal'; } });
   var JENIS = { pra: 'Pra-Supervisi Akademik', supervisi: 'Supervisi' };
   var guruList = [], mapelList = [], formList = [], rows = [], profil = null, meId = null, meNama = '';
+  var meRole = 'guru', isiParam = null; // Kepala Sekolah ('kepsek') boleh mengisi instrumen semua guru; isiParam = id jadwal dari ?isi=
   function idn(j) {
     var unit = j.unit_kerja || (profil && profil.nama_sekolah) || '';
     return { jenis: JENIS[j.jenis], guru: nm(guruList, j.guru_id), spv: nm(guruList, j.supervisor_id), unit: unit, mapel: nm(mapelList, j.mapel_id), kelas: j.kelas || '', jenjang: j.jenjang || unit.split(' ')[0] || '', tanggal: tglId(j.tanggal) };
@@ -115,21 +117,22 @@
     var today = hariIni();
     if (tampilan === 'wawancara') return renderWawancara();
     if (tampilan === 'isi') return renderIsi(today);
-    content.innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th><th>Status</th><th></th></tr></thead><tbody>' +
+    content.innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th>' + (meRole === 'kepsek' ? '<th>Supervisor</th>' : '') + '<th>Status</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (j) {
         // Form boleh diisi kapan saja, tidak harus menunggu tanggal jadwal
         var tombol = j.status === 'selesai' ? 'Lihat / Ubah' : 'Isi Form';
         var kunci = false, adaAnak = false;
-        return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td>' +
+        return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td>' + (meRole === 'kepsek' ? '<td>' + esc(nm(guruList, j.supervisor_id)) + '</td>' : '') +
           '<td><span class="chip ' + (j.status === 'selesai' ? 'chip--aktif' : 'chip--muted') + '">' + j.status + '</span></td>' +
           '<td><button class="btn-small ' + (kunci ? '' : 'btn-small--primary') + '" data-isi="' + j.id + '"' + (kunci ? ' disabled' : '') + '>' + tombol + '</button>' + (j.status === 'selesai' ? ' <button class="btn-small" data-pdf="' + j.id + '">Unduh PDF</button>' : '') + ' ' + SvForm.buktiTautan(j, 'Buka Bukti') + (adaAnak ? ' <button class="btn-small btn-small--primary" data-anak="' + j.id + '">' + (SvForm.paket(f0, formList).slice(1).every(function (x) { return x.jenis === 'pra'; }) ? 'Isi Pra-Supervisi' : 'Isi Form Sepaket') + '</button>' : '') + '</td></tr>';
-      }).join('') : '<tr><td colspan="6">Belum ada jadwal supervisi untuk kamu.</td></tr>') + '</tbody></table></div>';
+      }).join('') : '<tr><td colspan="' + (meRole === 'kepsek' ? 7 : 6) + '">' + (meRole === 'kepsek' ? 'Belum ada jadwal supervisi.' : 'Belum ada jadwal supervisi untuk kamu.') + '</td></tr>') + '</tbody></table></div>';
     content.querySelectorAll('[data-isi]').forEach(function (b) { b.addEventListener('click', function () { isiForm(rows.find(function (x) { return x.id === b.dataset.isi; })); }); });
     content.querySelectorAll('[data-anak]').forEach(function (b) { b.addEventListener('click', function () { isiForm(rows.find(function (x) { return x.id === b.dataset.anak; }), null, true); }); });
     content.querySelectorAll('[data-pdf]').forEach(function (b) { b.addEventListener('click', function () {
       var j = rows.find(function (x) { return x.id === b.dataset.pdf; });
       SvPdf.unduhAman(j, formList.find(function (x) { return x.id === j.form_id; }), idn(j), paketPdf(j), b);
     }); });
+    if (isiParam) { var jp = rows.find(function (x) { return x.id === isiParam; }); isiParam = null; if (jp) isiForm(jp); }
   }
 
   // Semua form dalam paket (induk + sepaket) untuk jadwal j, siap dicetak ke satu PDF
@@ -268,7 +271,7 @@
         if (banyak) { d.jawaban_paket = {}; semua.forEach(function (x, i) { if (i) d.jawaban_paket[x.form.id] = { jawaban: x.jawaban, catatan: x.catatan }; }); }
       }
       var res = await supabaseClient.from('supervisi_jadwal').update(d).eq('id', j.id);
-      if (res.error) { alert('Gagal menyimpan: ' + res.error.message + ((banyak || anak) ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + (d.bukti_link ? '\n\nJalankan migrasi_supervisi_bukti.sql di Supabase SQL Editor bila belum.' : '')); return; }
+      if (res.error) { alert('Gagal menyimpan: ' + res.error.message + ((banyak || anak) ? '\n\nJalankan migrasi_supervisi_paket.sql di Supabase SQL Editor bila belum.' : '') + (d.bukti_link ? '\n\nJalankan migrasi_supervisi_bukti.sql di Supabase SQL Editor bila belum.' : '') + (meRole === 'kepsek' ? '\n\nUntuk akun Kepala Sekolah, jalankan migrasi_supervisi_kepsek.sql di Supabase SQL Editor bila belum.' : '')); return; }
       o.remove(); if (anak) alert('Isian form sepaket tersimpan. Jadwal tetap berstatus terjadwal.'); muat();
     });
   }
@@ -387,9 +390,20 @@
     var s = (await supabaseClient.auth.getSession()).data.session;
     if (!s) { location.href = 'index.html'; return; }
     var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
-    if (p.data && (p.data.role === 'admin' || p.data.role === 'kepsek' || p.data.role === 'pengawas')) { location.href = 'supervisi-admin.html'; return; }
+    if (p.data && (p.data.role === 'admin' || p.data.role === 'pengawas')) { location.href = 'supervisi-admin.html'; return; }
     if (p.data && p.data.role === 'staf') { location.href = 'portal.html'; return; }
     meId = s.user.id; meNama = (p.data && p.data.nama) || s.user.email;
+    if (p.data && p.data.role === 'kepsek') {
+      // Kepala Sekolah: mengisi instrumen supervisi SEMUA guru; menu khusus guru disembunyikan
+      meRole = 'kepsek';
+      document.querySelectorAll('.menu-item[data-view="ttd"], .menu-item[data-view="wawancara"]').forEach(function (a) { a.style.display = 'none'; });
+      document.querySelectorAll('.sidebar__section-label').forEach(function (l) { if (/disupervisi/i.test(l.textContent)) l.style.display = 'none'; });
+      var lk = document.getElementById('menuLihatKepsek'); if (lk) lk.style.display = '';
+      var rl = document.querySelector('.user-chip__role'); if (rl) rl.textContent = 'Kepala Sekolah';
+      HALAMAN.jadwal = ['Jadwal Supervisi Semua Guru', 'Sebagai Kepala Sekolah kamu dapat mengisi instrumen supervisi semua guru. Form boleh diisi kapan saja'];
+      HALAMAN.isi = ['Isi Form Otomatis', 'Isi draft form dari target nilai untuk jadwal guru mana pun, lalu periksa dan simpan'];
+      try { isiParam = new URLSearchParams(location.search).get('isi'); } catch (x) { isiParam = null; }
+    }
     document.getElementById('userName').textContent = meNama;
     lucide.createIcons();
     var awal = 'jadwal';

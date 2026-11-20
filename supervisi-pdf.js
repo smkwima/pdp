@@ -507,5 +507,5 @@ var SvPdf = (function () {
     finally { if (tombol) { tombol.disabled = false; tombol.textContent = teks; } }
   }
 
-  return { unduh: unduh, unduhAman: unduhAman, unduhGabung: unduhGabung, unduhGabungAman: unduhGabungAman, unduhJadwal: unduhJadwal, unduhJadwalAman: unduhJadwalAman };
+  return { rekapSkor: rekapSkor, predikat: predikat, unduh: unduh, unduhAman: unduhAman, unduhGabung: unduhGabung, unduhGabungAman: unduhGabungAman, unduhJadwal: unduhJadwal, unduhJadwalAman: unduhJadwalAman };
 })();
