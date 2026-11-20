@@ -2,51 +2,229 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Presensi — PDP SMK Widya Mandala Tambak</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presensi — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-client.js?v=3"></script>
 <script src="akses-guard.js?v=5"></script>
+<script src="mobile.js?v=2" defer></script>
 <script src="bottomnav.js?v=18" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--ink:#14302c;--paper:#f6f7f4;--card:#fff;--line:#d9dfd9;--main:#0f6b5c;--warn:#b4570a;--bad:#a32424;--ok:#17743a;--mut:#5d6f6a;color-scheme:light}
-@media(prefers-color-scheme:dark){:root{--ink:#e8efec;--paper:#0f1a18;--card:#16241f;--line:#2b3d37;--main:#3fb59f;--warn:#e19a4b;--bad:#ef7b7b;--ok:#5bc788;--mut:#9ab0a9;color-scheme:dark}}
-*{box-sizing:border-box}
-@keyframes sp{to{transform:rotate(360deg)}}
-body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-main{max-width:640px;margin:0 auto;padding:16px}
-h1{font-size:1.4rem;margin:0}h2{font-size:1.1rem;margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
-label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 3px}
-input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}
-button{padding:10px 16px;border:0;border-radius:8px;background:var(--main);color:#fff;font:inherit;font-weight:600;cursor:pointer}
-button.alt{background:transparent;color:var(--main);border:1px solid var(--main)}
-button:disabled{opacity:.5}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}
-.tabs{display:flex;gap:6px;overflow-x:auto;margin:12px 0}.tabs button{flex:none}
-.clock{font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.mut{color:var(--mut);font-size:.9rem}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-video,canvas,img.prev{width:100%;border-radius:10px;background:#000;aspect-ratio:3/4;object-fit:cover}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.88rem}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-.chip{display:inline-flex;align-items:center;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 12px;margin:4px 6px 4px 0;font-size:.85rem}
-.chip.fm{border-color:#7b4fb8}.chip button{padding:0 8px;background:transparent;color:var(--bad);font-size:1.1rem;line-height:1.3}
-.stl{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px}
-.stc{display:flex;gap:8px;align-items:center;margin:0;padding:5px 2px;color:var(--ink);font-size:.9rem}.stc input{width:auto}
-.warnbox{border:1px solid var(--bad);color:var(--bad);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.9rem}
-h3{font-size:.98rem;margin:16px 0 4px}details summary{cursor:pointer;font-weight:600}
-#msg{position:sticky;top:8px;z-index:5}.m{padding:10px 14px;border-radius:8px;margin-bottom:8px;background:var(--ink);color:var(--paper)}
+  /* Presensi memakai kerangka & warna yang sama dengan halaman lain (style.css).
+     Di sini hanya komponen khusus presensi, semuanya berawalan ps-. */
+  .ps-wrap { max-width: 1180px; margin: 0 auto; }
+  .mut { color: var(--ink-soft); }
+  .ok { color: var(--success); }
+  .warn { color: #b45309; }
+  .bad { color: var(--danger); }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  /* Ikon Lucide diganti menjadi <svg>, jadi ukuran ikon di judul kartu, label, dan tab diatur di sini */
+  .task-section__title svg, .stat-card__label svg, .subtab-btn svg { width: 16px; height: 16px; flex: none; }
+  .task-section__title svg { color: var(--primary); }
+  .stat-card__label svg { width: 14px; height: 14px; color: var(--primary); }
+  .subtab-btn svg { width: 14px; height: 14px; }
+  .task-section__title { min-width: 0; }
+
+  /* ---------- Notifikasi ---------- */
+  #msg { position: fixed; top: 78px; right: 24px; z-index: 90; width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .ps-toast { pointer-events: auto; cursor: pointer; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; line-height: 1.45; box-shadow: var(--shadow-lg); animation: psIn .18s ease; }
+  .ps-toast--bad { background: var(--danger); }
+  @keyframes psIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- Isian & tombol ---------- */
+  .ps-wrap input[type="date"], .ps-wrap input[type="time"], .ps-wrap input[type="text"],
+  .ps-wrap input[type="number"], .ps-wrap input[type="search"], .ps-wrap select {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); font: 500 13px var(--font-body); color: var(--ink);
+  }
+  .ps-wrap input:focus, .ps-wrap select:focus { outline: none; border-color: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-tint-strong); }
+  .ps-wrap .btn-small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  .ps-wrap .btn-small svg, .ps-wrap .btn-small i { width: 14px; height: 14px; flex: none; }
+  .ps-wrap button:disabled { opacity: .55; cursor: default; }
+  .ps-wrap .field label { font-size: 12px; color: var(--ink-soft); }
+  .ps-file { width: 100%; padding: 8px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-tint); font: 500 12.5px var(--font-body); color: var(--ink-soft); }
+  .ps-file::file-selector-button { margin-right: 10px; padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: 600 12px var(--font-body); cursor: pointer; }
+  .ps-file::file-selector-button:hover { background: var(--surface-tint-strong); border-color: var(--primary-soft); }
+  .ps-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .ps-inline { display: flex; gap: 8px; align-items: center; }
+  .ps-inline > input { flex: 1; min-width: 0; }
+  .ps-hint { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin: 12px 0 0; }
+  .ps-sub { font-size: 13px; color: var(--ink-soft); margin: 0 0 12px; }
+  .ps-narrow { max-width: 780px; }
+
+  /* ---------- Susunan kartu ---------- */
+  #view .task-section { margin: 0 0 18px; }
+  .ps-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 18px; align-items: start; margin-bottom: 18px; }
+  .ps-cols > .task-section { margin: 0; }
+  .ps-stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .ps-stack > .task-section { margin: 0; }
+
+  /* ---------- Chip status ---------- */
+  .ps-st { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+  .ps-st--ok { background: var(--success-tint); color: var(--success); border-color: var(--success-border); }
+  .ps-st--warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+  .ps-st--info { background: var(--primary-tint); color: var(--primary-dim); border-color: var(--primary-tint-strong); }
+  .ps-st--mut { background: var(--surface-tint-strong); color: var(--ink-soft); border-color: var(--border); }
+
+  /* ---------- Halaman Presensi ---------- */
+  .ps-presensi { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .ps-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  #view .ps-side .stat-grid { margin: 0; grid-template-columns: 1fr 1fr; }
+  .ps-main { min-width: 0; }
+  .ps-hero { background: linear-gradient(135deg, var(--primary), #4f46e5); color: #fff; border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-md); }
+  .ps-hero__label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: rgba(255,255,255,.8); }
+  .ps-hero__label svg, .ps-hero__label i { width: 14px; height: 14px; }
+  .ps-clock { font-family: var(--font-display); font-size: 46px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; margin: 10px 0 4px; }
+  .ps-hero__date { font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92); }
+  .ps-hero__jadwal { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.22); font-size: 13px; line-height: 1.55; }
+  .ps-hero__src { font-size: 12px; color: rgba(255,255,255,.75); }
+  .ps-side .stat-card__value { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .ps-side .stat-card__sub { margin-top: 8px; color: var(--ink-soft); }
+
+  .ps-cam { position: relative; width: 100%; margin: 0 auto; aspect-ratio: 4 / 5; max-height: 62vh; max-height: 62dvh; border-radius: var(--radius); overflow: hidden; background: #0f172a; }
+  .ps-cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #0f172a; }
+  .ps-cam__wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; background: #0f172a; color: #cbd5e1; font-size: 13px; font-weight: 600; line-height: 1.5; }
+
+  .ps-loc { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 11px 13px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-tint); font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+  .ps-loc::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--ink-faint); }
+  .ps-loc b { display: block; font-size: 13.5px; color: var(--ink); }
+  .ps-loc span { display: block; font-size: 12px; }
+  .ps-loc--ok { background: var(--success-tint); border-color: var(--success-border); }
+  .ps-loc--ok::before { background: var(--success); }
+  .ps-loc--ok b { color: var(--success); }
+  .ps-loc--bad { background: var(--danger-tint); border-color: var(--danger-border); }
+  .ps-loc--bad::before { background: var(--danger); }
+  .ps-loc--bad b { color: var(--danger); }
+  .ps-loc--wait::before { width: 14px; height: 14px; margin-top: 3px; background: transparent; border: 2px solid var(--primary-tint-strong); border-top-color: var(--primary); animation: sp .8s linear infinite; }
+
+  .ps-cta { margin-top: 14px; }
+  .ps-cta .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: 0; font-size: 14.5px; }
+  .ps-cta .btn-primary svg, .ps-cta .btn-primary i { width: 18px; height: 18px; }
+
+  .ps-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.55; }
+  .ps-notice[hidden] { display: none; }
+  .ps-notice > svg, .ps-notice > i { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+  .ps-notice b { display: block; font-size: 14px; }
+  .ps-notice span { color: var(--ink-soft); }
+  .ps-notice--ok { background: var(--success-tint); border-color: var(--success-border); color: var(--success); }
+  .ps-notice--ok span { color: #047857; }
+  .ps-notice--warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .ps-notice--warn span { color: #92400e; }
+  .ps-notice--bad { background: var(--danger-tint); border-color: var(--danger-border); color: var(--danger); }
+  .ps-notice--bad span { color: #b91c1c; }
+
+  /* ---------- Rekap, tabel, filter ---------- */
+  .ps-filter { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .ps-filter .field { margin: 0; min-width: 190px; }
+  .ps-tbl td { vertical-align: middle; }
+  .ps-time { font-weight: 700; font-variant-numeric: tabular-nums; margin-right: 6px; }
+  .ps-belum { color: var(--ink-faint); font-weight: 600; }
+  .ps-foto { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--primary); }
+  .ps-foto svg, .ps-foto i { width: 13px; height: 13px; }
+  .ps-tbl td.ps-empty { text-align: center; color: var(--ink-soft); padding: 28px 16px; }
+  #view .stat-grid { margin-bottom: 16px; }
+
+  /* ---------- Admin: jadwal & pengaturan ---------- */
+  .ps-state { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; font-size: 13px; font-weight: 600; }
+  .ps-state::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #f59e0b; }
+  .ps-state.ok::before { background: var(--success); }
+  .ps-state.mut::before { background: var(--ink-faint); }
+  .ps-jam { display: flex; flex-direction: column; gap: 10px; }
+  .ps-jam__row { display: grid; grid-template-columns: 84px 1fr 1fr; gap: 10px; align-items: end; }
+  .ps-jam__hari { font-size: 13.5px; font-weight: 700; padding-bottom: 10px; }
+  .ps-jam .field { margin: 0; }
+  .ps-jam .field label { font-size: 11px; margin-bottom: 4px; }
+  .ps-jam__row:not(:first-child) .field label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ps-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ps-tag { display: inline-flex; align-items: center; gap: 2px; padding: 3px 3px 3px 12px; border-radius: 999px; background: var(--primary-tint); border: 1px solid var(--primary-tint-strong); color: var(--primary-dim); font-size: 12.5px; font-weight: 600; }
+  .ps-tag--fm { background: var(--accent-tint); border-color: #ddd6fe; color: var(--accent); }
+  .ps-tag button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+  .ps-tag button:hover { background: rgba(220, 38, 38, .12); color: var(--danger); }
+  .ps-checklist { max-height: 300px; overflow: auto; margin-top: 12px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+  .ps-checklist .mut { display: block; padding: 12px; }
+  .ps-check { display: flex; align-items: center; gap: 10px; margin: 0; padding: 9px 10px; border-radius: 8px; font-size: 13.5px; cursor: pointer; }
+  .ps-check:hover { background: var(--primary-tint); }
+  .ps-check input { width: 18px; height: 18px; flex: none; accent-color: var(--primary); }
+  .ps-savebar { position: sticky; bottom: 16px; z-index: 6; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); font-size: 12.5px; }
+  .ps-line { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; line-height: 1.5; }
+  .ps-line:last-child { border-bottom: 0; }
+  .ps-line__ic { flex: none; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 800; }
+  .ps-line--ok .ps-line__ic { background: var(--success-tint); color: var(--success); }
+  .ps-line--warn .ps-line__ic { background: #fffbeb; color: #b45309; }
+  .ps-line--bad .ps-line__ic { background: var(--danger-tint); color: var(--danger); }
+  .ps-acc { margin: 0 0 14px; }
+  .ps-acc > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; font-size: 14px; font-weight: 700; cursor: pointer; list-style: none; }
+  .ps-acc > summary::-webkit-details-marker { display: none; }
+  .ps-acc > summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(45deg); transition: transform .15s ease; }
+  .ps-acc[open] > summary { border-bottom: 1px solid var(--border); }
+  .ps-acc[open] > summary::after { transform: rotate(-135deg); }
+  .ps-acc__body { padding: 14px 18px 18px; }
+
+  /* ---------- Tablet & HP ---------- */
+  .ps-subtabs { display: none; }
+  .ps-sm { display: none; }
+  @media (max-width: 980px) {
+    .ps-presensi { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 861px) {
+    .ps-cam { aspect-ratio: 4 / 3; max-height: none; max-width: 560px; }
+  }
+  @media (max-width: 860px) {
+    .ps-subtabs { display: flex; }
+    #msg { top: calc(64px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; width: auto; }
+    .ps-clock { font-size: 38px; }
+    .ps-hero { padding: 18px; }
+    .ps-cta { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 4; margin-top: 8px; padding-top: 10px; background: linear-gradient(to top, var(--surface) 72%, rgba(255,255,255,0)); }
+    .ps-savebar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    .ps-savebar .btn-small { flex: 1 1 100%; }
+    .ps-savebar .mut { display: none; }
+    .ps-savebar { padding: 10px 12px; }
+    .ps-filter .field, .ps-filter .btn-small { flex: 1 1 100%; }
+    .ps-actions .btn-small { flex: 1 1 auto; }
+    .ps-tbl.data-table--cards tr { padding: 12px 14px; gap: 10px; }
+    .ps-tbl.data-table--cards td.td-nama { font-size: 15px; }
+    .ps-tbl.data-table--cards td .ps-foto { margin-left: 0; margin-top: 4px; }
+  }
+  @media (max-width: 560px) {
+    .ps-lg { display: none; }
+    .ps-sm { display: inline; }
+    .user-chip__logout { display: none; }
+    .ps-jam__row { grid-template-columns: 1fr 1fr; }
+    .ps-jam__hari { grid-column: 1 / -1; padding: 0; }
+    .ps-inline { flex-wrap: wrap; }
+    .ps-inline > .btn-small { flex: 1 1 100%; }
+  }
 </style>
 </head>
 <body>
-<main>
-<div id="msg" role="status"></div>
-<div id="app"></div>
-</main>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Presensi</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="map-pin" style="width:13px;height:13px;"></i> <span id="roleLabel">Memuat…</span></div>
+    <nav class="menu-list" id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title" id="judulHal">Presensi</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip">
+        <div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">&nbsp;</div>
+          <a href="portal.html" id="out" class="user-chip__logout"><i data-lucide="layout-grid" style="width:13px;height:13px;"></i> Menu Utama</a></div>
+        <div class="user-chip__avatar" id="userAv">·</div>
+      </div>
+    </div>
+    <div class="content"><div class="ps-wrap" id="content"><div class="panel-note">Memuat…</div></div></div>
+  </div>
+</div>
+<div id="msg" role="status" aria-live="polite"></div>
 <script>
-// e-Rapor/PDP dipakai HANYA untuk membaca: login dan data pegawai (tabel profiles).
 // Semua data presensi (lokasi, jadwal, log, foto) disimpan di project presensi lewat Edge Function.
 // Presensi memakai sesi login PDP (satu situs, satu sesi): tidak ada login sendiri di sini.
 // supabaseClient dibuat oleh supabase-client.js (project e-Rapor/PDP).
@@ -64,15 +242,28 @@ async function api(action, body = {}) {
 }
 const $ = s => document.querySelector(s);
 const HARI = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-let me = null, cfg = null, stream = null, tab = "presensi", timer = null, watchId = null, depth = 0;
+let me = null, cfg = null, stream = null, tab = "presensi", timer = null, watchId = null, depth = 0, presTok = 0;
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function toast(t, bad) { const d = document.createElement("div"); d.className = "m"; if (bad) d.style.background = "var(--bad)"; d.textContent = t; $("#msg").append(d); setTimeout(() => d.remove(), 5000); }
+function toast(t, bad) {
+  const d = document.createElement("div"); d.className = "ps-toast" + (bad ? " ps-toast--bad" : ""); d.textContent = t;
+  d.onclick = () => d.remove(); $("#msg").append(d); setTimeout(() => d.remove(), bad ? 7000 : 5000);
+}
 const wib = d => new Date(d.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
 const ymd = d => { const w = wib(d); return `${w.getFullYear()}-${String(w.getMonth() + 1).padStart(2, "0")}-${String(w.getDate()).padStart(2, "0")}`; };
 const hhmm = d => wib(d).toTimeString().slice(0, 8);
 const hariKe = d => wib(d).getDay() || 7;
 function jarak(a, b, c, d) { const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return Math.round(12742000 * Math.asin(Math.sqrt(h))); }
+
+const ikon = () => { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } };
+const BULAN = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const tglPanjang = d => +d.slice(8) + " " + BULAN[+d.slice(5, 7)] + " " + d.slice(0, 4);
+const inisial = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(x => x[0]).join("").toUpperCase() || "?";
+const STATUS_K = { "tepat waktu": "ok", "terlambat": "warn", "pulang cepat": "warn", "tanpa jadwal": "mut" };
+const stChip = s => `<span class="ps-st ps-st--${STATUS_K[s] || "info"}">${esc(s)}</span>`;
+const notice = (tipe, ikonNama, judul, isi) => `<div class="ps-notice ps-notice--${tipe}"><i data-lucide="${ikonNama}"></i><div><b>${judul}</b>${isi ? `<span>${isi}</span>` : ""}</div></div>`;
+// Tampil di area konten bila data gagal dimuat (sekaligus muncul sebagai notifikasi).
+function viewGalat(pesan) { toast(pesan, true); const v = $("#view"); if (v) { v.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(pesan)); ikon(); } }
 
 /* ---------- Masuk: memakai sesi login PDP ---------- */
 async function init() {
@@ -86,16 +277,15 @@ async function init() {
 sb.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT") { stop(); location.href = "index.html"; } });
 // Pesan henti (akun tidak berhak, mode Lihat sebagai): tanpa fitur apa pun, cukup tombol kembali.
 function blokView(pesan) {
-  stop(); me = null;
-  $("#app").innerHTML = `<div class="card"><h1>Presensi</h1><p class="bad">${esc(pesan)}</p><p><button id="kembali">Menu Utama</button></p></div>`;
-  $("#kembali").onclick = keluar;
+  stop(); me = null; $("#menu").innerHTML = "";
+  $("#content").innerHTML = `<div class="empty-state"><div class="empty-state__mark"><i data-lucide="shield-alert" style="width:24px;height:24px;"></i></div><div class="empty-state__title">Presensi</div><p class="empty-state__desc bad">${esc(pesan)}</p><p><button class="btn-small btn-small--primary" id="kembali">Menu Utama</button></p></div>`;
+  ikon(); $("#kembali").onclick = keluar;
 }
 // Tampil saat data gagal dimuat (mis. tidak ada internet). Pengguna TETAP login, cukup coba lagi.
 function gagalView(pesan) {
-  $("#app").innerHTML = `<div class="card"><h1>Tidak bisa memuat data</h1><p class="bad">${esc(pesan)}</p><p class="mut">Anda tetap masuk. Periksa koneksi internet lalu coba lagi.</p>
-  <div class="row"><button id="ulang">Coba lagi</button><button class="alt" id="out2">Menu Utama</button></div></div>`;
-  $("#ulang").onclick = () => init();
-  $("#out2").onclick = keluar;
+  $("#content").innerHTML = `<div class="empty-state"><div class="empty-state__mark"><i data-lucide="wifi-off" style="width:24px;height:24px;"></i></div><div class="empty-state__title">Tidak bisa memuat data</div><p class="empty-state__desc bad">${esc(pesan)}</p><p class="empty-state__desc">Anda tetap masuk. Periksa koneksi internet lalu coba lagi.</p>
+  <p class="ps-actions" style="justify-content:center"><button class="btn-small btn-small--primary" id="ulang">Coba lagi</button><button class="btn-small" id="out2">Menu Utama</button></p></div>`;
+  ikon(); $("#ulang").onclick = () => init(); $("#out2").onclick = keluar;
 }
 // "Keluar" dari Presensi = kembali ke Menu Utama PDP (tidak mengeluarkan akun dari PDP).
 function keluar() { stop(); location.href = "portal.html"; }
@@ -109,13 +299,30 @@ async function masuk(user) {
   catch (e) { return gagalView("Gagal memuat pengaturan presensi (jika baru pertama kali, jalankan setup.sql di project presensi dan deploy fungsi presensi-api): " + e.message); }
   shell();
 }
+
+/* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
+const TAB_INFO = {
+  presensi: ["Presensi", "Presensi", "map-pin"], riwayat: ["Riwayat Presensi", "Riwayat", "history"],
+  rekap: ["Rekap Harian", "Rekap", "clipboard-list"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
+  jadwal: ["Input Jadwal", "Input jadwal", "calendar-plus"], cek: ["Cek Jadwal", "Cek jadwal", "calendar-check"],
+  atur: ["Pengaturan", "Pengaturan", "settings"], daftar: ["Pegawai", "Pegawai", "users"]
+};
 function shell() {
-  const tabs = [["presensi", "Presensi"], ["riwayat", "Riwayat"]];
-  if (me.role === "admin") tabs.push(["rekap", "Rekap"], ["lokasi", "Lokasi"], ["jadwal", "Input jadwal"], ["cek", "Cek jadwal"], ["atur", "Pengaturan"], ["daftar", "Pegawai"]);
-  $("#app").innerHTML = `<div class="row"><div><h1>${esc(me.nama)}</h1><div class="mut">${esc(me.jabatan)}</div></div><div style="flex:none"><button class="alt" id="out">Menu Utama</button></div></div>
-  <div class="tabs">${tabs.map(t => `<button class="${t[0] === tab ? "" : "alt"}" data-t="${t[0]}">${t[1]}</button>`).join("")}</div><div id="view"></div>`;
-  $("#out").onclick = keluar;
-  document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => goTab(b.dataset.t));
+  const saya = ["presensi", "riwayat"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : [], semua = [...saya, ...kelola];
+  const item = t => `<a href="#" class="menu-item${t === tab ? " menu-item--active" : ""}" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}><i data-lucide="${TAB_INFO[t][2]}" class="menu-icon"></i><span class="menu-item__title">${TAB_INFO[t][1]}</span></a>`;
+  $("#menu").innerHTML = `<div class="sidebar__section-label">Presensi saya</div>${saya.map(item).join("")}`
+    + (kelola.length ? `<div class="sidebar__section-label">Pengelolaan</div>${kelola.map(item).join("")}` : "")
+    + `<div class="sidebar__section-label">Lainnya</div><a href="portal.html" class="menu-item" id="navPortal"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>`;
+  $("#roleLabel").textContent = me.jabatan;
+  $("#userName").textContent = me.nama || "—"; $("#userRole").textContent = me.jabatan; $("#userAv").textContent = inisial(me.nama);
+  $("#judulHal").textContent = TAB_INFO[tab][0];
+  const sk = new Date(), sd = ymd(sk); $("#metaHal").innerHTML = `<span class="ps-lg">${HARI[hariKe(sk)]}, ${tglPanjang(sd)}</span><span class="ps-sm">${HARI[hariKe(sk)].slice(0, 3)}, ${+sd.slice(8)} ${BULAN[+sd.slice(5, 7)].slice(0, 3)} ${sd.slice(0, 4)}</span>`;
+  $("#content").innerHTML = `<div class="subtab-nav ps-subtabs">${semua.map(t => `<button type="button" class="subtab-btn${t === tab ? " active" : ""}" data-t="${t}"><i data-lucide="${TAB_INFO[t][2]}"></i>${TAB_INFO[t][1]}</button>`).join("")}</div><div id="view"><div class="panel-note">Memuat…</div></div>`;
+  document.querySelectorAll("[data-t]").forEach(b => b.onclick = e => { e.preventDefault(); goTab(b.dataset.t); });
+  $("#navPortal").onclick = () => stop(); $("#out").onclick = () => stop();
+  ikon(); window.scrollTo(0, 0);
+  const nav = $(".ps-subtabs"), aktif = nav && nav.querySelector(".active");
+  if (aktif) nav.scrollLeft = aktif.offsetLeft - (nav.clientWidth - aktif.offsetWidth) / 2;
   ({ presensi, riwayat, rekap, lokasi, jadwal, cek, atur, daftar })[tab]();
 }
 function stop() { clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
@@ -152,39 +359,65 @@ function kompres(v, c, label) {
 
 /* ---------- Presensi ---------- */
 async function presensi() {
-  const now = new Date();
-  let hi; try { hi = await api("hari_ini"); } catch (e) { return toast("Gagal memuat presensi: " + e.message, true); }
+  const tok = ++presTok;
+  let hi; try { hi = await api("hari_ini"); } catch (e) { return viewGalat("Gagal memuat presensi: " + e.message); }
+  if (tok !== presTok || tab !== "presensi") return;
   const tgl = hi.tanggal, hr = hi.log, ef = hi.ef, libur = ef.tipe === "libur" || ef.tipe === "fm";
   const datang = hr.find(x => x.jenis === "datang"), pulang = hr.find(x => x.jenis === "pulang");
   const jenis = libur ? null : !datang ? "datang" : !pulang ? "pulang" : null;
-  $("#view").innerHTML = `<div class="card"><div class="clock" id="clk"></div>
-  <div class="mut">${HARI[hi.hari]}, ${tgl}</div>
-  <p>${ef.tipe === "kerja" ? `Jadwal hari ini: <b>${ef.masuk}–${ef.pulang}</b> <span class="mut">(${esc(ef.sumber)})</span>` : ef.tipe === "libur" ? `<span class="warn">Hari ini libur.</span>` : ef.tipe === "fm" ? `<span class="warn">Force Majeure${ef.ket ? " — " + esc(ef.ket) : ""}. Presensi tidak diperlukan.</span>` : `<span class="warn">Tidak ada jadwal hari ini.</span>`}</p>
-  <div class="mut">Datang: ${datang ? `${hhmm(new Date(datang.waktu))} (${esc(datang.status)})` : "belum"} · Pulang: ${pulang ? `${hhmm(new Date(pulang.waktu))} (${esc(pulang.status)})` : "belum"}</div></div>
-  ${jenis ? `<div class="card"><h2>Foto presensi ${jenis}</h2><video id="vid" autoplay playsinline muted></video><canvas id="cv" hidden></canvas>
-  <p id="loc" class="mut">Mencari lokasi…</p><div class="row"><button id="snap">Ambil foto & kirim</button></div></div>`
-      : libur ? "" : `<div class="card ok">Presensi hari ini sudah lengkap. Terima kasih.</div>`}`;
-  timer = setInterval(() => { const e = $("#clk"); if (e) e.textContent = hhmm(new Date()); }, 1000); $("#clk").textContent = hhmm(new Date());
+  const jd = ef.tipe === "kerja" ? `Jadwal hari ini <b>${esc(ef.masuk)}–${esc(ef.pulang)}</b><br><span class="ps-hero__src">${esc(ef.sumber)}</span>`
+    : ef.tipe === "libur" ? `<b>Hari ini libur.</b>`
+    : ef.tipe === "fm" ? `<b>Force Majeure</b>${ef.ket ? " — " + esc(ef.ket) : ""}. Presensi tidak diperlukan.`
+    : `<b>Tidak ada jadwal hari ini.</b>`;
+  const tile = (lb, ik, r) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${r ? hhmm(new Date(r.waktu)) : "—"}</div><div class="stat-card__sub">${r ? stChip(r.status) : "Belum presensi"}</div></div>`;
+  const kanan = jenis ? `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="camera"></i> Foto presensi ${jenis}</div><div class="task-section__desc">Pastikan wajah terlihat jelas dan Anda berada di area sekolah.</div></div></div>
+      <div class="task-section__body"><div id="loc" class="ps-loc ps-loc--wait" style="margin:0 0 14px"><div><b>Mencari lokasi…</b><span>Aktifkan GPS dan izinkan akses lokasi.</span></div></div>
+      <div class="ps-cam"><video id="vid" autoplay playsinline muted></video><div class="ps-cam__wait" id="camwait">Menyalakan kamera…</div></div><canvas id="cv" hidden></canvas>
+      <div class="ps-cta"><button class="btn-primary" id="snap"><i data-lucide="camera"></i> Ambil foto &amp; kirim presensi ${jenis}</button></div></div></section>`
+    : libur ? notice("warn", "calendar-off", ef.tipe === "fm" ? "Force Majeure" : "Hari ini libur", "Presensi tidak diperlukan.")
+    : notice("ok", "circle-check", "Presensi hari ini sudah lengkap", "Terima kasih.");
+  $("#view").innerHTML = `<div class="ps-presensi"><div class="ps-side">
+    <section class="ps-hero"><div class="ps-hero__label"><i data-lucide="clock"></i> Waktu sekarang (WIB)</div><div class="ps-clock" id="clk">${hhmm(new Date())}</div>
+      <div class="ps-hero__date">${HARI[hi.hari]}, ${tglPanjang(tgl)}</div><div class="ps-hero__jadwal">${jd}</div></section>
+    <div class="stat-grid">${tile("Datang", "log-in", datang)}${tile("Pulang", "log-out", pulang)}</div></div>
+    <div class="ps-main">${kanan}</div></div>`;
+  ikon();
+  timer = setInterval(() => { const e = $("#clk"); if (e && e.firstChild) e.firstChild.nodeValue = hhmm(new Date()); }, 1000);
   if (!jenis) return;
-  if (!navigator.mediaDevices?.getUserMedia) toast("Kamera tidak didukung di perangkat ini.", true);
-  else try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640 }, audio: false }); $("#vid").srcObject = stream; }
-  catch { toast("Kamera tidak bisa diakses. Izinkan kamera di pengaturan browser.", true); }
+  const wait = $("#camwait"), kamGagal = m => { if (wait) wait.textContent = m; };
+  if (!navigator.mediaDevices?.getUserMedia) { toast("Kamera tidak didukung di perangkat ini.", true); kamGagal("Kamera tidak didukung di perangkat ini."); }
+  else try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640 }, audio: false });
+    if (tok !== presTok || tab !== "presensi" || !$("#vid")) { s.getTracks().forEach(t => t.stop()); return; }
+    stream = s; const v = $("#vid"); v.srcObject = s; v.addEventListener("playing", () => wait?.remove(), { once: true });
+  } catch {
+    if (tok !== presTok) return;
+    toast("Kamera tidak bisa diakses. Izinkan kamera di pengaturan browser.", true);
+    kamGagal("Kamera tidak bisa diakses. Izinkan akses kamera di pengaturan browser, lalu muat ulang halaman.");
+  }
+  if (tok !== presTok || tab !== "presensi") return;
   let pos = null;
   watchId = navigator.geolocation.watchPosition(p => {
+    const L = $("#loc"); if (!L) return;
     pos = p.coords; const d = jarak(cfg.lat, cfg.lng, pos.latitude, pos.longitude), ok = d <= cfg.radius_m;
-    $("#loc").innerHTML = `<span class="${ok ? "ok" : "bad"}">${ok ? "Di dalam area" : "Di luar area"}</span> — ${d} m dari ${esc(cfg.nama_lokasi)} (batas ${cfg.radius_m} m, akurasi ±${Math.round(pos.accuracy)} m)`;
-  }, () => { $("#loc").innerHTML = `<span class="bad">Lokasi tidak aktif. Aktifkan GPS dan izinkan akses lokasi.</span>`; }, { enableHighAccuracy: true });
-  $("#snap").onclick = async () => {
+    L.className = "ps-loc " + (ok ? "ps-loc--ok" : "ps-loc--bad");
+    L.innerHTML = `<div><b>${ok ? "Di dalam area" : "Di luar area"}</b><span>${d} m dari ${esc(cfg.nama_lokasi)} · batas ${cfg.radius_m} m · akurasi ±${Math.round(pos.accuracy)} m</span></div>`;
+  }, () => {
+    const L = $("#loc"); if (!L) return;
+    L.className = "ps-loc ps-loc--bad"; L.innerHTML = `<div><b>Lokasi tidak aktif</b><span>Aktifkan GPS dan izinkan akses lokasi.</span></div>`;
+  }, { enableHighAccuracy: true });
+  const btn = $("#snap"), btnHtml = btn.innerHTML;
+  btn.onclick = async () => {
     if (!pos) return toast("Lokasi belum didapat.", true);
     if (jarak(cfg.lat, cfg.lng, pos.latitude, pos.longitude) > cfg.radius_m) return toast("Anda di luar radius presensi.", true);
     const v = $("#vid"), c = $("#cv"); if (!v.videoWidth) return toast("Kamera belum siap.", true);
     const label = `${me.nama} · ${tgl} ${hhmm(new Date())} · ${pos.latitude.toFixed(5)},${pos.longitude.toFixed(5)}`;
     const b64 = kompres(v, c, label);
     if (!b64) return toast("Foto tidak bisa diperkecil hingga " + FOTO_MAX_KB + " KB. Coba lagi.", true);
-    $("#snap").disabled = true;
+    btn.disabled = true; btn.textContent = "Mengirim…";
     let hasil;
     try { hasil = await api("absen", { jenis, foto: b64, lat: pos.latitude, lng: pos.longitude }); }
-    catch (e) { $("#snap").disabled = false; return toast(e.message, true); }
+    catch (e) { btn.disabled = false; btn.innerHTML = btnHtml; ikon(); return toast(e.message, true); }
     const status = hasil.status;
     toast(`Presensi ${jenis} tercatat (${status}).`); stop(); shell();
   };
@@ -192,44 +425,97 @@ async function presensi() {
 
 /* ---------- Riwayat & Rekap ---------- */
 async function riwayat() {
-  let data; try { data = (await api("riwayat")).log; } catch (e) { return toast("Gagal memuat riwayat: " + e.message, true); }
-  $("#view").innerHTML = `<div class="card wrap"><table><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak</th></tr>${data.map(r => `<tr><td>${r.tanggal}</td><td>${r.jenis}</td><td>${hhmm(new Date(r.waktu))}</td><td class="${r.status === "terlambat" ? "warn" : ""}">${esc(r.status)}</td><td>${r.jarak_m} m</td></tr>`).join("") || `<tr><td>Belum ada data.</td></tr>`}</table></div>`;
+  let data; try { data = (await api("riwayat")).log; } catch (e) { return viewGalat("Gagal memuat riwayat: " + e.message); }
+  if (tab !== "riwayat") return;
+  const tg = t => /^\d{4}-\d{2}-\d{2}$/.test(t) ? hariNama(t).slice(0, 3) + ", " + tglIdn(t) : esc(t);
+  $("#view").innerHTML = `<div class="panel-head"><div><div class="panel-head__title">Riwayat presensi</div><div class="panel-head__desc">${data.length} catatan presensi Anda</div></div></div>
+  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak</th></tr></thead><tbody>${data.map(r => `<tr><td>${tg(r.tanggal)}</td><td><span class="ps-st ps-st--info">${esc(r.jenis)}</span></td><td><span class="ps-time">${hhmm(new Date(r.waktu))}</span></td><td>${stChip(r.status)}</td><td>${r.jarak_m} m</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
 }
 async function rekap() {
-  $("#view").innerHTML = `<div class="card"><div class="row"><input type="date" id="d" value="${ymd(new Date())}"><button id="cari" style="flex:none">Tampilkan</button></div><div class="wrap" id="hasil"></div></div>`;
+  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="d">Tanggal</label><input type="date" id="d" value="${ymd(new Date())}"></div><button class="btn-small btn-small--primary" id="cari"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasil"><div class="panel-note">Memuat…</div></div>`;
+  ikon();
   const load = async () => {
-    const d = $("#d").value;
+    const d = $("#d").value; if (!d) return toast("Pilih tanggal dulu.", true);
     let pg, pr, urls = {}, hari = { tipe: "biasa" };
     try {
       const [prof, rk] = await Promise.all([sb.from("profiles").select("id,kode_mesin,nama").in("role", ["guru", "staf", "kepsek"]).order("nama"), api("rekap", { tanggal: d })]);
       if (prof.error) throw new Error("Gagal membaca data pegawai e-Rapor: " + prof.error.message);
       pg = prof.data; pr = rk.log; urls = rk.urls; hari = rk.hari;
     } catch (e) { return toast("Gagal memuat rekap: " + e.message, true); }
-    const rows = await Promise.all(pg.map(async p => {
-      const f = j => pr.find(x => x.pegawai_id === p.id && x.jenis === j);
-      const cell = async r => { if (!r) return `<td class="bad">—</td><td></td>`; const u = urls[r.foto_path]; return `<td>${hhmm(new Date(r.waktu))} <span class="${r.status === "terlambat" ? "warn" : "mut"}">${esc(r.status)}</span></td><td>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener">foto</a>` : ""}</td>`; };
-      return `<tr><td>${esc(p.nama)}</td>${await cell(f("datang"))}${await cell(f("pulang"))}</tr>`;
-    }));
-    $("#hasil").innerHTML = (hari.tipe === "libur" ? `<p class="warn">Tanggal ini libur.</p>` : hari.tipe === "fm" ? `<p class="warn">Tanggal ini Force Majeure${hari.ket ? " — " + esc(hari.ket) : ""}.</p>` : "") + `<table><tr><th>Nama</th><th>Datang</th><th></th><th>Pulang</th><th></th></tr>${rows.join("")}</table>`;
+    const out = $("#hasil"); if (tab !== "rekap" || !out) return;
+    const f = (p, j) => pr.find(x => x.pegawai_id === p.id && x.jenis === j);
+    const cell = r => {
+      if (!r) return `<td><span class="ps-belum">Belum</span></td>`;
+      const u = urls[r.foto_path];
+      return `<td><span class="ps-time">${hhmm(new Date(r.waktu))}</span>${stChip(r.status)}${u ? `<a class="ps-foto" href="${esc(u)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}</td>`;
+    };
+    const nDatang = pg.filter(p => f(p, "datang")).length, nTelat = pg.filter(p => f(p, "datang")?.status === "terlambat").length, nPulang = pg.filter(p => f(p, "pulang")).length;
+    const kartu = (lb, ik, v, sub) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${v}</div><div class="stat-card__sub">${sub}</div></div>`;
+    out.innerHTML = (hari.tipe === "libur" ? notice("warn", "calendar-off", "Tanggal ini libur") : hari.tipe === "fm" ? notice("warn", "calendar-off", "Tanggal ini Force Majeure", hari.ket ? esc(hari.ket) : "") : "")
+      + `<div class="stat-grid" style="margin-top:${hari.tipe === "libur" || hari.tipe === "fm" ? 16 : 0}px">${kartu("Sudah datang", "log-in", nDatang, "dari " + pg.length + " pegawai")}${kartu("Terlambat", "clock-alert", nTelat, "saat datang")}${kartu("Belum datang", "user-x", pg.length - nDatang, "belum presensi")}${kartu("Sudah pulang", "log-out", nPulang, "presensi pulang")}</div>`
+      + `<div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Nama</th><th>Datang</th><th>Pulang</th></tr></thead><tbody>${pg.map(p => `<tr><td>${esc(p.nama)}</td>${cell(f(p, "datang"))}${cell(f(p, "pulang"))}</tr>`).join("") || `<tr><td colspan="3" class="ps-empty">Belum ada data pegawai.</td></tr>`}</tbody></table></div>`;
+    ikon();
   };
   $("#cari").onclick = load; load();
 }
 
 /* ---------- Admin: lokasi ---------- */
 function lokasi() {
-  $("#view").innerHTML = `<div class="card"><h2>Titik lokasi & radius absen</h2>
-  <label>Nama lokasi</label><input id="nm" value="${esc(cfg.nama_lokasi)}">
-  <div class="row"><div><label>Latitude</label><input id="la" type="number" step="any" value="${cfg.lat}"></div><div><label>Longitude</label><input id="lo" type="number" step="any" value="${cfg.lng}"></div></div>
-  <div class="row"><div><label>Radius (meter)</label><input id="rd" type="number" min="10" value="${cfg.radius_m}"></div><div><label>Toleransi terlambat (menit)</label><input id="tl" type="number" min="0" value="${cfg.toleransi_menit}"></div></div>
-  <p class="row"><button class="alt" id="gps">Pakai lokasi saya sekarang</button><button id="sv">Simpan</button></p>
-  <p class="mut"><a id="mp" target="_blank" rel="noopener">Lihat titik di peta</a></p></div>`;
+  $("#view").innerHTML = `<div class="ps-narrow"><section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="map-pin"></i> Titik lokasi &amp; radius absen</div><div class="task-section__desc">Pegawai hanya bisa presensi bila berada di dalam radius dari titik ini.</div></div></div>
+  <div class="task-section__body"><div class="form-grid">
+    <div class="field field--full"><label for="nm">Nama lokasi</label><input id="nm" type="text" value="${esc(cfg.nama_lokasi)}"></div>
+    <div class="field"><label for="la">Latitude</label><input id="la" type="number" step="any" value="${cfg.lat}"></div>
+    <div class="field"><label for="lo">Longitude</label><input id="lo" type="number" step="any" value="${cfg.lng}"></div>
+    <div class="field"><label for="rd">Radius (meter)</label><input id="rd" type="number" min="10" value="${cfg.radius_m}"></div>
+    <div class="field"><label for="tl">Toleransi terlambat (menit)</label><input id="tl" type="number" min="0" value="${cfg.toleransi_menit}"></div></div>
+  <div class="ps-actions"><button class="btn-small" id="gps"><i data-lucide="crosshair"></i> Pakai lokasi saya sekarang</button><button class="btn-small btn-small--primary" id="sv"><i data-lucide="save"></i> Simpan</button></div>
+  <p class="ps-hint"><a id="mp" class="ps-foto" style="margin:0" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Lihat titik di peta</a></p></div></section></div>`;
+  ikon();
   const mp = () => $("#mp").href = `https://www.google.com/maps?q=${$("#la").value},${$("#lo").value}`; mp();
+  ["la", "lo"].forEach(i => $("#" + i).addEventListener("input", mp));
   $("#gps").onclick = () => navigator.geolocation.getCurrentPosition(p => { $("#la").value = p.coords.latitude; $("#lo").value = p.coords.longitude; mp(); }, () => toast("Lokasi tidak bisa diakses.", true), { enableHighAccuracy: true });
   $("#sv").onclick = async () => {
     const v = { nama_lokasi: $("#nm").value, lat: +$("#la").value, lng: +$("#lo").value, radius_m: +$("#rd").value, toleransi_menit: +$("#tl").value };
     try { await api("lokasi_simpan", v); Object.assign(cfg, v); toast("Lokasi tersimpan."); }
     catch (e) { toast(e.message, true); }
   };
+}
+
+/* ---------- Admin: input jadwal (acuan 1 reguler, 2 tes, 4 piket) ---------- */
+async function jadwal() {
+  try { await muatAdmin(true); } catch (e) { return viewGalat("Gagal memuat jadwal: " + e.message); }
+  if (tab !== "jadwal") return;
+  const P = A.pengaturan, nReg = A.ada_reguler.length, nTes = A.ada_tes.length, pk = A.piket;
+  const nPk = pk ? Object.values(pk.list).reduce((t, l) => t + l.length, 0) : 0;
+  const kepala = (ik, judul, info) => `<div class="task-section__head"><div><div class="task-section__title"><i data-lucide="${ik}"></i> ${judul}</div><div class="task-section__desc">${info}</div></div></div>`;
+  const kartu = (id, ik, judul, info, status, ok, adaData) => `<section class="task-section">${kepala(ik, judul, info)}<div class="task-section__body">
+    <p class="ps-state ${ok ? "ok" : "warn"}">${status}</p>
+    <input type="file" class="ps-file" id="f${id}" accept=".xlsx,.xls" aria-label="Berkas Excel ${judul}">
+    <div class="ps-actions"><button class="btn-small btn-small--primary" id="u${id}"><i data-lucide="upload"></i> Unggah</button>${adaData ? `<button class="btn-small btn-small--danger" id="x${id}"><i data-lucide="trash-2"></i> Hapus</button>` : ""}</div></div></section>`;
+  $("#view").innerHTML = `<div class="ps-cols">` +
+    kartu(1, "calendar-days", "Acuan 1 · Jadwal reguler", "File .xlsx sheet JADWAL: kolom HARI, JAM AWAL, JAM AKHIR, lalu kolom kelas berisi kode mesin guru. Kode mesin dicocokkan dengan data pegawai e-Rapor. Mengunggah MENGGANTI seluruh jadwal reguler.",
+      nReg ? `Terpasang: ${esc(A.file_reguler || "jadwal")} · ${nReg} pegawai terjadwal` : "Belum ada jadwal reguler.", nReg, nReg) +
+    kartu(2, "file-pen", "Acuan 2 · Jadwal tes", "Format sama dengan acuan 1, tetapi kolomnya ruang (pengawas tes). Tanggal berlakunya diatur di menu Pengaturan.",
+      nTes ? `Terpasang: ${esc(A.file_tes || "jadwal tes")} · ${nTes} guru terjadwal` : "Belum ada jadwal tes (opsional).", nTes, nTes) +
+    `<section class="task-section">${kepala("moon", "Acuan 3 · Pasca tes", "Tanpa berkas. Hari dan orang yang terjadwal sama dengan jadwal reguler; hanya jam masuk dan pulangnya diganti jam kerja pasca tes.")}<div class="task-section__body">
+      <p class="ps-state ${P.pasca.dari && P.pasca.sampai ? "ok" : "mut"}">${P.pasca.dari && P.pasca.sampai ? `Jam ${P.pasca.masuk}–${P.pasca.pulang}, berlaku ${tglIdn(P.pasca.dari)} s.d. ${tglIdn(P.pasca.sampai)}` : "Belum diaktifkan (isi tanggal di Pengaturan)."}</p>
+      <div class="ps-actions"><button class="btn-small" id="gop">Atur jam &amp; tanggal <i data-lucide="arrow-right"></i></button></div></div></section>` +
+    kartu(4, "shield-check", "Acuan 4 · Jadwal piket", "File .xlsx: kolom per hari (SENIN … SABTU) berisi nama atau kode mesin, atau baris per hari. Dipakai pada rentang libur semester (diatur di Pengaturan).",
+      pk ? `Terpasang: ${esc(pk.file || "piket")} · ${nPk} peserta di ${Object.keys(pk.list).length} hari` + ((pk.belum || []).length ? ` · ${pk.belum.length} nama belum cocok: ${esc(pk.belum.slice(0, 4).join(", "))}${pk.belum.length > 4 ? "…" : ""}` : "") : "Belum ada jadwal piket (opsional).", pk && !(pk.belum || []).length, !!pk) +
+    `</div><section class="task-section">${kepala("download", "Unduh template", "Isi template lalu unggah kembali. Jam boleh ditulis 07:00. Pastikan kode mesin pegawai sudah diisi di menu Guru PDP.")}<div class="task-section__body">
+      <div class="ps-actions" style="margin-top:0"><button class="btn-small" id="t1"><i data-lucide="file-spreadsheet"></i> Jadwal reguler</button><button class="btn-small" id="t2"><i data-lucide="file-spreadsheet"></i> Jadwal tes</button><button class="btn-small" id="t4"><i data-lucide="file-spreadsheet"></i> Jadwal piket</button></div></div></section>`;
+  ikon();
+  $("#u1").onclick = () => unggahJadwal("reguler", $("#f1").files[0]);
+  $("#u2").onclick = () => unggahJadwal("tes", $("#f2").files[0]);
+  $("#u4").onclick = () => unggahPiket($("#f4").files[0]);
+  const hapus = (id, nama, fn) => { const b = $("#x" + id); if (b) b.onclick = async () => { if (!confirm("Hapus " + nama + "?")) return; try { await fn(); A = null; jadwal(); } catch (e) { toast(e.message, true); } }; };
+  hapus(1, "jadwal reguler", () => api("jadwal_hapus", { jenis: "reguler" }));
+  hapus(2, "jadwal tes", () => api("jadwal_hapus", { jenis: "tes" }));
+  hapus(4, "jadwal piket", () => api("piket_hapus"));
+  $("#gop").onclick = () => goTab("atur");
+  $("#t1").onclick = () => unduh("template-jadwal-reguler.xlsx", tplJadwal(["X-A", "X-B"]));
+  $("#t2").onclick = () => unduh("template-jadwal-tes.xlsx", tplJadwal(["RUANG 01", "RUANG 02"]));
+  $("#t4").onclick = () => unduh("template-jadwal-piket.xlsx", tplPiket());
 }
 
 /* ---------- Data pegawai (e-Rapor, hanya baca) & pengaturan admin ---------- */
@@ -400,38 +686,6 @@ async function unggahPiket(file) {
   } catch (e) { toast(e.message, true); }
 }
 
-/* ---------- Admin: input jadwal (acuan 1 reguler, 2 tes, 4 piket) ---------- */
-async function jadwal() {
-  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat jadwal: " + e.message, true); }
-  const P = A.pengaturan, nReg = A.ada_reguler.length, nTes = A.ada_tes.length, pk = A.piket;
-  const nPk = pk ? Object.values(pk.list).reduce((t, l) => t + l.length, 0) : 0;
-  const kartu = (id, judul, info, status, ok, adaData) => `<div class="card"><h2>${judul}</h2><p class="mut">${info}</p><p class="${ok ? "ok" : "warn"}">${status}</p>
-    <input type="file" id="f${id}" accept=".xlsx,.xls"><p class="row"><button id="u${id}">Unggah</button>${adaData ? `<button class="alt" id="x${id}">Hapus</button>` : ""}</p></div>`;
-  $("#view").innerHTML =
-    kartu(1, "Acuan 1 · Jadwal reguler", "File .xlsx sheet JADWAL: kolom HARI, JAM AWAL, JAM AKHIR, lalu kolom kelas berisi kode mesin guru. Kode mesin dicocokkan dengan data pegawai e-Rapor. Mengunggah MENGGANTI seluruh jadwal reguler.",
-      nReg ? `Terpasang: ${esc(A.file_reguler || "jadwal")} · ${nReg} pegawai terjadwal` : "Belum ada jadwal reguler.", nReg, nReg) +
-    kartu(2, "Acuan 2 · Jadwal tes", "Format sama dengan acuan 1, tetapi kolomnya ruang (pengawas tes). Tanggal berlakunya diatur di menu Pengaturan.",
-      nTes ? `Terpasang: ${esc(A.file_tes || "jadwal tes")} · ${nTes} guru terjadwal` : "Belum ada jadwal tes (opsional).", nTes, nTes) +
-    `<div class="card"><h2>Acuan 3 · Pasca tes</h2><p class="mut">Tanpa berkas. Hari dan orang yang terjadwal sama dengan jadwal reguler; hanya jam masuk dan pulangnya diganti jam kerja pasca tes.</p>
-      <p class="${P.pasca.dari && P.pasca.sampai ? "ok" : "mut"}">${P.pasca.dari && P.pasca.sampai ? `Jam ${P.pasca.masuk}–${P.pasca.pulang}, berlaku ${tglIdn(P.pasca.dari)} s.d. ${tglIdn(P.pasca.sampai)}` : "Belum diaktifkan (isi tanggal di Pengaturan)."}</p>
-      <p><button class="alt" id="gop">Atur jam & tanggal →</button></p></div>` +
-    kartu(4, "Acuan 4 · Jadwal piket", "File .xlsx: kolom per hari (SENIN … SABTU) berisi nama atau kode mesin, atau baris per hari. Dipakai pada rentang libur semester (diatur di Pengaturan).",
-      pk ? `Terpasang: ${esc(pk.file || "piket")} · ${nPk} peserta di ${Object.keys(pk.list).length} hari` + ((pk.belum || []).length ? ` · ${pk.belum.length} nama belum cocok: ${esc(pk.belum.slice(0, 4).join(", "))}${pk.belum.length > 4 ? "…" : ""}` : "") : "Belum ada jadwal piket (opsional).", pk && !(pk.belum || []).length, !!pk) +
-    `<div class="card"><h2>Unduh template</h2><p class="row"><button class="alt" id="t1">Jadwal reguler</button><button class="alt" id="t2">Jadwal tes</button><button class="alt" id="t4">Jadwal piket</button></p>
-      <p class="mut">Isi template lalu unggah kembali. Jam boleh ditulis 07:00. Pastikan kode mesin pegawai sudah diisi di menu Guru PDP.</p></div>`;
-  $("#u1").onclick = () => unggahJadwal("reguler", $("#f1").files[0]);
-  $("#u2").onclick = () => unggahJadwal("tes", $("#f2").files[0]);
-  $("#u4").onclick = () => unggahPiket($("#f4").files[0]);
-  const hapus = (id, nama, fn) => { const b = $("#x" + id); if (b) b.onclick = async () => { if (!confirm("Hapus " + nama + "?")) return; try { await fn(); A = null; jadwal(); } catch (e) { toast(e.message, true); } }; };
-  hapus(1, "jadwal reguler", () => api("jadwal_hapus", { jenis: "reguler" }));
-  hapus(2, "jadwal tes", () => api("jadwal_hapus", { jenis: "tes" }));
-  hapus(4, "jadwal piket", () => api("piket_hapus"));
-  $("#gop").onclick = () => goTab("atur");
-  $("#t1").onclick = () => unduh("template-jadwal-reguler.xlsx", tplJadwal(["X-A", "X-B"]));
-  $("#t2").onclick = () => unduh("template-jadwal-tes.xlsx", tplJadwal(["RUANG 01", "RUANG 02"]));
-  $("#t4").onclick = () => unduh("template-jadwal-piket.xlsx", tplPiket());
-}
-
 /* ---------- Admin: pengaturan (jam staf, libur, force majeure, tugas tambahan staf, acuan tanggal) ---------- */
 function bentrokPeng(P) {
   const R = [["Jadwal tes", P.tes.dari, P.tes.sampai], ["Pasca tes", P.pasca.dari, P.pasca.sampai], ["Piket", P.piket.dari, P.piket.sampai]].filter(r => r[1] && r[2] && r[1] <= r[2]);
@@ -459,34 +713,38 @@ function fmGroups(fm) {
   return g;
 }
 async function atur() {
-  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat pengaturan: " + e.message, true); }
+  try { await muatAdmin(true); } catch (e) { return viewGalat("Gagal memuat pengaturan: " + e.message); }
+  if (tab !== "atur") return;
   const P = A.pengaturan;
-  $("#view").innerHTML = `
-  <div class="card"><h2>Jam kerja staf</h2>
-    ${[1, 2, 3, 4, 5, 6].map(h => `<div class="row"><div style="flex:.6"><label for="sm${h}">${HARI[h]} · masuk</label><input id="sm${h}" type="time" value="${P.staf[h].masuk}"></div><div><label for="sp${h}">pulang</label><input id="sp${h}" type="time" value="${P.staf[h].pulang}"></div></div>`).join("")}
-    <p class="mut">Jam masuk dan pulang staf diatur per hari, Senin–Sabtu. Kosongkan jam masuk dan pulang pada hari yang tidak bekerja (misalnya Sabtu). Dipakai staf, kepala sekolah, dan admin yang tidak punya jadwal mengajar, serta guru yang dicentang bertugas tambahan staf. Simpan lewat tombol di bagian Acuan jadwal.</p></div>
-  <div class="card"><h2>Hari libur</h2><div class="row"><input id="hd" type="date"><button id="ha" style="flex:none">Tambah libur</button></div><div id="hl"></div>
-    <p class="mut">Pada tanggal libur tidak ada jadwal dan presensi tidak diperlukan.</p></div>
-  <div class="card"><h2>Force Majeure</h2>
-    <div class="row"><div><label for="fd1">Mulai</label><input id="fd1" type="date"></div><div><label for="fd2">Sampai (opsional)</label><input id="fd2" type="date"></div></div>
-    <label for="fk">Keterangan</label><input id="fk" type="text" maxlength="80" placeholder="Contoh: Listrik padam seharian">
-    <p><button id="fa">Tambah Force Majeure</button></p><div id="fl"></div>
-    <p class="mut">Untuk kendala di luar kendali guru/staf. Diperlakukan seperti libur: tidak ada jadwal, tidak dihitung terlambat atau pulang cepat. Pada rentang, hari Minggu dilewati (maks. 62 hari per entri).</p></div>
-  <div class="card"><h2>Tugas tambahan staf</h2><p class="mut" id="stn"></p>
-    <div class="row"><input type="search" id="stq" placeholder="Cari nama guru"><button class="alt" id="stclr" style="flex:none">Hapus semua centang</button></div>
-    <p class="mut">Guru yang dicentang memakai jam kerja staf pada semua hari kerja, bukan jadwal mengajarnya. Tersimpan otomatis.</p>
-    <div class="stl" id="stl"></div><p class="mut" id="sfn"></p></div>
-  <div class="card"><h2>Acuan jadwal tambahan</h2>
-    <p class="mut">Tanggal acuan 2, 3, dan 4 tidak boleh bertabrakan. Tanggal yang tidak diisi memakai jadwal reguler.</p>
-    <div class="warnbox" id="bt" hidden></div>
-    <h3>Acuan 2 · Tes</h3><div class="row"><div><label for="a2f">Berlaku mulai</label><input id="a2f" type="date" value="${P.tes.dari}"></div><div><label for="a2t">Sampai</label><input id="a2t" type="date" value="${P.tes.sampai}"></div></div>
-    <p class="mut">Pada rentang ini guru memakai jadwal tes (guru yang tidak ada di jadwal tes dianggap tidak punya jadwal). Staf tetap memakai jam staf.</p>
-    <h3>Acuan 3 · Pasca tes</h3><div class="row"><div><label for="a3i">Jam masuk</label><input id="a3i" type="time" value="${P.pasca.masuk}"></div><div><label for="a3o">Jam pulang</label><input id="a3o" type="time" value="${P.pasca.pulang}"></div></div>
-    <div class="row"><div><label for="a3f">Berlaku mulai</label><input id="a3f" type="date" value="${P.pasca.dari}"></div><div><label for="a3t">Sampai</label><input id="a3t" type="date" value="${P.pasca.sampai}"></div></div>
-    <h3>Acuan 4 · Piket</h3><div class="row"><div><label for="a4f">Berlaku mulai</label><input id="a4f" type="date" value="${P.piket.dari}"></div><div><label for="a4t">Sampai</label><input id="a4t" type="date" value="${P.piket.sampai}"></div></div>
-    <div class="row"><div><label for="a4i">Jam mulai piket</label><input id="a4i" type="time" value="${P.piket.masuk}"></div><div><label for="a4o">Jam akhir piket</label><input id="a4o" type="time" value="${P.piket.pulang}"></div></div>
-    <p class="mut">Untuk rentang libur semester: hanya peserta di jadwal piket yang terjadwal (sesuai hari piketnya); selain itu tanpa jadwal.</p>
-    <p><button id="sv">Simpan jam staf & acuan</button></p></div>`;
+  const kepala = (ik, judul, info) => `<div class="task-section__head"><div><div class="task-section__title"><i data-lucide="${ik}"></i> ${judul}</div>${info ? `<div class="task-section__desc">${info}</div>` : ""}</div></div>`;
+  const tgl2 = (i1, l1, v1, i2, l2, v2) => `<div class="form-grid"><div class="field"><label for="${i1}">${l1}</label><input id="${i1}" type="date" value="${v1}"></div><div class="field"><label for="${i2}">${l2}</label><input id="${i2}" type="date" value="${v2}"></div></div>`;
+  const jam2 = (i1, l1, v1, i2, l2, v2) => `<div class="form-grid" style="margin-top:12px"><div class="field"><label for="${i1}">${l1}</label><input id="${i1}" type="time" value="${v1}"></div><div class="field"><label for="${i2}">${l2}</label><input id="${i2}" type="time" value="${v2}"></div></div>`;
+  $("#view").innerHTML = `<div class="ps-cols">
+  <section class="task-section">${kepala("clock-3", "Jam kerja staf", "Dipakai staf, kepala sekolah, dan admin yang tidak punya jadwal mengajar, serta guru yang dicentang bertugas tambahan staf.")}<div class="task-section__body">
+    <div class="ps-jam">${[1, 2, 3, 4, 5, 6].map(h => `<div class="ps-jam__row"><div class="ps-jam__hari">${HARI[h]}</div><div class="field"><label for="sm${h}">Masuk</label><input id="sm${h}" type="time" value="${P.staf[h].masuk}"></div><div class="field"><label for="sp${h}">Pulang</label><input id="sp${h}" type="time" value="${P.staf[h].pulang}"></div></div>`).join("")}</div>
+    <p class="ps-hint">Jam masuk dan pulang staf diatur per hari, Senin–Sabtu. Kosongkan jam masuk dan pulang pada hari yang tidak bekerja (misalnya Sabtu). Simpan lewat tombol di bagian bawah halaman.</p></div></section>
+  <div class="ps-stack">
+    <section class="task-section">${kepala("calendar-off", "Hari libur", "Pada tanggal libur tidak ada jadwal dan presensi tidak diperlukan.")}<div class="task-section__body">
+      <div class="ps-inline"><input id="hd" type="date" aria-label="Tanggal libur"><button class="btn-small btn-small--primary" id="ha"><i data-lucide="plus"></i> Tambah libur</button></div><div class="ps-tags" id="hl"></div></div></section>
+    <section class="task-section">${kepala("triangle-alert", "Force Majeure", "Untuk kendala di luar kendali guru/staf. Diperlakukan seperti libur: tidak ada jadwal, tidak dihitung terlambat atau pulang cepat. Pada rentang, hari Minggu dilewati (maks. 62 hari per entri).")}<div class="task-section__body">
+      <div class="form-grid"><div class="field"><label for="fd1">Mulai</label><input id="fd1" type="date"></div><div class="field"><label for="fd2">Sampai (opsional)</label><input id="fd2" type="date"></div>
+        <div class="field field--full"><label for="fk">Keterangan</label><input id="fk" type="text" maxlength="80" placeholder="Contoh: Listrik padam seharian"></div></div>
+      <div class="ps-actions"><button class="btn-small btn-small--primary" id="fa"><i data-lucide="plus"></i> Tambah Force Majeure</button></div><div class="ps-tags" id="fl"></div></div></section>
+  </div>
+  <section class="task-section">${kepala("user-cog", "Tugas tambahan staf", "Guru yang dicentang memakai jam kerja staf pada semua hari kerja, bukan jadwal mengajarnya. Tersimpan otomatis.")}<div class="task-section__body">
+    <p class="mut" id="stn" style="margin:0 0 10px"></p>
+    <div class="ps-inline"><input type="search" id="stq" placeholder="Cari nama guru" aria-label="Cari nama guru"><button class="btn-small" id="stclr">Hapus semua centang</button></div>
+    <div class="ps-checklist" id="stl"></div><p class="ps-hint" id="sfn"></p></div></section>
+  <section class="task-section">${kepala("calendar-range", "Acuan jadwal tambahan", "Tanggal acuan 2, 3, dan 4 tidak boleh bertabrakan. Tanggal yang tidak diisi memakai jadwal reguler.")}<div class="task-section__body">
+    <div class="ps-notice ps-notice--bad" id="bt" hidden style="margin-bottom:14px"></div>
+    <div class="form-section-title">Acuan 2 · Tes</div>${tgl2("a2f", "Berlaku mulai", P.tes.dari, "a2t", "Sampai", P.tes.sampai)}
+    <p class="ps-hint">Pada rentang ini guru memakai jadwal tes (guru yang tidak ada di jadwal tes dianggap tidak punya jadwal). Staf tetap memakai jam staf.</p>
+    <div class="form-section-title">Acuan 3 · Pasca tes</div>${jam2("a3i", "Jam masuk", P.pasca.masuk, "a3o", "Jam pulang", P.pasca.pulang)}<div style="margin-top:12px">${tgl2("a3f", "Berlaku mulai", P.pasca.dari, "a3t", "Sampai", P.pasca.sampai)}</div>
+    <div class="form-section-title">Acuan 4 · Piket</div>${tgl2("a4f", "Berlaku mulai", P.piket.dari, "a4t", "Sampai", P.piket.sampai)}${jam2("a4i", "Jam mulai piket", P.piket.masuk, "a4o", "Jam akhir piket", P.piket.pulang)}
+    <p class="ps-hint">Untuk rentang libur semester: hanya peserta di jadwal piket yang terjadwal (sesuai hari piketnya); selain itu tanpa jadwal.</p></div></section>
+  </div>
+  <div class="ps-savebar"><span class="mut">Jam kerja staf dan acuan jadwal tambahan baru berlaku setelah disimpan.</span><button class="btn-small btn-small--primary" id="sv"><i data-lucide="save"></i> Simpan jam staf &amp; acuan</button></div>`;
+  ikon();
 
   const gambarBt = () => { const m = bentrokPeng(bacaPeng()); const b = $("#bt"); b.hidden = !m.length; b.textContent = m.length ? m.join("; ") + ". Perbaiki dulu sebelum menyimpan." : ""; };
   ["a2f", "a2t", "a3f", "a3t", "a4f", "a4t"].forEach(i => $("#" + i).addEventListener("input", gambarBt)); gambarBt();
@@ -500,14 +758,14 @@ async function atur() {
   };
 
   // Libur
-  const gambarLibur = () => { $("#hl").innerHTML = A.libur.length ? A.libur.map(d => `<span class="chip">${hariNama(d)}, ${tglIdn(d)}<button data-d="${d}" aria-label="Hapus libur ${d}">×</button></span>`).join("") : `<span class="mut">Belum ada hari libur.</span>`; };
+  const gambarLibur = () => { $("#hl").innerHTML = A.libur.length ? A.libur.map(d => `<span class="ps-tag">${hariNama(d)}, ${tglIdn(d)}<button data-d="${d}" aria-label="Hapus libur ${d}">×</button></span>`).join("") : `<span class="mut">Belum ada hari libur.</span>`; };
   const ubah = async (kunci, baru) => { const lama = A[kunci]; A[kunci] = baru; try { await simpanCfg(kunci, baru); return true; } catch (e) { A[kunci] = lama; toast(e.message, true); return false; } };
   $("#ha").onclick = async () => { const v = $("#hd").value; if (!v) return; if (await ubah("libur", [...new Set([...A.libur, v])].sort())) $("#hd").value = ""; gambarLibur(); };
   $("#hl").onclick = async e => { const d = e.target.dataset?.d; if (!d) return; await ubah("libur", A.libur.filter(x => x !== d)); gambarLibur(); };
   gambarLibur();
 
   // Force majeure
-  const gambarFm = () => { $("#fl").innerHTML = A.fm.length ? fmGroups(A.fm).map(g => `<span class="chip fm">${hariNama(g.s).slice(0, 3)}, ${tglIdn(g.s)}${g.e !== g.s ? " – " + tglIdn(g.e) : ""}${g.ket ? " · " + esc(g.ket) : ""}<button data-s="${g.s}" data-e="${g.e}" aria-label="Hapus force majeure ${g.s}">×</button></span>`).join("") : `<span class="mut">Belum ada tanggal force majeure.</span>`; };
+  const gambarFm = () => { $("#fl").innerHTML = A.fm.length ? fmGroups(A.fm).map(g => `<span class="ps-tag ps-tag--fm">${hariNama(g.s).slice(0, 3)}, ${tglIdn(g.s)}${g.e !== g.s ? " – " + tglIdn(g.e) : ""}${g.ket ? " · " + esc(g.ket) : ""}<button data-s="${g.s}" data-e="${g.e}" aria-label="Hapus force majeure ${g.s}">×</button></span>`).join("") : `<span class="mut">Belum ada tanggal force majeure.</span>`; };
   $("#fa").onclick = async () => {
     const a = $("#fd1").value, b = $("#fd2").value || a, ket = $("#fk").value.trim().slice(0, 80);
     if (!a) return toast("Pilih tanggal mulai force majeure.", true);
@@ -529,7 +787,7 @@ async function atur() {
     const L = cand.filter(p => !q || (p.nama || "").toLowerCase().includes(q));
     $("#stn").textContent = cand.length ? `${A.staf.length} dari ${cand.length} guru bertugas tambahan staf` : "Belum ada data guru.";
     const top = $("#stl").scrollTop;
-    $("#stl").innerHTML = L.map(p => `<label class="stc"><input type="checkbox" data-id="${p.id}"${A.staf.includes(p.id) ? " checked" : ""}><span>${esc(p.nama)}${p.kode_mesin ? ` <small class="mut">ID ${esc(p.kode_mesin)}</small>` : ""}</span></label>`).join("") || `<span class="mut">Tidak ada guru yang cocok.</span>`;
+    $("#stl").innerHTML = L.map(p => `<label class="ps-check"><input type="checkbox" data-id="${p.id}"${A.staf.includes(p.id) ? " checked" : ""}><span>${esc(p.nama)}${p.kode_mesin ? ` <small class="mut">ID ${esc(p.kode_mesin)}</small>` : ""}</span></label>`).join("") || `<span class="mut">Tidak ada guru yang cocok.</span>`;
     $("#stl").scrollTop = top;
     const reg = new Set(A.ada_reguler), nStaf = PROF.filter(p => p.role !== "guru" && !reg.has(p.id) && !A.staf.includes(p.id)).length;
     $("#sfn").textContent = `${nStaf} staf memakai jam staf` + (A.staf.length ? ` · ${A.staf.length} guru bertugas tambahan staf` : "") + ".";
@@ -547,13 +805,14 @@ async function isiMingguan(jenis, el) {
     const { jadwal: jd } = await api("jadwal_list");
     const per = {}; jd.filter(r => r.jenis === jenis).forEach(r => ((per[r.pegawai_id] = per[r.pegawai_id] || {})[r.hari] = r));
     const ids = Object.keys(per).sort((a, b) => namaDari(a).localeCompare(namaDari(b), "id")), H = [1, 2, 3, 4, 5, 6];
-    el.innerHTML = ids.length ? `<table><tr><th>Nama</th>${H.map(h => `<th>${HARI[h].slice(0, 3)}</th>`).join("")}</tr>${ids.map(id => `<tr><td>${esc(namaDari(id))}</td>${H.map(h => { const r = per[id][h]; return `<td>${r ? r.jam_masuk.slice(0, 5) + "–" + r.jam_pulang.slice(0, 5) : "–"}</td>`; }).join("")}</tr>`).join("")}</table>` : `<span class="mut">Belum ada.</span>`;
+    el.innerHTML = ids.length ? `<div class="table-wrap"><table class="data-table ps-tbl" style="min-width:560px"><thead><tr><th class="col-nama-sticky">Nama</th>${H.map(h => `<th>${HARI[h].slice(0, 3)}</th>`).join("")}</tr></thead><tbody>${ids.map(id => `<tr><td class="col-nama-sticky">${esc(namaDari(id))}</td>${H.map(h => { const r = per[id][h]; return `<td>${r ? r.jam_masuk.slice(0, 5) + "–" + r.jam_pulang.slice(0, 5) : "–"}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>` : `<span class="mut">Belum ada.</span>`;
   } catch (e) { el.textContent = e.message; }
 }
 async function cek() {
-  try { await muatAdmin(true); } catch (e) { return toast("Gagal memuat data: " + e.message, true); }
+  try { await muatAdmin(true); } catch (e) { return viewGalat("Gagal memuat data: " + e.message); }
+  if (tab !== "cek") return;
   const P = A.pengaturan, ps = [];
-  const add = (t, x) => ps.push(`<p class="${t}">${t === "ok" ? "✓" : t === "warn" ? "⚠" : "✗"} ${x}</p>`);
+  const add = (t, x) => ps.push(`<div class="ps-line ps-line--${t}"><span class="ps-line__ic">${t === "ok" ? "✓" : t === "warn" ? "!" : "✗"}</span><span>${x}</span></div>`);
   bentrokPeng(P).forEach(m => add("bad", esc(m) + ". Jadwal tes, pasca tes, dan piket tidak boleh bertabrakan."));
   if (!A.ada_reguler.length) add("bad", "Jadwal reguler (acuan 1) belum diunggah."); else add("ok", `Jadwal reguler: ${A.ada_reguler.length} pegawai terjadwal.`);
   const tanpaKode = PROF.filter(p => p.role === "guru" && !kodeNorm(p.kode_mesin)).length;
@@ -569,16 +828,18 @@ async function cek() {
   } else if (P.piket.dari && P.piket.sampai) add("warn", "Tanggal piket sudah diisi, tetapi jadwal piket belum diunggah. Tanggal itu belum diperlakukan sebagai piket.");
   if (A.staf.length) add("ok", `${A.staf.length} guru bertugas tambahan staf memakai jam staf per hari.`);
   add("ok", `${A.libur.length} hari libur, ${A.fm.length} tanggal force majeure terdaftar.`);
-  $("#view").innerHTML = `<div class="card"><h2>Hasil cek</h2>${ps.join("")}</div>
-  <div class="card"><h2>Jadwal pada tanggal tertentu</h2><div class="row"><input type="date" id="ctg" value="${ymd(new Date())}"><button id="cgo" style="flex:none">Tampilkan</button></div><div class="wrap" id="chs"></div></div>
-  <div class="card"><details id="dr"><summary>Jadwal reguler per pegawai</summary><div class="wrap" id="tr"></div></details></div>
-  ${A.ada_tes.length ? `<div class="card"><details id="dt"><summary>Jadwal tes per pegawai</summary><div class="wrap" id="tt"></div></details></div>` : ""}`;
+  const kepala = (ik, judul) => `<div class="task-section__head"><div class="task-section__title"><i data-lucide="${ik}"></i> ${judul}</div></div>`;
+  $("#view").innerHTML = `<div class="ps-stack"><section class="task-section">${kepala("list-checks", "Hasil cek")}<div class="task-section__body">${ps.join("")}</div></section>
+  <section class="task-section">${kepala("calendar-search", "Jadwal pada tanggal tertentu")}<div class="task-section__body"><div class="ps-inline"><input type="date" id="ctg" value="${ymd(new Date())}" aria-label="Tanggal"><button class="btn-small btn-small--primary" id="cgo"><i data-lucide="search"></i> Tampilkan</button></div><div id="chs" style="margin-top:14px"></div></div></section>
+  <details class="task-section ps-acc" id="dr"><summary>Jadwal reguler per pegawai</summary><div class="ps-acc__body" id="tr"></div></details>
+  ${A.ada_tes.length ? `<details class="task-section ps-acc" id="dt"><summary>Jadwal tes per pegawai</summary><div class="ps-acc__body" id="tt"></div></details>` : ""}</div>`;
+  ikon();
   const lihat = async () => {
     const t = $("#ctg").value; if (!t) return;
     try {
       const r = await api("efektif_hari", { tanggal: t, pegawai: PROF.map(p => ({ id: p.id, role: p.role })) });
       const info = r.tipe === "libur" ? `<span class="warn">Libur</span>` : r.tipe === "fm" ? `<span class="warn">Force Majeure</span>` : `Mode jadwal: <b>${MODE_LB[r.mode] || r.mode}</b>`;
-      $("#chs").innerHTML = `<p>${HARI[r.hari]}, ${tglIdn(t)} · ${info}</p><table><tr><th>Nama</th><th>Peran</th><th>Jadwal</th><th>Acuan</th></tr>${PROF.map(p => { const e = r.hasil[p.id] || {}; return `<tr><td>${esc(p.nama)}</td><td>${esc(p.role)}</td><td>${e.tipe === "kerja" ? e.masuk + "–" + e.pulang : "—"}</td><td class="mut">${e.tipe === "kerja" ? esc(e.sumber) : e.tipe === "libur" ? "Libur" : e.tipe === "fm" ? "Force Majeure" : "Tidak ada jadwal"}</td></tr>`; }).join("")}</table>`;
+      $("#chs").innerHTML = `<p class="ps-sub">${HARI[r.hari]}, ${tglIdn(t)} · ${info}</p><div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Nama</th><th>Peran</th><th>Jadwal</th><th>Acuan</th></tr></thead><tbody>${PROF.map(p => { const e = r.hasil[p.id] || {}; return `<tr><td>${esc(p.nama)}</td><td>${esc(p.role)}</td><td>${e.tipe === "kerja" ? e.masuk + "–" + e.pulang : "—"}</td><td class="mut">${e.tipe === "kerja" ? esc(e.sumber) : e.tipe === "libur" ? "Libur" : e.tipe === "fm" ? "Force Majeure" : "Tidak ada jadwal"}</td></tr>`; }).join("")}</tbody></table></div>`;
     } catch (e) { toast("Gagal memuat jadwal: " + e.message, true); }
   };
   $("#cgo").onclick = lihat; lihat();
@@ -588,11 +849,14 @@ async function cek() {
 
 /* ---------- Admin: data guru (sinkron e-Rapor) ---------- */
 async function daftar() {
-  const { data } = await sb.from("profiles").select("nama,email,role,kode_mesin").in("role", ["guru", "staf", "kepsek"]).order("nama");
+  const { data, error } = await sb.from("profiles").select("nama,email,role,kode_mesin").in("role", ["guru", "staf", "kepsek"]).order("nama");
+  if (error) return viewGalat("Gagal membaca data pegawai e-Rapor: " + error.message);
+  if (tab !== "daftar") return;
   const kosong = data.filter(p => !p.kode_mesin).length;
-  $("#view").innerHTML = `<div class="card wrap"><h2>${data.length} pegawai dari e-Rapor</h2>
-  <p class="mut">Data dibaca langsung dari e-Rapor (hanya baca), tanpa sinkron. Kode mesin diisi di menu Guru PDP. ${kosong ? `<span class="warn">${kosong} orang belum punya kode mesin, jadwalnya tidak bisa diunggah.</span>` : ""}</p>
-  <table><tr><th>Kode mesin</th><th>Nama</th><th>Email</th><th>Peran</th></tr>${data.map(p => `<tr><td>${esc(p.kode_mesin) || "—"}</td><td>${esc(p.nama)}</td><td>${esc(p.email)}</td><td>${esc(p.role)}</td></tr>`).join("")}</table></div>`;
+  $("#view").innerHTML = `<div class="panel-head"><div><div class="panel-head__title">${data.length} pegawai dari e-Rapor</div><div class="panel-head__desc">Data dibaca langsung dari e-Rapor (hanya baca), tanpa sinkron. Kode mesin diisi di menu Guru PDP.</div></div></div>
+  ${kosong ? `<div style="margin-bottom:16px">${notice("warn", "triangle-alert", kosong + " orang belum punya kode mesin", "Jadwalnya tidak bisa diunggah.")}</div>` : ""}
+  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Kode mesin</th><th>Nama</th><th>Email</th><th>Peran</th></tr></thead><tbody>${data.map(p => `<tr><td>${esc(p.kode_mesin) || "—"}</td><td>${esc(p.nama)}</td><td>${esc(p.email)}</td><td><span class="ps-st ps-st--info">${esc(p.role)}</span></td></tr>`).join("") || `<tr><td colspan="4" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
+  ikon();
 }
 init();
 </script>
