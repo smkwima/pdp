@@ -28,6 +28,33 @@
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=3" defer></script>
+<style>
+/* Pengisian instrumen supervisi: halaman penuh (bukan pop-up kecil) */
+.modal-overlay--halaman { background: var(--bg, #f8fafc); -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; align-items: stretch; }
+.modal-overlay--halaman .sv-halaman { max-width: 1320px; width: 100%; margin: 0 auto; padding: 0 28px 48px; border-radius: 0; box-shadow: none; background: transparent; }
+.sv-halaman__bar { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; gap: 14px; min-height: 60px; margin: 0 -28px 18px; padding: 10px 28px; background: var(--surface, #fff); border-bottom: 1px solid var(--border, #e2e8f0); box-shadow: 0 4px 14px -10px rgba(15,23,42,.35); }
+.sv-halaman__bar .modal-box__title { flex: 1; min-width: 0; font-size: 17px; }
+.sv-halaman__back { font-size: 13px !important; font-weight: 600; white-space: nowrap; border: 1px solid var(--border, #e2e8f0) !important; padding: 7px 12px !important; }
+.sv-halaman__bar #svSimpan { white-space: nowrap; padding: 9px 18px; font-size: 13.5px; }
+.sv-halaman__grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
+.sv-halaman__side { position: sticky; top: 82px; max-height: calc(100vh - 98px); overflow-y: auto; padding-right: 4px; }
+.sv-halaman__main { background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 14px; padding: 4px 28px 28px; min-width: 0; }
+.sv-tabs { position: sticky; top: 60px; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 0; margin-bottom: 4px; background: var(--surface, #fff); border-bottom: 1px solid var(--border, #e2e8f0); }
+.sv-halaman__main .sv-q { padding: 16px 0; }
+.sv-halaman__main .sv-q__t { font-size: 14px; line-height: 1.5; }
+.sv-halaman__main textarea, .sv-halaman__main select, .sv-halaman__main input:not([type="checkbox"]) { width: 100%; max-width: 100%; }
+.sv-halaman__side .sv-ident { grid-template-columns: 1fr; }
+@media (max-width: 1000px) {
+  .sv-halaman__grid { grid-template-columns: 1fr; }
+  .sv-halaman__side { position: static; max-height: none; overflow: visible; padding-right: 0; }
+}
+@media (max-width: 860px) {
+  .modal-overlay--halaman .sv-halaman { padding: 0 12px 40px; }
+  .sv-halaman__bar { margin: 0 -12px 12px; padding: 8px 12px; gap: 8px; }
+  .sv-halaman__bar .modal-box__title { font-size: 14px; }
+  .sv-halaman__main { padding: 2px 14px 20px; border-radius: 12px; }
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -119,7 +146,7 @@
     var mulai = anak ? 1 : 0, aktif = mulai, tampilTab = forms.length - mulai > 1;
     if (anak && !banyak) { alert('Jadwal ini tidak punya form sepaket.'); return; }
     var o = document.createElement('div'); o.className = 'modal-overlay';
-    var tabs = tampilTab ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px;">' + forms.map(function (f, i) {
+    var tabs = tampilTab ? '<div class="sv-tabs">' + forms.map(function (f, i) {
       if (i < mulai) return '';
       return '<button class="btn-small' + (i === mulai ? ' btn-small--primary' : '') + '" data-tab="' + i + '">' + (i + 1) + '. ' + esc(f.judul) + '</button>';
     }).join('') + '</div>' : '';
@@ -130,15 +157,15 @@
         '<div class="svBody">' + SvForm.render(f, isian[i].jawaban, idn(j), isian[i].dariGuru) + '</div>' +
         '<div class="sv-q"><div class="sv-q__t">Catatan / Tindak Lanjut</div><textarea data-cat rows="3" style="width:100%;">' + esc(isian[i].catatan) + '</textarea></div></div>';
     }).join('');
-    o.innerHTML = '<div class="modal-box"><div class="modal-box__head"><div class="modal-box__title">' + esc(f0.judul) + (anak ? ' <span style="font-size:12px;font-weight:500;">(form sepaket)</span>' : banyak ? ' <span style="font-size:12px;font-weight:500;">(+' + (forms.length - 1) + ' form sepaket)</span>' : '') + '</div><button class="modal-box__close">×</button></div>' +
+    o.className = 'modal-overlay modal-overlay--halaman';
+    o.innerHTML = '<div class="modal-box sv-halaman"><div class="sv-halaman__bar"><button class="modal-box__close sv-halaman__back" type="button">← Kembali</button><div class="modal-box__title">' + esc(f0.judul) + (anak ? ' <span style="font-size:12px;font-weight:500;">(form sepaket)</span>' : banyak ? ' <span style="font-size:12px;font-weight:500;">(+' + (forms.length - 1) + ' form sepaket)</span>' : '') + '</div><button class="btn-small btn-small--primary" id="svSimpan">' + (anak ? 'Simpan Form Sepaket' : 'Simpan & Tandai Selesai') + '</button></div><div class="sv-halaman__grid"><aside class="sv-halaman__side">' +
       SvForm.identitas(idn(j)) +
       (anak ? '<div class="panel-note" style="margin-bottom:10px;">Jadwal ini baru dilaksanakan ' + esc(tglId(j.tanggal)) + '. Form sepaket boleh diisi lebih dulu; form induk baru bisa diisi pada tanggal pelaksanaan. Simpan di sini <strong>tidak</strong> menandai jadwal selesai.</div>' : banyak ? '<div class="panel-note" style="margin-bottom:10px;">Jadwal ini satu paket dengan ' + (forms.length - 1) + ' form lain. Isi semua tab di bawah, lalu simpan sekali.</div>' : '') +
       '<div style="margin-bottom:8px;"><button class="btn-small" id="svTpl">Unduh Template Excel</button> <button class="btn-small" id="svImp">Import dari Excel</button> <button class="btn-small" id="svPdf">Unduh PDF</button>' + (banyak ? ' <span style="font-size:12px;color:var(--ink-soft);">(Excel: form pada tab aktif · PDF: semua form)</span>' : '') + '</div>' +
       '<div class="panel-note" style="margin-bottom:10px;"><strong>Isi Otomatis</strong> — ketik <strong>target nilai</strong>: <input id="svTarget" type="text" inputmode="decimal" placeholder="mis. 88" size="6" style="width:80px;"> <button class="btn-small btn-small--primary" id="svOto" disabled>Isi Otomatis</button> <strong id="svKat"></strong><br><span style="font-size:12px;">' + KET_NILAI + ' Hasil: <strong id="svSkor"></strong></span><br><label style="font-size:12px;"><input type="checkbox" id="svGanti"> Timpa juga isian yang saya ketik/pilih sendiri</label><br>Hasilnya berupa draft' + (banyak ? ' untuk semua form dalam paket' : '') + ': semua kolom tetap bisa diubah manual, sebelum maupun sesudah klik Isi Otomatis. Isian yang kamu ubah sendiri tidak ditimpa saat Isi Otomatis diklik lagi.</div>' +
-      tabs + panel +
       (anak ? '' : '<div class="sv-q"><div class="sv-q__t">Link Bukti Pelaksanaan Supervisi (foto)</div><input id="svBukti" type="url" inputmode="url" style="width:100%;" placeholder="https://drive.google.com/..." value="' + esc(j.bukti_link || '') + '">' +
         '<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">Opsional. Tempel link folder/foto (Google Drive atau lainnya). Atur akses Drive ke <strong>"Siapa saja yang memiliki link"</strong> (atau bagikan ke akun Kepala Sekolah &amp; Pengawas) agar mereka bisa membukanya.</div></div>') +
-      '<div style="margin-top:18px;"><button class="btn-small btn-small--primary" id="svSimpan">' + (anak ? 'Simpan Form Sepaket' : 'Simpan & Tandai Selesai') + '</button></div></div>';
+      '</aside><main class="sv-halaman__main">' + tabs + panel + '</main></div></div>';
     document.body.appendChild(o);
     // Ganti jenis mapel (Kejuruan / Non-kejuruan) -> daftar indikator ditata ulang, isian yang sudah ada dipertahankan
     o.querySelectorAll('.svBody').forEach(function (body) {
