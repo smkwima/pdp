@@ -208,6 +208,7 @@
         aktif = parseInt(b.dataset.tab, 10);
         o.querySelectorAll('[data-tab]').forEach(function (x) { x.classList.toggle('btn-small--primary', x === b); });
         forms.forEach(function (f, i) { if (i >= mulai) pn(i).style.display = i === aktif ? '' : 'none'; });
+        aturPanelOto();
       });
     });
     var selT = o.querySelector('#svTarget'), btnO = o.querySelector('#svOto'), lblK = o.querySelector('#svKat'), chkG = o.querySelector('#svGanti');
@@ -256,8 +257,14 @@
     selT.addEventListener('input', infoTarget);
     selT.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !btnO.disabled) { e.preventDefault(); oto(true); } });
     btnO.addEventListener('click', function () { oto(true); });
-    // Tak ada form dalam paket yang memakai nilai otomatis: panel Isi Otomatis disembunyikan
-    if (!forms.some(function (f, i) { return i >= mulai && f.nilai_otomatis !== false; })) { var pnlO = btnO.closest('.panel-note'); if (pnlO) pnlO.style.display = 'none'; target = null; }
+    // Panel Isi Otomatis hanya tampil bila form yang sedang dibuka (tab aktif) memakai nilai otomatis.
+    // Form dengan nilai otomatis "Tidak ada": panel disembunyikan (tombol tidak muncul), isi manual saja.
+    function aturPanelOto() {
+      var pnlO = btnO.closest('.panel-note'), ada = forms[aktif].nilai_otomatis !== false;
+      if (pnlO) pnlO.style.display = ada ? '' : 'none';
+    }
+    aturPanelOto();
+    if (forms[aktif].nilai_otomatis === false) target = null;
     if (target) { selT.value = target; infoTarget(); oto(false); }
     o.querySelector('#svTpl').addEventListener('click', function () {
       var f = forms[aktif];
@@ -405,7 +412,7 @@
   function adaOtoJadwal(j) {
     var f0 = formList.find(function (x) { return x.id === j.form_id; });
     if (!f0) return false;
-    return SvForm.paketJadwal(j, f0, formList).some(function (f) { return f.nilai_otomatis !== false; });
+    return f0.nilai_otomatis !== false; // ikut instrumen utama yang dipilih untuk jadwal ini
   }
   function renderIsi(today) {
     var siap = rows.filter(function (j) { return j.status !== 'selesai' && adaOtoJadwal(j); });
