@@ -23,7 +23,7 @@
 <script src="supervisi-otomatis.js?v=6"></script>
 <script src="supervisi-ttd.js?v=1"></script>
 <script src="supervisi-pdf.js?v=8"></script>
-<script src="mobile.js?v=1" defer></script>
+<script src="mobile.js?v=2" defer></script>
 <script src="bottomnav.js?v=16" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
@@ -49,10 +49,26 @@
   .sv-halaman__side { position: static; max-height: none; overflow: visible; padding-right: 0; }
 }
 @media (max-width: 860px) {
-  .modal-overlay--halaman .sv-halaman { padding: 0 12px 40px; }
-  .sv-halaman__bar { margin: 0 -12px 12px; padding: 8px 12px; gap: 8px; }
-  .sv-halaman__bar .modal-box__title { font-size: 14px; }
+  .modal-overlay--halaman { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .modal-overlay--halaman .sv-halaman { padding: 0 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .sv-halaman__bar { margin: 0 -12px 12px; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; gap: 8px; min-height: 52px; }
+  /* Judul 1 baris (dipotong …) supaya bar tetap ramping; keterangan paket di bawahnya disembunyikan */
+  .sv-halaman__bar .modal-box__title { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sv-halaman__bar .modal-box__title span { display: none; }
+  .sv-halaman__back { min-height: 40px; }
+  /* Tombol Simpan menempel di bawah layar: selalu terlihat & mudah dijangkau jempol */
+  .sv-halaman__bar #svSimpan { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; width: auto; min-height: 50px; font-size: 15px; font-weight: 700; border-radius: 12px; box-shadow: 0 10px 26px -8px rgba(15,23,42,.55); }
+  .sv-halaman__bar #svSimpan:disabled { opacity: .75; }
+  .sv-tabs { top: calc(52px + env(safe-area-inset-top, 0px)); }
   .sv-halaman__main { padding: 2px 14px 20px; border-radius: 12px; }
+  .sv-halaman__main .sv-q__t { font-size: 14.5px; }
+  .sv-halaman__main textarea { min-height: 96px; }
+  /* Panel samping (identitas, Excel/PDF, isi otomatis, bukti) */
+  .sv-halaman__side .btn-small { margin: 0 6px 8px 0; }
+  .sv-halaman__side .panel-note { padding: 12px; line-height: 1.6; }
+  .sv-halaman__side #svTarget { width: 96px !important; display: inline-block; vertical-align: middle; }
+  .sv-halaman__side #svOto { width: 100%; margin: 8px 0 4px; }
+  .sv-halaman__side #svGanti { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; }
 }
 </style>
 </head>
@@ -94,7 +110,7 @@
   JadwalKegiatan.pasang({ modul: 'supervisi', tampilJika: function () { var a = document.querySelector('.menu-list .menu-item--active'); return !!a && a.dataset.view === 'jadwal'; } });
   var JENIS = { pra: 'Pra-Supervisi Akademik', supervisi: 'Supervisi' };
   var guruList = [], mapelList = [], formList = [], rows = [], profil = null, meId = null, meNama = '';
-  var meRole = 'guru', isiParam = null; // Kepala Sekolah ('kepsek') boleh mengisi instrumen semua guru; isiParam = id jadwal dari ?isi=
+  var meRole = 'guru', isiParam = null, dariAdmin = false; // Kepala Sekolah ('kepsek') boleh mengisi instrumen semua guru; isiParam = id jadwal dari ?isi=
   function idn(j) {
     var unit = j.unit_kerja || (profil && profil.nama_sekolah) || '';
     return { jenis: JENIS[j.jenis], guru: nm(guruList, j.guru_id), spv: nm(guruList, j.supervisor_id), unit: unit, mapel: nm(mapelList, j.mapel_id), kelas: j.kelas || '', jenjang: j.jenjang || unit.split(' ')[0] || '', tanggal: tglId(j.tanggal) };
@@ -122,7 +138,7 @@
     renderJadwal();
   }
   function renderJadwal() {
-    content.innerHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th>' + (meRole === 'kepsek' ? '<th>Supervisor</th>' : '') + '<th>Status</th><th></th></tr></thead><tbody>' +
+    content.innerHTML = '<div class="table-wrap"><table class="data-table" data-kartu><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th>' + (meRole === 'kepsek' ? '<th>Supervisor</th>' : '') + '<th>Status</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (j) {
         // Form boleh diisi kapan saja, tidak harus menunggu tanggal jadwal
         var tombol = j.status === 'selesai' ? 'Lihat / Ubah' : 'Isi Form';
@@ -183,7 +199,7 @@
         body.innerHTML = SvForm.render(forms[i], SvForm.baca(body), idn(j), isian[i].dariGuru);
       });
     });
-    o.querySelector('.modal-box__close').addEventListener('click', function () { o.remove(); });
+    o.querySelector('.modal-box__close').addEventListener('click', function () { o.remove(); if (meRole === 'kepsek' && dariAdmin) location.href = 'supervisi-admin.html'; });
     function pn(i) { return o.querySelector('[data-panel="' + i + '"]'); }
     function cat(i) { return pn(i).querySelector('[data-cat]'); }
     function bacaSemua() { return forms.map(function (f, i) { return i < mulai ? isian[i] : { form: f, jawaban: SvForm.baca(pn(i)), catatan: cat(i).value }; }); }
@@ -291,6 +307,11 @@
       // Berhasil: perbarui data lokal & tutup form SEKARANG; sinkron ulang dari server berjalan di latar belakang
       Object.assign(j, d);
       o.remove();
+      // Kepala Sekolah: kembali ke tampilan Supervisi kepala sekolah (supervisi-admin.html), bukan daftar bergaya guru
+      if (meRole === 'kepsek') {
+        if (anak) alert('Isian form sepaket tersimpan. Jadwal tetap berstatus terjadwal.');
+        location.href = 'supervisi-admin.html'; return;
+      }
       muat({ lokal: true });
       if (anak) setTimeout(function () { alert('Isian form sepaket tersimpan. Jadwal tetap berstatus terjadwal.'); }, 0);
       supabaseClient.from('supervisi_jadwal').select('*').order('tanggal').then(function (r2) {
@@ -326,7 +347,7 @@
     }
     wRows = r.data || [];
     content.innerHTML = '<div class="panel-note">Bila kamu yang disupervisi, jawab sendiri pertanyaan wawancara di sini. Jawabanmu otomatis muncul di formulir supervisor (supervisor masih bisa menambahkan atau mengubahnya). Kamu bisa mengubah jawaban sampai supervisor menandai supervisi <strong>selesai</strong>.</div>' +
-      '<div class="table-wrap" style="margin-top:12px;"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Supervisor</th><th>Mapel</th><th>Wawancara</th><th></th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-top:12px;"><table class="data-table" data-kartu><thead><tr><th>Tanggal</th><th>Jenis</th><th>Supervisor</th><th>Mapel</th><th>Wawancara</th><th></th></tr></thead><tbody>' +
       (wRows.length ? wRows.map(function (j) {
         var h = hitungWawancara(j), kunci = j.status === 'selesai';
         var ket = h.total ? h.terisi + ' / ' + h.total + ' terjawab' : 'Tidak ada pertanyaan wawancara';
@@ -381,7 +402,7 @@
   function renderIsi(today) {
     var siap = rows.filter(function (j) { return j.status !== 'selesai'; });
     content.innerHTML = '<div class="panel-note">Ketik <strong>target nilai</strong> lebih dulu, lalu klik <strong>Isi Otomatis</strong>. ' + KET_NILAI + ' Jawaban terisi sebagai draft di formulir — semua kolom tetap bisa diisi/diubah manual, lalu simpan.</div>' +
-      '<div class="table-wrap" style="margin-top:12px;"><table class="data-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th><th>Target Nilai (angka)</th><th></th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-top:12px;"><table class="data-table" data-kartu><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nama Guru</th><th>Mapel</th><th>Target Nilai (angka)</th><th></th></tr></thead><tbody>' +
       (siap.length ? siap.map(function (j) {
         return '<tr><td>' + tglId(j.tanggal) + '</td><td>' + JENIS[j.jenis] + '</td><td>' + esc(nm(guruList, j.guru_id)) + '</td><td>' + esc(nm(mapelList, j.mapel_id)) + '</td>' +
           '<td><input data-tg="' + j.id + '" type="text" inputmode="decimal" placeholder="mis. 88" style="width:80px;"> <span data-kt="' + j.id + '" style="font-size:12px;font-weight:600;"></span></td>' +
@@ -467,6 +488,7 @@
     if (p.data.role === 'kepsek') {
       terapkanKepsek();
       try { isiParam = new URLSearchParams(location.search).get('isi'); } catch (x) { isiParam = null; }
+      dariAdmin = !!isiParam;
     } else if (hint === 'kepsek') {
       // Petunjuk lama (bukan kepsek lagi): kembalikan tampilan guru
       location.reload(); return;

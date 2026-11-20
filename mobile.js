@@ -77,7 +77,7 @@
     }
     if (tabel.tHead.rows.length > 1) return;
 
-    var kartu = punyaKontrol(tabel) || head.length <= MAKS_KOLOM_TABEL_BACA;
+    var kartu = punyaKontrol(tabel) || head.length <= MAKS_KOLOM_TABEL_BACA || tabel.hasAttribute('data-kartu'); // data-kartu = paksa tampil kartu di HP
     if (!kartu) return; // tabel baca-saja yang lebar (rekap/leger): tetap geser + kolom Nama beku
 
     var label = head.map(teksHeader);
