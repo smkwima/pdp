@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
+<title>Presensi Siswa — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="bottomnav.js?v=18" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  /* Presensi Siswa memakai kerangka & warna yang sama dengan halaman lain (style.css).
+     Di sini hanya komponen khusus, semuanya berawalan ps- (umum) atau pw- (khusus presensi siswa). */
+  :root { --pw-H: #1f9d55; --pw-S: #d98a00; --pw-I: #2b7bd9; --pw-A: #d93a3a; }
+  .ps-wrap { max-width: 1180px; margin: 0 auto; }
+  .mut { color: var(--ink-soft); }
+  .bad { color: var(--danger); }
+  .task-section__title svg { width: 16px; height: 16px; flex: none; color: var(--primary); }
+  .stat-card__label svg, .subtab-btn svg { width: 14px; height: 14px; flex: none; }
+  .subtab-btn svg { width: 14px; height: 14px; }
+
+  /* ---------- Notifikasi ---------- */
+  #msg { position: fixed; top: 78px; right: 24px; z-index: 90; width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .ps-toast { pointer-events: auto; cursor: pointer; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; line-height: 1.45; box-shadow: var(--shadow-lg); animation: psIn .18s ease; }
+  .ps-toast--bad { background: var(--danger); }
+  @keyframes psIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- Isian & tombol ---------- */
+  .ps-wrap input[type="date"], .ps-wrap input[type="text"], .ps-wrap input[type="email"], .ps-wrap select, .ps-wrap textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); font: 500 13px var(--font-body); color: var(--ink);
+  }
+  .ps-wrap input:focus, .ps-wrap select:focus, .ps-wrap textarea:focus { outline: none; border-color: var(--primary-soft); box-shadow: 0 0 0 3px var(--primary-tint-strong); }
+  .ps-wrap .btn-small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  .ps-wrap .btn-small svg, .ps-wrap .btn-small i { width: 14px; height: 14px; flex: none; }
+  .ps-wrap button:disabled { opacity: .55; cursor: default; }
+  .ps-wrap .field label { font-size: 12px; color: var(--ink-soft); }
+  .ps-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ps-hint { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin: 12px 0 0; }
+  .ps-narrow { max-width: 780px; }
+  #view .task-section { margin: 0 0 18px; }
+  #view .stat-grid { margin-bottom: 16px; }
+  .ps-tbl td { vertical-align: middle; }
+  .ps-tbl td.ps-empty { text-align: center; color: var(--ink-soft); padding: 28px 16px; }
+
+  .ps-filter { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .ps-filter .field { margin: 0; flex: 1 1 190px; min-width: 160px; }
+
+  .ps-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.55; }
+  .ps-notice > svg, .ps-notice > i { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+  .ps-notice b { display: block; font-size: 14px; }
+  .ps-notice span { color: var(--ink-soft); }
+  .ps-notice--ok { background: var(--success-tint); border-color: var(--success-border); color: var(--success); }
+  .ps-notice--info { background: var(--primary-tint); border-color: var(--primary-tint-strong); color: var(--primary-dim); }
+  .ps-notice--info span { color: var(--primary-dim); }
+  .ps-notice--warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .ps-notice--warn span { color: #92400e; }
+  .ps-notice--bad { background: var(--danger-tint); border-color: var(--danger-border); color: var(--danger); }
+  .ps-notice--bad span { color: #b91c1c; }
+
+  .ps-savebar { position: sticky; bottom: 16px; z-index: 6; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 600; }
+
+  /* ---------- Presensi per siswa ---------- */
+  .pw-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .pw-head b { font-size: 15px; }
+  .pw-stu { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .pw-stu:first-of-type { border-top: 0; }
+  .pw-no { color: var(--ink-soft); margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .pw-nm { font-weight: 600; }
+  .pw-nis { color: var(--ink-soft); font-size: 12px; margin-left: 6px; }
+  .pw-hadir { color: var(--pw-H); font-size: 12px; font-weight: 600; margin-left: 8px; }
+  .pw-st { display: flex; gap: 6px; }
+  .pw-st button { min-height: 36px; padding: 6px 12px; font: 600 13px var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; }
+  .pw-st button.on[data-s="S"] { background: var(--pw-S); border-color: var(--pw-S); color: #fff; }
+  .pw-st button.on[data-s="I"] { background: var(--pw-I); border-color: var(--pw-I); color: #fff; }
+  .pw-st button.on[data-s="A"] { background: var(--pw-A); border-color: var(--pw-A); color: #fff; }
+  .pw-st button:disabled { cursor: default; }
+  .c-H { color: var(--pw-H); } .c-S { color: var(--pw-S); } .c-I { color: var(--pw-I); } .c-A { color: var(--pw-A); }
+
+  /* ---------- Rekap bulanan (kolom tanggal lebar) ---------- */
+  .pw-sc { overflow-x: auto; }
+  .pw-tbl { border-collapse: collapse; font-size: 13px; width: 100%; }
+  .pw-tbl th, .pw-tbl td { border: 1px solid var(--border); padding: 4px 6px; text-align: center; white-space: nowrap; }
+  .pw-tbl th { background: var(--surface-tint-strong); }
+  .pw-tbl td.l, .pw-tbl th.l { text-align: left; }
+  .pw-tbl .sticky { position: sticky; left: 0; z-index: 1; min-width: 150px; background: var(--surface); }
+  .pw-tbl th.sticky { background: var(--surface-tint-strong); }
+  .pw-tbl td.wk, .pw-tbl th.wk { background: var(--surface-tint-strong); }
+  .pw-tbl .dim { opacity: .45; }
+  #log { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; background: var(--surface-tint); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; margin-top: 12px; min-height: 44px; }
+
+  .ps-subtabs { display: none; }
+  .ps-sm { display: none; }
+  @media (max-width: 860px) {
+    .ps-subtabs { display: flex; }
+    #msg { top: calc(64px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; width: auto; }
+    .ps-savebar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    .ps-savebar .btn-small { flex: 1 1 100%; }
+    .ps-filter .field { flex: 1 1 100%; }
+  }
+  @media (max-width: 560px) {
+    .ps-lg { display: none; }
+    .ps-sm { display: inline; }
+    .user-chip__logout { display: none; }
+    .pw-st { width: 100%; }
+    .pw-st button { flex: 1 1 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Presensi Siswa</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="user-check" style="width:13px;height:13px;"></i> <span id="roleLabel">Memuat…</span></div>
+    <nav class="menu-list" id="menu"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title" id="judulHal">Presensi Siswa</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip">
+        <div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">&nbsp;</div>
+          <a href="portal.html" id="out" class="user-chip__logout"><i data-lucide="layout-grid" style="width:13px;height:13px;"></i> Menu Utama</a></div>
+        <div class="user-chip__avatar" id="userAv">·</div>
+      </div>
+    </div>
+    <div class="content"><div class="ps-wrap" id="content"><div class="panel-note">Memuat…</div></div></div>
+  </div>
+</div>
+<div id="msg" role="status" aria-live="polite"></div>
+<script>
+// Presensi Siswa ada di PDP dan memakai sesi login PDP (satu situs, satu sesi): tidak ada login sendiri di sini.
+// Data presensi siswa (kelas, siswa, presensi) disimpan di project Supabase TERPISAH (sfuucjmnlmfcghobpnkf).
+// Browser tidak memegang kunci project itu: semua baca/tulis lewat Edge Function presensi-siswa-api yang
+// memverifikasi sesi login PDP ke e-Rapor dan menentukan kelas mana yang boleh diakses (wali kelas = kelasnya saja).
+const sb = supabaseClient;
+const API_FN = "https://sfuucjmnlmfcghobpnkf.supabase.co/functions/v1/presensi-siswa-api";
+const TULIS = new Set(["simpan_hari", "hapus_hari", "kelas_tambah", "kelas_hapus", "siswa_tambah", "siswa_hapus", "sinkron"]);
+const lihat = () => !!(window.PdpLihat && PdpLihat.aktif());
+async function api(action, body = {}) {
+  // Edge Function ada di project lain, jadi penjaga "Lihat sebagai" milik PDP tidak menjangkaunya: dijaga di sini.
+  if (TULIS.has(action) && lihat()) throw new Error("Mode Lihat sebagai: hanya baca, perubahan tidak disimpan.");
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { location.href = "index.html"; throw new Error("Sesi login habis. Silakan masuk lagi di PDP."); }
+  const r = await fetch(API_FN, { method: "POST", headers: { "Content-Type": "application/json", "x-rapor-token": data.session.access_token }, body: JSON.stringify({ action, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Server presensi siswa menolak (" + r.status + ")");
+  return j;
+}
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const dstr = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+const wibD = d => new Date(d.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+const ymdSkrg = () => { const w = wibD(new Date()); return dstr(w.getFullYear(), w.getMonth() + 1, w.getDate()); };
+const BULAN = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const fmt = d => { const [y, m, t] = d.split("-").map(Number); return HARI[new Date(y, m - 1, t).getDay()] + ", " + t + " " + BULAN[m] + " " + y; };
+const fmtS = d => { const [y, m, t] = d.split("-").map(Number); return t + " " + BULAN[m] + " " + y; };
+const wk = (y, m, d) => { const w = new Date(y, m - 1, d).getDay(); return w === 0 || w === 6; };
+const safe = s => String(s).replace(/[^\w.-]+/g, "-");
+const inisial = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(x => x[0]).join("").toUpperCase() || "?";
+const KET = { S: "Sakit", I: "Ijin", A: "Tanpa Keterangan" }, BTN = [["S", "Sakit"], ["I", "Ijin"], ["A", "Tanpa Ket."]];
+const CL = { S: [217, 138, 0], I: [43, 123, 217], A: [217, 58, 58], H: [31, 157, 85] };
+const ikon = () => { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } };
+const notice = (tipe, ik, judul, isi) => `<div class="ps-notice ps-notice--${tipe}"><i data-lucide="${ik}"></i><div><b>${judul}</b>${isi ? `<span>${isi}</span>` : ""}</div></div>`;
+function toast(t, bad) {
+  const d = document.createElement("div"); d.className = "ps-toast" + (bad ? " ps-toast--bad" : ""); d.textContent = t;
+  d.onclick = () => d.remove(); $("#msg").append(d); setTimeout(() => d.remove(), bad ? 7000 : 4000);
+}
+
+// ---------- Status ----------
+let me = null, hak = null, tahun = [], kelas = [], pairs = null;
+let tab = "input", depth = 0, dirty = false, perluMuat = false, clrArm = false, delArm = false, semKey = "", semCnt = {}, muatTok = 0;
+let stu = [], att = {}, sesi = new Set();
+const F = { tgl: ymdSkrg(), thn: "", kls: "" }; // pilihan filter (tanggal, tahun ajaran, kelas)
+const kname = () => (kelas.find(k => k.id === F.kls) || {}).nama || "-";
+const labelThn = () => { const t = tahun.find(x => x.id === F.thn); return t ? `${t.nama} ${t.semester || ""}`.trim() : ""; };
+const recDates = () => { const s = new Set(sesi); Object.keys(att).forEach(k => s.add(k.slice(0, 10))); return s; };
+const kelasOpsi = () => pairs ? kelas.filter(k => pairs.some(p => p.tahun_id === F.thn && p.kelas_id === k.id)) : kelas;
+
+// ---------- Pengaturan cetak (disimpan di browser ini) ----------
+let cfg = { sekolah: "SMK Widya Mandala Tambak", kota: "", kepsek: "", nipKepsek: "", wali: {} };
+try { const r = localStorage.getItem("pres_cetak_v1"); if (r) cfg = Object.assign(cfg, JSON.parse(r)); } catch (e) { /* abaikan */ }
+const cfgSave = () => { try { localStorage.setItem("pres_cetak_v1", JSON.stringify(cfg)); } catch (e) { /* abaikan */ } };
+// Wali kelas: dari isian cetak; bila kosong dan pemakai adalah guru (wali kelas), pakai nama & NIP akunnya.
+const waliInfo = () => { const w = Object.assign({ nama: "", nip: "" }, cfg.wali[F.kls]); if (!w.nama && me && me.role === "guru") return { nama: me.nama || "", nip: me.nip || "" }; return w; };
+
+/* ---------- Masuk: memakai sesi login PDP ---------- */
+async function init() {
+  history.replaceState({ d: 0, t: "input" }, "");
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { location.href = "index.html"; return; }
+  await masuk(data.session.user);
+}
+sb.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT") location.href = "index.html"; });
+function blokView(pesan) {
+  me = null; $("#menu").innerHTML = "";
+  $("#content").innerHTML = `<div class="empty-state"><div class="empty-state__mark"><i data-lucide="shield-alert" style="width:24px;height:24px;"></i></div><div class="empty-state__title">Presensi Siswa</div><p class="empty-state__desc bad">${esc(pesan)}</p><p><button class="btn-small btn-small--primary" id="kembali">Menu Utama</button></p></div>`;
+  ikon(); $("#kembali").onclick = () => { location.href = "portal.html"; };
+}
+function gagalView(pesan) {
+  $("#content").innerHTML = `<div class="empty-state"><div class="empty-state__mark"><i data-lucide="wifi-off" style="width:24px;height:24px;"></i></div><div class="empty-state__title">Tidak bisa memuat data</div><p class="empty-state__desc bad">${esc(pesan)}</p><p class="empty-state__desc">Anda tetap masuk. Periksa koneksi internet lalu coba lagi.</p>
+  <p class="ps-actions" style="justify-content:center"><button class="btn-small btn-small--primary" id="ulang">Coba lagi</button><button class="btn-small" id="out2">Menu Utama</button></p></div>`;
+  ikon(); $("#ulang").onclick = () => init(); $("#out2").onclick = () => { location.href = "portal.html"; };
+}
+async function masuk(user) {
+  const { data, error: pe } = await sb.from("profiles").select("id,nama,email,role,nip").eq("id", user.id).maybeSingle();
+  if (pe) return gagalView("Gagal membaca profil e-Rapor: " + pe.message);
+  if (!data) return blokView("Profil e-Rapor tidak ditemukan untuk akun ini.");
+  if (!["guru", "admin", "kepsek"].includes(data.role)) return blokView("Akun ini (peran " + data.role + ") tidak dipakai untuk presensi siswa.");
+  me = data; me.jabatan = { guru: "Guru", admin: "Admin", kepsek: "Kepala Sekolah" }[data.role];
+  let aw;
+  try { aw = await api("awal"); }
+  catch (e) { return gagalView("Gagal memuat data presensi siswa (jika baru pertama kali, deploy fungsi presensi-siswa-api di project presensi siswa): " + e.message); }
+  hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs;
+  if (me.role === "guru" && !pairs.length) return blokView("Presensi siswa hanya untuk wali kelas. Anda belum tercatat sebagai wali kelas pada tahun ajaran yang ada di presensi siswa (atau admin belum menyinkronkan data kelas). Hubungi admin.");
+  F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
+  F.kls = (kelasOpsi()[0] || {}).id || "";
+  tab = me.role === "kepsek" ? "harian" : (!tahun.length && me.role === "admin") ? "sinkron" : "input";
+  const awal = (location.hash || "").replace("#", "");
+  if (TAB_INFO[awal] && menuTab().includes(awal)) tab = awal;
+  history.replaceState({ d: 0, t: tab }, "");
+  shell();
+}
+
+/* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
+const TAB_INFO = {
+  input: ["Presensi Siswa", "Presensi", "user-check"], harian: ["Rekap Harian", "Harian", "calendar-days"],
+  bulanan: ["Rekap Bulanan", "Bulanan", "calendar-range"], sem: ["Rekap Semester", "Semester", "calendar-check"],
+  cetak: ["Pengaturan Cetak PDF", "Cetak", "printer"], data: ["Kelas & Siswa", "Kelas & Siswa", "users"], sinkron: ["Sinkron e-Rapor", "Sinkron", "refresh-cw"]
+};
+const menuSaya = () => me.role === "kepsek" ? ["harian", "bulanan", "sem", "cetak"] : ["input", "harian", "bulanan", "sem", "cetak"];
+const menuKelola = () => me.role === "admin" ? ["data", "sinkron"] : [];
+const menuTab = () => [...menuSaya(), ...menuKelola()];
+function shell() {
+  const saya = menuSaya(), kelola = menuKelola(), semua = menuTab();
+  const item = t => `<a href="#" class="menu-item${t === tab ? " menu-item--active" : ""}" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}><i data-lucide="${TAB_INFO[t][2]}" class="menu-icon"></i><span class="menu-item__title">${TAB_INFO[t][1]}</span></a>`;
+  $("#menu").innerHTML = `<div class="sidebar__section-label">${me.role === "kepsek" ? "Pemantauan" : "Presensi siswa"}</div>${saya.map(item).join("")}`
+    + (kelola.length ? `<div class="sidebar__section-label">Pengelolaan</div>${kelola.map(item).join("")}` : "")
+    + `<div class="sidebar__section-label">Lainnya</div><a href="portal.html" class="menu-item" id="navPortal"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>`;
+  $("#roleLabel").textContent = me.jabatan;
+  $("#userName").textContent = me.nama || "—"; $("#userRole").textContent = me.jabatan; $("#userAv").textContent = inisial(me.nama);
+  $("#judulHal").textContent = TAB_INFO[tab][0];
+  const sk = ymdSkrg(); const w = new Date(sk + "T00:00:00");
+  $("#metaHal").innerHTML = `<span class="ps-lg">${HARI[w.getDay()]}, ${fmtS(sk)}</span><span class="ps-sm">${HARI[w.getDay()].slice(0, 3)}, ${+sk.slice(8)} ${BULAN[+sk.slice(5, 7)].slice(0, 3)} ${sk.slice(0, 4)}</span>`;
+  const adaFilter = tab !== "sinkron";
+  $("#content").innerHTML = `<div class="subtab-nav ps-subtabs">${semua.map(t => `<button type="button" class="subtab-btn${t === tab ? " active" : ""}" data-t="${t}"><i data-lucide="${TAB_INFO[t][2]}"></i>${TAB_INFO[t][1]}</button>`).join("")}</div>`
+    + (lihat() ? notice("info", "eye", "Mode Lihat sebagai", "Hanya baca. Perubahan presensi tidak disimpan.") : "")
+    + (adaFilter ? filterHtml() : "") + `<div id="view"><div class="panel-note">Memuat…</div></div>`;
+  document.querySelectorAll("[data-t]").forEach(b => b.onclick = e => { e.preventDefault(); goTab(b.dataset.t); });
+  $("#out").onclick = () => { /* tautan biasa ke Menu Utama */ };
+  if (adaFilter) pasangFilter();
+  ikon(); window.scrollTo(0, 0);
+  const nav = $(".ps-subtabs"), aktif = nav && nav.querySelector(".active");
+  if (aktif) nav.scrollLeft = aktif.offsetLeft - (nav.clientWidth - aktif.offsetWidth) / 2;
+  if (perluMuat || !loaded) { perluMuat = false; muat(); } else render();
+}
+let loaded = false; // data kelas+bulan sudah dimuat minimal sekali
+
+/* ---------- Navigasi: gestur/tombol kembali ---------- */
+// Setiap pindah tab menambah satu entri riwayat, sehingga gestur kembali Android (dan tombol back browser) kembali ke tab sebelumnya.
+function lepas() { // true = boleh lanjut. Perubahan presensi yang belum disimpan dibuang setelah konfirmasi.
+  if (!dirty) return true;
+  if (!confirm("Perubahan presensi belum disimpan. Lanjutkan tanpa menyimpan?")) return false;
+  dirty = false; perluMuat = true; return true;
+}
+function goTab(t) {
+  if (t === tab) return;
+  if (!lepas()) return;
+  depth++; history.pushState({ d: depth, t }, "");
+  tab = t; clrArm = false; delArm = false; shell();
+}
+window.addEventListener("popstate", e => {
+  if (!me) return;
+  if (dirty && !confirm("Perubahan presensi belum disimpan. Lanjutkan tanpa menyimpan?")) { history.pushState({ d: depth, t: tab }, ""); return; }
+  if (dirty) { dirty = false; perluMuat = true; }
+  depth = e.state?.d ?? 0; tab = e.state?.t ?? "input"; clrArm = false; delArm = false; shell();
+});
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------- Filter: tanggal, tahun ajaran, kelas ---------- */
+const opsiThn = () => tahun.map(t => `<option value="${esc(t.id)}"${t.id === F.thn ? " selected" : ""}>${esc(t.nama)} — ${esc(t.semester || "")}${t.aktif ? " (aktif)" : ""}</option>`).join("");
+const opsiKls = () => kelasOpsi().map(k => `<option value="${esc(k.id)}"${k.id === F.kls ? " selected" : ""}>${esc(k.nama)}</option>`).join("");
+function filterHtml() {
+  return `<div class="ps-filter"><div class="field"><label for="fTgl">Tanggal</label><input type="date" id="fTgl" value="${esc(F.tgl)}"></div>
+  <div class="field"><label for="fThn">Tahun ajaran / semester</label><select id="fThn">${opsiThn()}</select></div>
+  <div class="field"><label for="fKls">Kelas</label><select id="fKls">${opsiKls()}</select></div></div>`;
+}
+function pasangFilter() {
+  const T = $("#fTgl"), H = $("#fThn"), K = $("#fKls");
+  const pulih = () => { T.value = F.tgl; H.value = F.thn; K.innerHTML = opsiKls(); K.value = F.kls; };
+  T.onchange = () => {
+    if (!T.value || !lepas()) return pulih();
+    const samaBulan = F.tgl.slice(0, 7) === T.value.slice(0, 7);
+    F.tgl = T.value; clrArm = false;
+    if (samaBulan && !perluMuat) render(); else { perluMuat = false; muat(); }
+  };
+  H.onchange = () => {
+    if (!lepas()) return pulih();
+    F.thn = H.value; const o = kelasOpsi(); if (!o.some(k => k.id === F.kls)) F.kls = (o[0] || {}).id || "";
+    semKey = ""; perluMuat = false; pulih(); muat();
+  };
+  K.onchange = () => { if (!lepas()) return pulih(); F.kls = K.value; perluMuat = false; muat(); };
+}
+
+/* ---------- Muat data ---------- */
+// Satu panggilan memuat siswa kelas + presensi (S/I/A) satu bulan dari tanggal terpilih.
+async function muat() {
+  const tok = ++muatTok;
+  stu = []; att = {}; sesi = new Set(); dirty = false; loaded = true;
+  if (!F.thn || !F.kls) { render(); return; }
+  const [y, m] = F.tgl.split("-").map(Number), a = dstr(y, m, 1), b = dstr(y, m, new Date(y, m, 0).getDate());
+  try {
+    const r = await api("absen", { tahun_id: F.thn, kelas_id: F.kls, dari: a, sampai: b });
+    if (tok !== muatTok) return;
+    stu = r.siswa.map(s => ({ id: s.id, nama: s.nama, nis: s.nis, no: s.no }));
+    r.absen.forEach(x => { att[x.tanggal + "|" + x.siswa_id] = x.status; });
+    r.sesi.forEach(d => sesi.add(d));
+  } catch (e) { if (tok !== muatTok) return; toast("Gagal memuat presensi: " + e.message, true); }
+  render();
+}
+function render() {
+  const v = $("#view"); if (!v) return;
+  if (!hak) return;
+  if (tab === "sinkron") return rSinkron();
+  if (tab === "cetak") return rCetak();
+  if (!tahun.length || !kelas.length) {
+    v.innerHTML = notice("warn", "database", "Belum ada data kelas", me.role === "admin" ? "Buka menu <b>Sinkron</b> untuk menyalin tahun ajaran, kelas, dan siswa dari e-Rapor." : "Admin belum menyinkronkan data kelas dari e-Rapor.");
+    ikon(); return;
+  }
+  if (!F.kls) { v.innerHTML = notice("warn", "triangle-alert", "Belum ada kelas untuk tahun ajaran ini", ""); ikon(); return; }
+  ({ input: rInput, harian: rHarian, bulanan: rBulanan, sem: rSem, data: rData })[tab]();
+  ikon();
+}
+const nm = (x, i) => `<span class="pw-no">${x.no || i + 1}.</span><span class="pw-nm">${esc(x.nama)}</span>${x.nis ? `<span class="pw-nis">${esc(x.nis)}</span>` : ""}`;
+const hitung = d => { const c = { S: 0, I: 0, A: 0 }; stu.forEach(x => { const v = att[d + "|" + x.id]; if (v) c[v]++; }); return c; };
+
+/* ---------- Input presensi ---------- */
+function rInput() {
+  const d = F.tgl, saved = recDates().has(d), c = hitung(d), h = stu.length - c.S - c.I - c.A, ro = lihat();
+  $("#view").innerHTML = `<section class="task-section"><div class="task-section__body">
+  <div class="pw-head"><div><b>${esc(fmt(d))}</b><div class="mut" style="font-size:13px;margin-top:2px">Hadir ${h} · Sakit ${c.S} · Ijin ${c.I} · Tanpa Ket. ${c.A}<br>${dirty ? "Ada perubahan yang belum disimpan." : saved ? "✓ Presensi tersimpan, masih bisa diedit kapan saja." : "Belum disimpan. Siswa yang tidak dipilih dihitung hadir."}</div></div>
+  <div class="ps-actions"><button class="btn-small btn-small--primary" id="saveP"${ro ? " disabled" : ""}><i data-lucide="save"></i> ${saved ? "Simpan ulang" : "Simpan presensi"}</button>${saved ? `<button class="btn-small" id="clrP"${ro ? " disabled" : ""}>${clrArm ? "Yakin hapus?" : "Hapus presensi hari ini"}</button>` : ""}</div></div>
+  <div id="list">${stu.length ? stu.map((x, i) => { const v = att[d + "|" + x.id];
+    return `<div class="pw-stu"><div>${nm(x, i)}${v ? "" : '<span class="pw-hadir">Hadir</span>'}</div>
+    <div class="pw-st">${BTN.map(([k, l]) => `<button type="button" data-id="${esc(x.id)}" data-s="${k}" class="${v === k ? "on" : ""}"${ro ? " disabled" : ""}>${l}</button>`).join("")}</div></div>`; }).join("")
+    : `<p class="mut" style="margin:12px 0 0">Belum ada siswa untuk kelas dan semester ini.${me.role === "admin" ? " Gunakan menu Sinkron." : ""}</p>`}</div></div></section>`
+    + (dirty ? `<div class="ps-savebar"><span class="mut">Perubahan belum disimpan</span><button class="btn-small btn-small--primary" id="saveP2"><i data-lucide="save"></i> Simpan presensi</button></div>` : "");
+  ikon();
+}
+async function simpan(btn) {
+  const d = F.tgl, peta = {};
+  stu.forEach(x => { const v = att[d + "|" + x.id]; if (v) peta[x.id] = v; });
+  document.querySelectorAll("#saveP,#saveP2").forEach(b => b.disabled = true);
+  try { await api("simpan_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d, absen: peta }); sesi.add(d); dirty = false; toast("Presensi tersimpan ✓"); }
+  catch (e) { toast("Gagal menyimpan: " + e.message, true); }
+  if (tab === "input") rInput();
+}
+async function hapusHari() {
+  if (!clrArm) { clrArm = true; return rInput(); }
+  clrArm = false; const d = F.tgl;
+  try {
+    await api("hapus_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d });
+    stu.forEach(x => delete att[d + "|" + x.id]); sesi.delete(d); dirty = false; toast("Presensi tanggal ini dihapus.");
+  } catch (e) { toast("Gagal menghapus: " + e.message, true); }
+  rInput();
+}
+document.addEventListener("click", e => {
+  const view = e.target.closest("#view"); if (!view || tab !== "input" || lihat()) return;
+  const b = e.target.closest("button[data-id]");
+  if (b) { const k = F.tgl + "|" + b.dataset.id, s = b.dataset.s; if (att[k] === s) delete att[k]; else att[k] = s; dirty = true; clrArm = false; return rInput(); }
+  const bt = e.target.closest("button"); if (!bt) return;
+  if (bt.id === "saveP" || bt.id === "saveP2") simpan(); else if (bt.id === "clrP") hapusHari();
+});
+
+/* ---------- Data rekap ---------- */
+function dataHarian() {
+  const d = F.tgl, cnt = { S: 0, I: 0, A: 0 };
+  const rows = stu.map((x, i) => { const v = att[d + "|" + x.id]; if (v) cnt[v]++; return { no: x.no || i + 1, nama: x.nama, v }; });
+  const h = stu.length - cnt.S - cnt.I - cnt.A;
+  return { rows, cnt, h, pct: stu.length ? Math.round(h / stu.length * 100) : 0, ok: recDates().has(d) };
+}
+function dataBulanan() {
+  const [y, m] = F.tgl.split("-").map(Number), n = new Date(y, m, 0).getDate(), rec = recDates(), rd = [];
+  for (let d = 1; d <= n; d++) if (rec.has(dstr(y, m, d))) rd.push(d);
+  const rows = stu.map((x, i) => {
+    const t = { S: 0, I: 0, A: 0 }, cells = [];
+    for (let d = 1; d <= n; d++) { const ds = dstr(y, m, d), v = att[ds + "|" + x.id]; if (v) t[v]++; cells.push(v || (rec.has(ds) ? "H" : "")); }
+    const H = rd.length - t.S - t.I - t.A;
+    return { no: x.no || i + 1, nama: x.nama, cells, S: t.S, I: t.I, A: t.A, H, pct: rd.length ? Math.round(H / rd.length * 100) : 0 };
+  });
+  return { y, m, n, rd, rows, bln: BULAN[m] + " " + y };
+}
+function dataSem() {
+  const t = { S: 0, I: 0, A: 0 };
+  const rows = stu.map((x, i) => { const c = semCnt[x.id] || { S: 0, I: 0, A: 0 }; t.S += c.S; t.I += c.I; t.A += c.A; return { no: x.no || i + 1, nama: x.nama, S: c.S, I: c.I, A: c.A }; });
+  return { rows, t };
+}
+const kartu = (l, v, cls) => `<div class="stat-card"><div class="stat-card__label">${l}</div><div class="stat-card__value ${cls || ""}">${v}</div></div>`;
+function rHarian() {
+  const D = dataHarian();
+  $("#view").innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="calendar-days"></i> Rekap harian</div><div class="task-section__desc">Kelas ${esc(kname())} · ${esc(fmt(F.tgl))}${D.ok ? "" : ' · <span class="c-A">presensi tanggal ini belum disimpan</span>'}</div></div><button class="btn-small btn-small--primary" data-pdf="H"><i data-lucide="download"></i> Unduh PDF</button></div>
+  <div class="task-section__body"><div class="stat-grid">${kartu("Jumlah siswa", stu.length)}${kartu("Hadir", D.h, "c-H")}${kartu("Sakit", D.cnt.S, "c-S")}${kartu("Ijin", D.cnt.I, "c-I")}${kartu("Tanpa Ket.", D.cnt.A, "c-A")}${kartu("Kehadiran", D.pct + "%")}</div>
+  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>No</th><th>Nama</th><th>Keterangan</th></tr></thead><tbody>${D.rows.map(r => `<tr><td>${r.no}</td><td>${esc(r.nama)}</td><td class="c-${r.v || "H"}">${r.v ? KET[r.v] : "Hadir"}</td></tr>`).join("") || `<tr><td colspan="3" class="ps-empty">Belum ada siswa untuk kelas ini.</td></tr>`}</tbody></table></div></div></section>`;
+}
+function rBulanan() {
+  const B = dataBulanan(), days = [...Array(B.n)].map((_, i) => i + 1);
+  $("#view").innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="calendar-range"></i> Rekap bulanan</div><div class="task-section__desc">Kelas ${esc(kname())} · ${esc(B.bln)} · ${B.rd.length} hari terisi (ubah bulan lewat kolom Tanggal)</div></div><button class="btn-small btn-small--primary" data-pdf="B"><i data-lucide="download"></i> Unduh PDF</button></div>
+  <div class="task-section__body"><div class="pw-sc"><table class="pw-tbl"><thead><tr><th class="l sticky">Nama</th>${days.map(d => `<th class="${wk(B.y, B.m, d) ? "wk" : ""}">${d}</th>`).join("")}<th>S</th><th>I</th><th>A</th><th>H</th><th>%</th></tr></thead><tbody>
+  ${B.rows.map(r => `<tr><td class="l sticky">${r.no}. ${esc(r.nama)}</td>${r.cells.map((v, i) => `<td class="${wk(B.y, B.m, i + 1) ? "wk " : ""}${v ? "c-" + v : ""}${v === "H" ? " dim" : ""}">${v}</td>`).join("")}<td class="c-S">${r.S}</td><td class="c-I">${r.I}</td><td class="c-A">${r.A}</td><td class="c-H">${r.H}</td><td><b>${r.pct}%</b></td></tr>`).join("")}</tbody></table></div>
+  <p class="ps-hint">H = Hadir · S = Sakit · I = Ijin · A = Tanpa Keterangan. Hari tanpa presensi tersimpan dikosongkan.</p></div></section>`;
+}
+// rekap semester
+function rentang() {
+  const t = tahun.find(x => x.id === F.thn); if (!t) return ["", ""];
+  const m = /(\d{4})\D+(\d{4})/.exec(t.nama || ""); if (!m) return ["", ""];
+  const s = String(t.semester || "").toLowerCase();
+  if (/ganjil|\b1\b/.test(s)) return [m[1] + "-07-01", m[1] + "-12-31"];
+  if (/genap|\b2\b/.test(s)) return [m[2] + "-01-01", m[2] + "-06-30"];
+  return [m[1] + "-07-01", m[2] + "-06-30"];
+}
+let semDari = "", semSampai = "";
+function rSem() {
+  if (semKey !== F.thn) { [semDari, semSampai] = rentang(); semKey = F.thn; }
+  $("#view").innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="calendar-check"></i> Rekap akhir semester</div><div class="task-section__desc">Kelas ${esc(kname())} · ${esc(labelThn())}</div></div><button class="btn-small btn-small--primary" data-pdf="S"><i data-lucide="download"></i> Unduh PDF</button></div>
+  <div class="task-section__body"><div class="ps-filter" style="box-shadow:none"><div class="field"><label for="sDari">Dari tanggal</label><input type="date" id="sDari" value="${esc(semDari)}"></div><div class="field"><label for="sSampai">Sampai tanggal</label><input type="date" id="sSampai" value="${esc(semSampai)}"></div></div><div id="sBody"><div class="panel-note">Memuat…</div></div></div></section>`;
+  $("#sDari").onchange = $("#sSampai").onchange = () => { semDari = $("#sDari").value; semSampai = $("#sSampai").value; loadSem(); };
+  loadSem();
+}
+async function loadSem() {
+  const a = semDari, b = semSampai, tok = ++muatTok; semCnt = {};
+  if (stu.length && a && b) {
+    try {
+      const r = await api("absen", { tahun_id: F.thn, kelas_id: F.kls, dari: a, sampai: b });
+      if (tok !== muatTok || tab !== "sem") return;
+      r.absen.forEach(x => { const c = semCnt[x.siswa_id] = semCnt[x.siswa_id] || { S: 0, I: 0, A: 0 }; c[x.status]++; });
+    } catch (e) { if (tab === "sem") toast("Gagal memuat rekap semester: " + e.message, true); return; }
+  }
+  const out = $("#sBody"); if (!out) return;
+  const D = dataSem();
+  out.innerHTML = `<div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>No</th><th>Nama</th><th>Sakit</th><th>Ijin</th><th>Tanpa Keterangan</th></tr></thead><tbody>
+  ${D.rows.map(r => `<tr><td>${r.no}</td><td>${esc(r.nama)}</td><td class="c-S">${r.S}</td><td class="c-I">${r.I}</td><td class="c-A">${r.A}</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada siswa untuk kelas ini.</td></tr>`}
+  <tr><th></th><th>Jumlah</th><th>${D.t.S}</th><th>${D.t.I}</th><th>${D.t.A}</th></tr></tbody></table></div>`;
+}
+
+/* ---------- Pengaturan cetak ---------- */
+function rCetak() {
+  const w = waliInfo();
+  $("#view").innerHTML = `<div class="ps-narrow"><section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="printer"></i> Pengaturan cetak PDF</div><div class="task-section__desc">Tersimpan di browser ini. Nama wali kelas disimpan per kelas.</div></div></div>
+  <div class="task-section__body"><div class="form-grid">
+    <div class="field"><label for="cSek">Nama sekolah</label><input type="text" id="cSek" value="${esc(cfg.sekolah)}"></div>
+    <div class="field"><label for="cKota">Kota (untuk tanda tangan)</label><input type="text" id="cKota" value="${esc(cfg.kota)}"></div>
+    <div class="field"><label for="cKep">Nama kepala sekolah</label><input type="text" id="cKep" value="${esc(cfg.kepsek)}"></div>
+    <div class="field"><label for="cKepNip">NIP kepala sekolah</label><input type="text" id="cKepNip" value="${esc(cfg.nipKepsek)}"></div>
+    <div class="field"><label for="cWali">Nama wali kelas (${esc(kname())})</label><input type="text" id="cWali" value="${esc(w.nama)}"></div>
+    <div class="field"><label for="cWaliNip">NIP wali kelas</label><input type="text" id="cWaliNip" value="${esc(w.nip)}"></div></div>
+  <p class="ps-hint">Dipakai pada kop dan tanda tangan PDF rekap harian, bulanan, dan semester.</p></div></section></div>`;
+  [["cSek", "sekolah"], ["cKota", "kota"], ["cKep", "kepsek"], ["cKepNip", "nipKepsek"]].forEach(([id, k]) => { $("#" + id).oninput = e => { cfg[k] = e.target.value; cfgSave(); }; });
+  [["cWali", "nama"], ["cWaliNip", "nip"]].forEach(([id, k]) => { $("#" + id).oninput = e => { cfg.wali[F.kls] = Object.assign({ nama: "", nip: "" }, cfg.wali[F.kls], { [k]: e.target.value }); cfgSave(); }; });
+}
+
+/* ---------- Admin: kelas & siswa ---------- */
+async function segarkan() { // muat ulang daftar tahun/kelas dari server, pilihan filter dipertahankan bila masih ada
+  const aw = await api("awal"); hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs;
+  if (!tahun.some(t => t.id === F.thn)) F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
+  if (!kelasOpsi().some(k => k.id === F.kls)) F.kls = (kelasOpsi()[0] || {}).id || "";
+}
+function segarFilter() { const K = $("#fKls"), H = $("#fThn"); if (H) { H.innerHTML = opsiThn(); H.value = F.thn; } if (K) { K.innerHTML = opsiKls(); K.value = F.kls; } }
+function rData() {
+  $("#view").innerHTML = `<div class="ps-narrow">
+  <section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="plus"></i> Tambah kelas manual</div><div class="task-section__desc">Untuk kelas yang tidak ada di e-Rapor.</div></div></div>
+  <div class="task-section__body"><div class="ps-actions"><input type="text" id="newKls" placeholder="Contoh: X-3" style="flex:1;min-width:160px"><button class="btn-small btn-small--primary" id="addKls">Tambah</button></div></div></section>
+  <section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="user-plus"></i> Tambah siswa manual</div><div class="task-section__desc">Ke kelas dan semester terpilih. Satu nama per baris. Siswa dari e-Rapor sebaiknya ditambah lewat Sinkron.</div></div></div>
+  <div class="task-section__body"><textarea id="newStu" rows="3"></textarea><div class="ps-actions" style="margin-top:10px"><button class="btn-small btn-small--primary" id="addStu">Tambah siswa</button><button class="btn-small" id="delKls">${delArm ? "Yakin hapus kelas?" : "Hapus kelas ini"}</button></div></div></section>
+  <section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="users"></i> Siswa kelas ${esc(kname())} (${stu.length})</div></div></div>
+  <div class="task-section__body">${stu.map((x, i) => `<div class="pw-stu"><span>${nm(x, i)}</span><button class="btn-small" data-del="${esc(x.id)}">Hapus</button></div>`).join("") || '<p class="mut">Belum ada siswa.</p>'}</div></section></div>`;
+  $("#addKls").onclick = async () => {
+    const v = $("#newKls").value.trim(); if (!v) return;
+    try { const r = await api("kelas_tambah", { nama: v }); await segarkan(); F.kls = r.id; segarFilter(); toast("Kelas ditambahkan ✓"); await muat(); }
+    catch (e) { toast("Gagal: " + e.message, true); }
+  };
+  $("#addStu").onclick = async () => {
+    const names = $("#newStu").value.split("\n").map(x => x.trim()).filter(Boolean);
+    if (!names.length || !F.kls) return;
+    if (!F.thn) return toast("Belum ada tahun ajaran. Lakukan sinkron e-Rapor dulu.", true);
+    try { const r = await api("siswa_tambah", { tahun_id: F.thn, kelas_id: F.kls, names }); toast(r.jumlah + " siswa ditambahkan ✓"); await muat(); }
+    catch (e) { toast("Gagal: " + e.message, true); }
+  };
+  $("#delKls").onclick = async () => {
+    if (!F.kls) return;
+    if (!delArm) { delArm = true; return rData(); }
+    delArm = false;
+    try { await api("kelas_hapus", { kelas_id: F.kls }); await segarkan(); segarFilter(); toast("Kelas dihapus."); await muat(); }
+    catch (e) { toast("Gagal: " + e.message, true); rData(); }
+  };
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const x = stu.find(s => s.id === b.dataset.del); if (!x || !confirm("Hapus siswa " + x.nama + " beserta seluruh riwayat presensinya?")) return;
+    try { await api("siswa_hapus", { siswa_id: x.id }); await muat(); } catch (e) { toast("Gagal: " + e.message, true); }
+  });
+}
+
+/* ---------- Admin: sinkron e-Rapor (dibaca di server dengan sesi admin yang sedang masuk) ---------- */
+function rSinkron() {
+  $("#view").innerHTML = `<div class="ps-narrow"><section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="refresh-cw"></i> Sinkron data dari e-Rapor</div><div class="task-section__desc">Menyalin tahun ajaran dan semester, kelas, serta siswa per kelas (NIS, NISN, nama, no. absen) dari e-Rapor ke database presensi siswa. Aman dijalankan berulang. Tidak perlu login lagi: memakai akun admin yang sedang masuk.</div></div></div>
+  <div class="task-section__body"><label style="display:flex;align-items:center;gap:8px;font-size:13.5px;margin:0 0 14px"><input type="checkbox" id="rAktif" checked style="width:auto"> Hanya tahun ajaran/semester yang aktif</label>
+  <button class="btn-small btn-small--primary" id="doSync"><i data-lucide="refresh-cw"></i> Sinkronkan sekarang</button><div id="log"></div></div></section></div>`;
+  ikon();
+  $("#doSync").onclick = async () => {
+    const btn = $("#doSync"), L = $("#log"); btn.disabled = true; L.style.color = ""; L.textContent = "Memproses… (bisa beberapa detik)";
+    try {
+      const r = await api("sinkron", { aktif_saja: $("#rAktif").checked });
+      L.textContent = r.log.join("\n");
+      await segarkan(); loaded = false; toast("Sinkron selesai ✓");
+    } catch (e) { L.style.color = "var(--danger)"; L.textContent = "Gagal: " + e.message; }
+    finally { btn.disabled = false; }
+  };
+}
+
+/* ---------- PDF ---------- */
+const NOW = () => fmtS(ymdSkrg());
+function newDoc(landscape) {
+  if (!window.jspdf || !window.jspdf.jsPDF) { toast("Pustaka PDF belum termuat. Periksa koneksi internet lalu muat ulang halaman.", true); return null; }
+  return new window.jspdf.jsPDF({ orientation: landscape ? "landscape" : "portrait", unit: "mm", format: "a4" });
+}
+function pdfKop(doc, judul, baris) {
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(36, 72, 150); doc.rect(0, 0, W, 5, "F");
+  let y = 14;
+  if (cfg.sekolah) { doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(30, 35, 45); doc.text(cfg.sekolah.toUpperCase(), W / 2, y, { align: "center" }); y += 6; }
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.setTextColor(36, 72, 150); doc.text(judul, W / 2, y, { align: "center" }); y += 5.2;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(90, 98, 110);
+  baris.forEach(b => { doc.text(b, W / 2, y, { align: "center" }); y += 4.8; });
+  doc.setDrawColor(36, 72, 150); doc.setLineWidth(.6); doc.line(14, y, W - 14, y); doc.setLineWidth(.2); doc.line(14, y + 1.1, W - 14, y + 1.1);
+  return y + 6;
+}
+function pdfTtd(doc, y, mg) {
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  if (y > H - 56) { doc.addPage(); y = 22 }
+  y += 8;
+  const w = waliInfo();
+  const blk = (cx, l1, l2, nama, nip) => {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 35, 45);
+    doc.text(l1, cx, y, { align: "center" }); doc.text(l2, cx, y + 5, { align: "center" });
+    doc.setFont("helvetica", "bold"); const t = nama || "(................................)"; doc.text(t, cx, y + 26, { align: "center" });
+    if (nama) { const tw = doc.getTextWidth(t); doc.setLineWidth(.3); doc.setDrawColor(30, 35, 45); doc.line(cx - tw / 2, y + 27, cx + tw / 2, y + 27) }
+    doc.setFont("helvetica", "normal"); if (nip) doc.text("NIP. " + nip, cx, y + 31.5, { align: "center" });
+  };
+  blk(mg + 38, "Mengetahui,", "Kepala Sekolah", cfg.kepsek, cfg.nipKepsek);
+  blk(W - mg - 38, (cfg.kota ? cfg.kota + ", " : "") + NOW(), "Wali Kelas", w.nama, w.nip);
+}
+function pdfFoot(doc, mg) {
+  const n = doc.getNumberOfPages(), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(140, 148, 160);
+    doc.setDrawColor(220, 224, 232); doc.setLineWidth(.2); doc.line(mg, H - 12, W - mg, H - 12);
+    doc.text("Dicetak " + NOW(), mg, H - 8); doc.text(`Halaman ${i} dari ${n}`, W - mg, H - 8, { align: "right" })
+  }
+}
+const tblBase = mg => ({
+  theme: "grid", margin: { left: mg, right: mg, bottom: 18 },
+  styles: { font: "helvetica", fontSize: 9.5, cellPadding: 2.2, lineColor: [210, 215, 225], lineWidth: .15, textColor: [30, 35, 45], valign: "middle" },
+  headStyles: { fillColor: [36, 72, 150], textColor: 255, halign: "center", fontStyle: "bold" },
+  footStyles: { fillColor: [232, 236, 246], textColor: [30, 35, 45], fontStyle: "bold", halign: "center" },
+  alternateRowStyles: { fillColor: [245, 247, 251] }
+});
+function pdfHarian() {
+  const D = dataHarian();
+  if (!stu.length) { toast("Belum ada siswa untuk kelas ini.", true); return }
+  if (!D.ok) { toast("Presensi tanggal ini belum disimpan, jadi rekap harian belum bisa dicetak.", true); return }
+  const doc = newDoc(false); if (!doc) return;
+  const W = doc.internal.pageSize.getWidth(), mg = 14;
+  let y = pdfKop(doc, "REKAP KEHADIRAN HARIAN SISWA", [`Kelas ${kname()}  |  ${labelThn()}`, fmt(F.tgl)]);
+  const box = [["Jumlah Siswa", stu.length, [60, 70, 90]], ["Hadir", D.h, CL.H], ["Sakit", D.cnt.S, CL.S], ["Ijin", D.cnt.I, CL.I], ["Tanpa Ket.", D.cnt.A, CL.A], ["% Hadir", D.pct + "%", [36, 72, 150]]];
+  const bw = (W - 2 * mg - 5 * 3) / 6;
+  box.forEach(([l, v, c], i) => {
+    const x = mg + i * (bw + 3); doc.setDrawColor(...c); doc.setLineWidth(.4); doc.roundedRect(x, y, bw, 16, 2, 2, "S");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(...c); doc.text(String(v), x + bw / 2, y + 8.2, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(100, 108, 120); doc.text(l, x + bw / 2, y + 13.2, { align: "center" })
+  });
+  y += 22;
+  doc.autoTable(Object.assign(tblBase(mg), {
+    startY: y, head: [["No", "Nama Siswa", "Keterangan"]],
+    body: D.rows.map(r => [r.no, r.nama, r.v ? KET[r.v] : "Hadir"]),
+    columnStyles: { 0: { cellWidth: 14, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 48, halign: "center" } },
+    didParseCell: d => { if (d.section === "body" && d.column.index === 2) { const t = d.cell.text[0]; const k = t === "Sakit" ? "S" : t === "Ijin" ? "I" : t === "Hadir" ? "H" : "A"; d.cell.styles.textColor = CL[k]; d.cell.styles.fontStyle = k === "H" ? "normal" : "bold" } }
+  }));
+  pdfTtd(doc, doc.lastAutoTable.finalY, mg); pdfFoot(doc, mg);
+  doc.save(`Rekap-Harian_${safe(kname())}_${F.tgl}.pdf`); toast("PDF diunduh ✓");
+}
+function pdfBulanan() {
+  const B = dataBulanan();
+  if (!stu.length) { toast("Belum ada siswa untuk kelas ini.", true); return }
+  if (!B.rd.length) { toast("Belum ada presensi tersimpan pada bulan ini.", true); return }
+  const doc = newDoc(true); if (!doc) return;
+  const mg = 10, W = doc.internal.pageSize.getWidth(), { y: yy, m, n } = B;
+  const y = pdfKop(doc, "REKAP KEHADIRAN BULANAN SISWA", [`Kelas ${kname()}  |  ${labelThn()}  |  Bulan ${B.bln}`]);
+  const dw = (W - 2 * mg - 8 - 50 - 42) / n;
+  const cs = { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 50, halign: "left" } };
+  for (let i = 0; i < n; i++) cs[2 + i] = { cellWidth: dw, halign: "center", cellPadding: .3, fontSize: 7 };
+  [0, 1, 2, 3].forEach(i => cs[2 + n + i] = { cellWidth: 8, halign: "center" }); cs[6 + n] = { cellWidth: 10, halign: "center" };
+  doc.autoTable(Object.assign(tblBase(mg), {
+    startY: y,
+    head: [["No", "Nama Siswa", ...[...Array(n)].map((_, i) => String(i + 1)), "S", "I", "A", "H", "%"]],
+    body: B.rows.map(r => [r.no, r.nama, ...r.cells, r.S, r.I, r.A, r.H, r.pct + "%"]),
+    styles: Object.assign({}, tblBase(mg).styles, { fontSize: 8, cellPadding: { top: 1.7, bottom: 1.7, left: 1, right: 1 } }), columnStyles: cs,
+    didParseCell: d => {
+      const c = d.column.index;
+      if (c >= 2 && c < 2 + n) {
+        const w = wk(yy, m, c - 1);
+        if (d.section === "head" && w) d.cell.styles.fillColor = [110, 130, 185];
+        if (d.section === "body") {
+          if (w) d.cell.styles.fillColor = [231, 234, 241]; const t = d.cell.text[0];
+          if (t === "S" || t === "I" || t === "A") { d.cell.styles.textColor = CL[t]; d.cell.styles.fontStyle = "bold" }
+          else if (t === "H") d.cell.styles.textColor = [170, 185, 175]
+        }
+      }
+      else if (d.section === "body" && c >= 2 + n) { const k = ["S", "I", "A", "H"][c - 2 - n]; if (k) d.cell.styles.textColor = CL[k]; d.cell.styles.fontStyle = "bold" }
+    }
+  }));
+  const fy = doc.lastAutoTable.finalY + 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 108, 120);
+  doc.text(`Keterangan: H = Hadir, S = Sakit, I = Ijin, A = Tanpa Keterangan. Kolom abu-abu = Sabtu/Minggu. Hari efektif terisi: ${B.rd.length} hari.`, mg, fy);
+  pdfTtd(doc, fy + 2, mg + 4); pdfFoot(doc, mg);
+  doc.save(`Rekap-Bulanan_${safe(kname())}_${yy}-${pad(m)}.pdf`); toast("PDF diunduh ✓");
+}
+function pdfSem() {
+  const D = dataSem(), a = semDari, b = semSampai;
+  if (!stu.length) { toast("Belum ada siswa untuk kelas ini.", true); return }
+  if (!a || !b) { toast("Isi rentang tanggal semester.", true); return }
+  const doc = newDoc(false); if (!doc) return;
+  const mg = 14;
+  const y = pdfKop(doc, "REKAP KETIDAKHADIRAN SISWA PER SEMESTER", [`Kelas ${kname()}  |  ${labelThn()}`, `Periode ${fmtS(a)} s.d. ${fmtS(b)}`]);
+  doc.autoTable(Object.assign(tblBase(mg), {
+    startY: y, head: [["No", "Nama Siswa", "Sakit", "Ijin", "Tanpa Keterangan"]],
+    body: D.rows.map(r => [r.no, r.nama, r.S, r.I, r.A]), foot: [["", "Jumlah", D.t.S, D.t.I, D.t.A]], showFoot: "lastPage",
+    columnStyles: { 0: { cellWidth: 14, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 26, halign: "center" }, 3: { cellWidth: 26, halign: "center" }, 4: { cellWidth: 38, halign: "center" } },
+    didParseCell: d => {
+      if (d.column.index === 1 && d.section === "foot") d.cell.styles.halign = "left";
+      if (d.section === "body" && d.column.index >= 2) { const k = ["S", "I", "A"][d.column.index - 2]; if (Number(d.cell.text[0]) > 0) { d.cell.styles.textColor = CL[k]; d.cell.styles.fontStyle = "bold" } else d.cell.styles.textColor = [170, 176, 186] }
+    }
+  }));
+  pdfTtd(doc, doc.lastAutoTable.finalY, mg); pdfFoot(doc, mg);
+  doc.save(`Rekap-Semester_${safe(kname())}_${safe(labelThn())}.pdf`); toast("PDF diunduh ✓");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-pdf]"); if (!b) return;
+  try { ({ H: pdfHarian, B: pdfBulanan, S: pdfSem })[b.dataset.pdf]() } catch (err) { toast("Gagal membuat PDF: " + (err.message || err), true) }
+});
+
+init();
+</script>
+</body>
+</html>

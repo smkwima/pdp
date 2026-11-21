@@ -31,6 +31,7 @@
     { href: 'penilaian-rekan.html',  judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'presensi.html', judul: 'Presensi',          ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi datang & pulang (selfie + lokasi)' },
+    { href: 'presensi-siswa.html',  judul: 'Presensi Siswa',      ikon: 'user-check',         warna: 'hijau',  desc: 'Presensi siswa kelas wali & rekap PDF' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_STAF = [
@@ -52,6 +53,7 @@
     { href: 'pelanggaran.html',       judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'pengaduan.html',         judul: 'Pengaduan Siswa',     ikon: 'megaphone',          warna: 'merah',  desc: 'Laporan bullying & pelanggaran dari siswa' },
     { href: 'presensi.html', judul: 'Presensi',            ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi, jadwal, lokasi & rekap kehadiran' },
+    { href: 'presensi-siswa.html',    judul: 'Presensi Siswa',      ikon: 'user-check',         warna: 'hijau',  desc: 'Presensi siswa semua kelas, rekap & sinkron e-Rapor' },
     { href: 'ijin.html',              judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Pantau pengajuan sakit, ijin & dinas luar' },
     { href: 'https://wima15.github.io/rekap-presensi/', luar: true,  judul: 'Rekap Absen Fingerprint', ikon: 'fingerprint',      warna: 'hijau',  desc: 'Rekap kehadiran guru & staf (tab baru)' },
     { href: 'pengaturan-admin.html',  judul: 'Pengaturan Sekolah',  ikon: 'settings',           warna: 'abu',    desc: 'Profil, tahun ajaran, kelulusan' }

@@ -33,6 +33,7 @@
   // ikon tambahan untuk panel "Semua Aplikasi"
   IKON.rpp = '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>';
   IKON.presensi = '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>';
+  IKON.presiswa = '<path d="m16 11 2 2 4-4"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>';
   IKON.set = '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>';
   IKON.log = '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>';
 
@@ -66,6 +67,7 @@
   else if (berkas === 'pengaduan.html') { kunciAktif = 'pgd'; }
   else if (berkas === 'ijin.html') { kunciAktif = 'ijin'; }
   else if (berkas === 'presensi.html') { kunciAktif = 'presensi'; }
+  else if (berkas === 'presensi-siswa.html') { kunciAktif = 'presiswa'; }
   else if (berkas === 'disiplin.html') { kunciAktif = 'disiplin'; }
   else { return; } // halaman lain (login, siswa, dll): tidak dipasang
 
@@ -87,6 +89,7 @@
       { k: 'pgd',   label: 'Pengaduan',   judul: 'Pengaduan Siswa',     href: 'pengaduan.html', warna: 'merah', sheetSaja: true, hanyaPimpinan: true },
       { k: 'cat',   label: 'Catatan',     judul: 'Catatan Pengawas',    href: 'catatan-pengawas.html', warna: 'ungu', sheetSaja: true, hanyaCatatan: true },
       { k: 'presensi', label: 'Presensi', judul: 'Presensi',          href: 'presensi.html', warna: 'hijau' },
+      { k: 'presiswa', label: 'Pres. Siswa', judul: 'Presensi Siswa', href: 'presensi-siswa.html', warna: 'hijau' },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
       { k: 'rekapol', label: 'Rekap Online', judul: 'Rekap Presensi Online', href: 'presensi.html#rekap', warna: 'biru', sheetSaja: true, hanyaKepsek: true },
@@ -97,7 +100,7 @@
       return menu.filter(function (it) { return it.k === 'kin' || it.k === 'rekan' || it.k === 'ijin' || it.k === 'presensi'; });
     }
     return menu.filter(function (it) {
-      if (role === 'pengawas' && ['bi', 'pel', 'pgd', 'ijin', 'disiplin', 'rpp', 'rekan', 'presensi'].indexOf(it.k) >= 0) return false; // pengawas: tanpa data siswa/pegawai pribadi
+      if (role === 'pengawas' && ['bi', 'pel', 'pgd', 'ijin', 'disiplin', 'rpp', 'rekan', 'presensi', 'presiswa'].indexOf(it.k) >= 0) return false; // pengawas: tanpa data siswa/pegawai pribadi
       if (it.hanyaCatatan && role !== 'kepsek' && role !== 'pengawas') return false;
       if (it.hanyaAdmin && role !== 'admin') return false;
       if (it.hanyaKepsek && role !== 'kepsek') return false;

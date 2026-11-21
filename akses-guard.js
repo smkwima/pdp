@@ -31,6 +31,7 @@
     'catatan-pengawas.html': 'cat',
     'ijin.html': 'ijin',
     'presensi.html': 'presensi',
+    'presensi-siswa.html': 'presiswa',
     'disiplin.html': 'disiplin',
     'pengaturan-admin.html': 'set',
     'log-admin.html': 'log'
