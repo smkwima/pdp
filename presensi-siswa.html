@@ -153,7 +153,7 @@
 // Presensi Siswa ada di PDP dan memakai sesi login PDP (satu situs, satu sesi): tidak ada login sendiri di sini.
 // Data presensi siswa (kelas, siswa, presensi) disimpan di project Supabase TERPISAH (sfuucjmnlmfcghobpnkf).
 // Browser tidak memegang kunci project itu: semua baca/tulis lewat Edge Function presensi-siswa-api yang
-// memverifikasi sesi login PDP ke e-Rapor dan menentukan kelas mana yang boleh diakses (wali kelas = kelasnya saja).
+// memverifikasi sesi login PDP ke e-Rapor. Semua guru boleh mengisi presensi semua kelas; kepala sekolah baca saja.
 const sb = supabaseClient;
 const API_FN = "https://sfuucjmnlmfcghobpnkf.supabase.co/functions/v1/presensi-siswa-api";
 const TULIS = new Set(["simpan_hari", "hapus_hari", "kelas_tambah", "kelas_hapus", "siswa_tambah", "siswa_hapus", "sinkron"]);
@@ -191,7 +191,7 @@ function toast(t, bad) {
 }
 
 // ---------- Status ----------
-let me = null, hak = null, tahun = [], kelas = [], pairs = null;
+let me = null, hak = null, tahun = [], kelas = [], pairs = null, waliPairs = [];
 let tab = "input", depth = 0, dirty = false, perluMuat = false, clrArm = false, delArm = false, semKey = "", semCnt = {}, muatTok = 0;
 let stu = [], att = {}, sesi = new Set();
 const F = { tgl: ymdSkrg(), thn: "", kls: "" }; // pilihan filter (tanggal, tahun ajaran, kelas)
@@ -204,8 +204,9 @@ const kelasOpsi = () => pairs ? kelas.filter(k => pairs.some(p => p.tahun_id ===
 let cfg = { sekolah: "SMK Widya Mandala Tambak", kota: "", kepsek: "", nipKepsek: "", wali: {} };
 try { const r = localStorage.getItem("pres_cetak_v1"); if (r) cfg = Object.assign(cfg, JSON.parse(r)); } catch (e) { /* abaikan */ }
 const cfgSave = () => { try { localStorage.setItem("pres_cetak_v1", JSON.stringify(cfg)); } catch (e) { /* abaikan */ } };
-// Wali kelas: dari isian cetak; bila kosong dan pemakai adalah guru (wali kelas), pakai nama & NIP akunnya.
-const waliInfo = () => { const w = Object.assign({ nama: "", nip: "" }, cfg.wali[F.kls]); if (!w.nama && me && me.role === "guru") return { nama: me.nama || "", nip: me.nip || "" }; return w; };
+// Wali kelas: dari isian cetak; bila kosong dan pemakai adalah wali kelas dari kelas terpilih, pakai nama & NIP akunnya.
+const jadiWali = () => waliPairs.some(p => p.tahun_id === F.thn && p.kelas_id === F.kls);
+const waliInfo = () => { const w = Object.assign({ nama: "", nip: "" }, cfg.wali[F.kls]); if (!w.nama && me && me.role === "guru" && jadiWali()) return { nama: me.nama || "", nip: me.nip || "" }; return w; };
 
 /* ---------- Masuk: memakai sesi login PDP ---------- */
 async function init() {
@@ -234,10 +235,11 @@ async function masuk(user) {
   let aw;
   try { aw = await api("awal"); }
   catch (e) { return gagalView("Gagal memuat data presensi siswa (jika baru pertama kali, deploy fungsi presensi-siswa-api di project presensi siswa): " + e.message); }
-  hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs;
-  if (me.role === "guru" && !pairs.length) return blokView("Presensi siswa hanya untuk wali kelas. Anda belum tercatat sebagai wali kelas pada tahun ajaran yang ada di presensi siswa (atau admin belum menyinkronkan data kelas). Hubungi admin.");
+  hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs; waliPairs = aw.wali || [];
+  if (me.role === "guru" && !kelas.length) return blokView("Data kelas presensi siswa belum ada. Minta admin menyinkronkan data kelas dari e-Rapor (menu Presensi Siswa > Sinkron).");
   F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
-  F.kls = (kelasOpsi()[0] || {}).id || "";
+  const kelasWali = waliPairs.find(p => p.tahun_id === F.thn); // wali kelas: mulai dari kelasnya sendiri
+  F.kls = (kelasWali && kelasOpsi().some(k => k.id === kelasWali.kelas_id) ? kelasWali.kelas_id : (kelasOpsi()[0] || {}).id) || "";
   tab = me.role === "kepsek" ? "harian" : (!tahun.length && me.role === "admin") ? "sinkron" : "input";
   const awal = (location.hash || "").replace("#", "");
   if (TAB_INFO[awal] && menuTab().includes(awal)) tab = awal;
@@ -483,7 +485,7 @@ function rCetak() {
 
 /* ---------- Admin: kelas & siswa ---------- */
 async function segarkan() { // muat ulang daftar tahun/kelas dari server, pilihan filter dipertahankan bila masih ada
-  const aw = await api("awal"); hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs;
+  const aw = await api("awal"); hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs; waliPairs = aw.wali || [];
   if (!tahun.some(t => t.id === F.thn)) F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
   if (!kelasOpsi().some(k => k.id === F.kls)) F.kls = (kelasOpsi()[0] || {}).id || "";
 }

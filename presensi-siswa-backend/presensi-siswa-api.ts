@@ -8,7 +8,8 @@
 //
 // Hak akses:
 //   admin  : semua kelas, ubah presensi, kelola kelas/siswa, sinkron dari e-Rapor
-//   guru   : hanya kelas yang ia wali (tabel wali_kelas e-Rapor, per tahun ajaran), ubah presensi
+//   guru   : SEMUA kelas, isi/ubah presensi + rekap (tidak harus wali kelas). Kelas yang ia wali hanya dipakai
+//            sebagai kelas awal & pengisi nama wali kelas otomatis di PDF (field `wali` pada action awal)
 //   kepsek : semua kelas, BACA SAJA (rekap + cetak)
 //
 // PENTING: matikan "Verify JWT" (token e-Rapor bukan JWT project ini):
@@ -62,10 +63,9 @@ async function siapa(token: string): Promise<Me | null> {
   const prof = Array.isArray(rows) ? rows[0] : null;
   const role = String(prof?.role ?? "");
   let wali: Me["wali"] = [];
-  if (role === "guru") { // wali kelas = penugasan di tabel wali_kelas (per tahun ajaran)
+  if (role === "guru") { // info wali kelas (tabel wali_kelas, per tahun ajaran): hanya untuk kelas awal & nama di PDF
     const w = await fetch(`${RAPOR_URL}/rest/v1/wali_kelas?guru_id=eq.${id}&select=kelas_id,tahun_ajaran_id`, { headers: h });
-    if (!w.ok) throw new Tolak("Gagal membaca data wali kelas dari e-Rapor", 502);
-    const wr = await w.json();
+    const wr = w.ok ? await w.json() : []; // hanya info tambahan; kegagalan tidak memblokir presensi
     wali = Array.isArray(wr) ? wr.map((x: { kelas_id: unknown; tahun_ajaran_id: unknown }) => ({ kelas: S(x.kelas_id), tahun: S(x.tahun_ajaran_id) })) : [];
   }
   const me: Me = { id, role, nama: S(prof?.nama), token, wali };
@@ -75,7 +75,7 @@ async function siapa(token: string): Promise<Me | null> {
 }
 const butuhAdmin = (me: Me) => { if (me.role !== "admin") throw new Tolak("Hanya admin", 403); };
 
-// Kelas + tahun yang boleh diakses. tulis=true: kepsek ditolak. Guru: hanya pasangan (kelas, tahun) yang ia wali.
+// Kelas + tahun yang boleh diakses. tulis=true: kepsek ditolak. Guru & admin: semua kelas.
 async function akses(me: Me, tahunId: unknown, kelasId: unknown, tulis: boolean) {
   if (!idOk(tahunId) || !idOk(kelasId)) throw new Tolak("Kelas / tahun ajaran tidak valid");
   if (tulis && me.role === "kepsek") throw new Tolak("Kepala sekolah hanya bisa melihat", 403);
@@ -86,10 +86,7 @@ async function akses(me: Me, tahunId: unknown, kelasId: unknown, tulis: boolean)
   // deno-lint-ignore no-explicit-any
   const tahun = ok(t) as any, kelas = ok(k) as any;
   if (!tahun || !kelas) throw new Tolak("Kelas atau tahun ajaran tidak ditemukan", 404);
-  if (me.role === "guru") {
-    const boleh = !!kelas.rapor_id && !!tahun.rapor_id && me.wali.some((w) => w.kelas === S(kelas.rapor_id) && w.tahun === S(tahun.rapor_id));
-    if (!boleh) throw new Tolak("Anda bukan wali kelas " + kelas.nama + " pada tahun ajaran ini", 403);
-  }
+  // Semua guru boleh mengakses semua kelas (baca & tulis). Hanya kepala sekolah yang dibatasi baca-saja (di atas).
   return { tahun, kelas };
 }
 
@@ -140,14 +137,13 @@ Deno.serve(async (req: Request) => {
           // deno-lint-ignore no-explicit-any
           any[];
         const hak = { role: me.role, nama: me.nama, tulis: me.role !== "kepsek", admin: me.role === "admin" };
-        if (me.role !== "guru") return json({ ...hak, tahun, kelas, pairs: null });
-        const pairs: { tahun_id: string; kelas_id: string }[] = [];
+        // Semua peran melihat semua kelas. Untuk guru, `wali` = kelas yang ia wali (hanya untuk kelas awal & nama di PDF).
+        const wali: { tahun_id: string; kelas_id: string }[] = [];
         for (const w of me.wali) {
           const t = tahun.find((x) => S(x.rapor_id) === w.tahun), k = kelas.find((x) => S(x.rapor_id) === w.kelas);
-          if (t && k) pairs.push({ tahun_id: S(t.id), kelas_id: S(k.id) });
+          if (t && k) wali.push({ tahun_id: S(t.id), kelas_id: S(k.id) });
         }
-        const tid = new Set(pairs.map((p) => p.tahun_id)), kid = new Set(pairs.map((p) => p.kelas_id));
-        return json({ ...hak, tahun: tahun.filter((t) => tid.has(S(t.id))), kelas: kelas.filter((k) => kid.has(S(k.id))), pairs });
+        return json({ ...hak, tahun, kelas, pairs: null, wali });
       }
 
       case "absen": { // siswa kelas + presensi (S/I/A) dan tanggal yang sudah disimpan pada rentang tanggal

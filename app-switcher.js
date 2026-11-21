@@ -31,7 +31,7 @@
     { href: 'penilaian-rekan.html',  judul: 'Penilaian Rekan',     ikon: 'users',              warna: 'ungu',   desc: 'Nilai rekan secara anonim' },
     { href: 'pelanggaran.html',     judul: 'Catatan Pelanggaran', ikon: 'shield-alert',       warna: 'merah',  desc: 'Pembinaan kedisiplinan siswa' },
     { href: 'presensi.html', judul: 'Presensi',          ikon: 'map-pin',            warna: 'hijau',  desc: 'Presensi datang & pulang (selfie + lokasi)' },
-    { href: 'presensi-siswa.html',  judul: 'Presensi Siswa',      ikon: 'user-check',         warna: 'hijau',  desc: 'Presensi siswa kelas wali & rekap PDF' },
+    { href: 'presensi-siswa.html',  judul: 'Presensi Siswa',      ikon: 'user-check',         warna: 'hijau',  desc: 'Presensi siswa semua kelas & rekap PDF' },
     { href: 'ijin.html',            judul: 'Ijin & Dinas Luar',   ikon: 'calendar-off',       warna: 'biru',   desc: 'Ajukan sakit, ijin & dinas luar ke Rekap Absen' }
   ];
   var APP_STAF = [

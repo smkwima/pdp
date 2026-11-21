@@ -12,7 +12,7 @@ service role. Browser tidak lagi memegang kunci database presensi siswa.
 | Peran | Yang bisa dilakukan |
 |---|---|
 | Admin | Semua kelas: isi/ubah presensi, rekap, cetak PDF, kelola kelas & siswa manual, sinkron dari e-Rapor |
-| Guru (wali kelas) | Hanya kelas yang ia wali (tabel `wali_kelas` e-Rapor, per tahun ajaran): isi/ubah presensi, rekap, cetak PDF |
+| Guru (semua guru) | Semua kelas: isi/ubah presensi, rekap, cetak PDF. Kelas yang ia wali (tabel `wali_kelas`) hanya jadi kelas awal & mengisi nama wali otomatis di PDF |
 | Kepala sekolah | Semua kelas, **baca saja** (rekap + cetak PDF) |
 | Staf, pengawas, siswa | Tidak ada akses |
 
@@ -27,7 +27,7 @@ service role. Browser tidak lagi memegang kunci database presensi siswa.
 3. Unggah (push) repo **pdp**: `presensi-siswa.html`, `akses-guard.js`, `portal.html`, `bottomnav.js`, `app-switcher.js`,
    `desktop/scripts/prepare.js`, dan folder `presensi-siswa-backend/` (folder ini tidak ikut ke aplikasi Windows).
 4. **Uji dulu** sebelum langkah 5: masuk sebagai admin -> Menu Utama -> **Presensi Siswa** -> tab **Sinkron** -> Sinkronkan;
-   lalu masuk sebagai wali kelas dan coba isi + simpan presensi, buka rekap, unduh PDF.
+   lalu masuk sebagai guru biasa (bukan wali kelas) dan coba isi + simpan presensi, buka rekap, unduh PDF.
 5. Setelah semua OK: jalankan `presensi-siswa-backend/kunci.sql` di project presensi siswa. Ini menutup tabel `pres_*` dari
    kunci anon, jadi hanya Edge Function yang bisa mengaksesnya. **Halaman lama `presensi-siswa-pdf.html` berhenti
    berfungsi setelah ini**; hapus dari hosting.
@@ -40,7 +40,7 @@ service role. Browser tidak lagi memegang kunci database presensi siswa.
   langsung tersimpan.
 - **Sinkron e-Rapor tanpa email/sandi:** dibaca di server memakai sesi admin yang sedang masuk. Bila e-Rapor tidak
   mengembalikan data siswa, sinkron dibatalkan dan data lama tidak dihapus.
-- Wali kelas yang belum tercatat di `wali_kelas` (atau kelasnya belum disinkron) melihat pesan "hanya untuk wali kelas".
+- Guru tidak lagi harus tercatat sebagai wali kelas. Bila data kelas belum disinkron admin, guru melihat pesan untuk meminta admin menyinkronkan.
 - Kelas/siswa manual dan penghapusannya hanya admin. Pengaturan cetak PDF (nama sekolah, kepala sekolah, NIP) tetap
   tersimpan di browser; untuk wali kelas, nama dan NIP otomatis diisi dari akunnya bila kosong.
 - Mode **Lihat sebagai** (developer): hanya baca.
