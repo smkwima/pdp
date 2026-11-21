@@ -156,7 +156,7 @@
 // memverifikasi sesi login PDP ke e-Rapor. Semua guru boleh mengisi presensi semua kelas; kepala sekolah baca saja.
 const sb = supabaseClient;
 const API_FN = "https://sfuucjmnlmfcghobpnkf.supabase.co/functions/v1/presensi-siswa-api";
-const TULIS = new Set(["simpan_hari", "hapus_hari", "kelas_tambah", "kelas_hapus", "siswa_tambah", "siswa_hapus", "sinkron"]);
+const TULIS = new Set(["simpan_hari", "hapus_hari", "kelas_tambah", "kelas_hapus", "siswa_tambah", "siswa_hapus", "sinkron", "kirim_erapor"]);
 const lihat = () => !!(window.PdpLihat && PdpLihat.aktif());
 async function api(action, body = {}) {
   // Edge Function ada di project lain, jadi penjaga "Lihat sebagai" milik PDP tidak menjangkaunya: dijaga di sini.
@@ -446,10 +446,32 @@ function rentang() {
 let semDari = "", semSampai = "";
 function rSem() {
   if (semKey !== F.thn) { [semDari, semSampai] = rentang(); semKey = F.thn; }
-  $("#view").innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="calendar-check"></i> Rekap akhir semester</div><div class="task-section__desc">Kelas ${esc(kname())} · ${esc(labelThn())}</div></div><button class="btn-small btn-small--primary" data-pdf="S"><i data-lucide="download"></i> Unduh PDF</button></div>
+  $("#view").innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="calendar-check"></i> Rekap akhir semester</div><div class="task-section__desc">Kelas ${esc(kname())} · ${esc(labelThn())}</div></div><div class="ps-actions">${bisaKirim() ? `<button class="btn-small" id="kirimRapor"><i data-lucide="send"></i> Kirim ke e-Rapor</button>` : ""}<button class="btn-small btn-small--primary" data-pdf="S"><i data-lucide="download"></i> Unduh PDF</button></div></div>
   <div class="task-section__body"><div class="ps-filter" style="box-shadow:none"><div class="field"><label for="sDari">Dari tanggal</label><input type="date" id="sDari" value="${esc(semDari)}"></div><div class="field"><label for="sSampai">Sampai tanggal</label><input type="date" id="sSampai" value="${esc(semSampai)}"></div></div><div id="sBody"><div class="panel-note">Memuat…</div></div></div></section>`;
   $("#sDari").onchange = $("#sSampai").onchange = () => { semDari = $("#sDari").value; semSampai = $("#sSampai").value; loadSem(); };
-  loadSem();
+  const kb = $("#kirimRapor"); if (kb) kb.onclick = kirimErapor;
+  ikon(); loadSem();
+}
+// Kirim rekap semester ke e-Rapor: mengisi menu Presensi wali kelas (Sakit / Izin / Tanpa Keterangan) untuk semester terpilih.
+// Hanya admin atau wali kelas dari kelas terpilih (server memeriksa ulang). Catatan Wali Kelas tidak diubah.
+const bisaKirim = () => !lihat() && !!me && (me.role === "admin" || (me.role === "guru" && waliPairs.some(p => p.kelas_id === F.kls)));
+async function kirimErapor() {
+  const a = semDari, b = semSampai, btn = $("#kirimRapor");
+  if (!a || !b || a > b) return toast("Isi rentang tanggal semester dengan benar.", true);
+  if (!stu.length) return toast("Belum ada siswa untuk kelas ini.", true);
+  if (btn) btn.disabled = true;
+  try {
+    const p = { tahun_id: F.thn, kelas_id: F.kls, dari: a, sampai: b };
+    const c = await api("kirim_erapor", { ...p, simulasi: true });
+    const pesan = `Kirim rekap kehadiran ke e-Rapor?\n\nKelas ${kname()} · ${labelThn()}\nPeriode ${fmtS(a)} s.d. ${fmtS(b)}\n\n• ${c.siswa} siswa akan dikirim`
+      + (c.berbeda ? `\n• ${c.berbeda} siswa sudah punya isian Presensi di e-Rapor yang akan DIGANTI` : "")
+      + (c.dilewati ? `\n• ${c.dilewati} siswa dilewati (belum ada di daftar kelas e-Rapor / data manual)` : "")
+      + `\n\nAngka Sakit, Ijin, dan Tanpa Keterangan masuk ke menu Presensi wali kelas. Catatan Wali Kelas tidak diubah.`;
+    if (!confirm(pesan)) return;
+    const r = await api("kirim_erapor", { ...p, simulasi: false });
+    toast(`Terkirim ke e-Rapor: ${r.terkirim} siswa ✓` + (r.dilewati ? ` (${r.dilewati} dilewati)` : ""));
+  } catch (e) { toast("Gagal mengirim ke e-Rapor: " + e.message, true); }
+  finally { const x = $("#kirimRapor"); if (x) x.disabled = false; }
 }
 async function loadSem() {
   const a = semDari, b = semSampai, tok = ++muatTok; semCnt = {};
