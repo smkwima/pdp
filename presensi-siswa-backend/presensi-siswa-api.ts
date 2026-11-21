@@ -11,6 +11,9 @@
 //   guru   : SEMUA kelas, isi/ubah presensi + rekap (tidak harus wali kelas). Kelas yang ia wali hanya dipakai
 //            sebagai kelas awal & pengisi nama wali kelas otomatis di PDF (field `wali` pada action awal)
 //   kepsek : semua kelas, BACA SAJA (rekap + cetak)
+//   kirim_erapor : kirim rekap Sakit/Ijin/Tanpa Ket. ke tabel rekap_presensi e-Rapor (menu Presensi wali kelas).
+//            Hanya admin atau wali kelas dari kelas itu. Ditulis dengan token PEMAKAI (RLS e-Rapor tetap berlaku);
+//            kolom catatan_wali_kelas tidak disentuh.
 //
 // PENTING: matikan "Verify JWT" (token e-Rapor bukan JWT project ini):
 //   supabase functions deploy presensi-siswa-api --no-verify-jwt --project-ref sfuucjmnlmfcghobpnkf
@@ -91,13 +94,13 @@ async function akses(me: Me, tahunId: unknown, kelasId: unknown, tulis: boolean)
 }
 
 // Daftar siswa kelas (rombel). semua=true: termasuk siswa yang statusnya bukan aktif (untuk validasi tulis).
-type Stu = { id: string; nama: string; nis: string | null; nisn: string | null; no: number | null; aktif: boolean };
+type Stu = { id: string; rapor_id: string | null; nama: string; nis: string | null; nisn: string | null; no: number | null; aktif: boolean };
 async function siswaKelas(tahunId: unknown, kelasId: unknown): Promise<Stu[]> {
-  const rows = ok(await db.from("pres_rombel").select("no_absen,siswa:pres_siswa(id,nama,nis,nisn,status)").eq("tahun_id", tahunId).eq("kelas_id", kelasId)) as
+  const rows = ok(await db.from("pres_rombel").select("no_absen,siswa:pres_siswa(id,rapor_id,nama,nis,nisn,status)").eq("tahun_id", tahunId).eq("kelas_id", kelasId)) as
     // deno-lint-ignore no-explicit-any
     any[];
   return rows.filter((r) => r.siswa).map((r) => ({
-    id: S(r.siswa.id), nama: S(r.siswa.nama), nis: r.siswa.nis ?? null, nisn: r.siswa.nisn ?? null,
+    id: S(r.siswa.id), rapor_id: r.siswa.rapor_id == null ? null : S(r.siswa.rapor_id), nama: S(r.siswa.nama), nis: r.siswa.nis ?? null, nisn: r.siswa.nisn ?? null,
     no: r.no_absen == null ? null : Number(r.no_absen),
     aktif: !r.siswa.status || String(r.siswa.status).toLowerCase() === "aktif",
   })).sort((a, b) => ((a.no == null ? 1 : 0) - (b.no == null ? 1 : 0)) || ((a.no ?? 0) - (b.no ?? 0)) || a.nama.localeCompare(b.nama));
@@ -193,6 +196,60 @@ Deno.serve(async (req: Request) => {
         for (const c of chunk(semua, 100)) ok(await db.from("pres_absen").delete().eq("tanggal", body.tanggal).in("siswa_id", c));
         ok(await db.from("pres_sesi").delete().eq("tanggal", body.tanggal).eq("kelas_id", body.kelas_id));
         return json({ ok: true });
+      }
+
+      case "kirim_erapor": { // kirim rekap S/I/A rentang tanggal -> rekap_presensi e-Rapor (menu Presensi wali kelas)
+        const { tahun, kelas } = await akses(me, body.tahun_id, body.kelas_id, true);
+        if (me.role !== "admin" && !me.wali.some((w) => w.kelas === S(kelas.rapor_id)))
+          throw new Tolak("Hanya wali kelas dari kelas ini atau admin yang dapat mengirim ke e-Rapor", 403);
+        if (!tahun.rapor_id || !kelas.rapor_id)
+          throw new Tolak("Kelas / semester ini data manual (bukan dari e-Rapor), jadi tidak bisa dikirim. Admin perlu menjalankan Sinkron.");
+        if (!tglOk(body.dari) || !tglOk(body.sampai) || body.dari > body.sampai) throw new Tolak("Rentang tanggal tidak valid");
+        if (hariSelisih(body.dari, body.sampai) > 400) throw new Tolak("Rentang tanggal terlalu panjang (maks. 400 hari)");
+        const enc = encodeURIComponent;
+        // Hanya siswa aktif yang juga terdaftar di kelas + semester itu pada e-Rapor (siswa pindah / data manual dilewati).
+        const roster = new Set((await raporSemua(me.token, `siswa_kelas?select=id,siswa_id&kelas_id=eq.${enc(S(kelas.rapor_id))}&tahun_ajaran_id=eq.${enc(S(tahun.rapor_id))}`) as { siswa_id: unknown }[]).map((x) => S(x.siswa_id)));
+        const aktif = (await siswaKelas(body.tahun_id, body.kelas_id)).filter((x) => x.aktif);
+        const kirim = aktif.filter((x) => x.rapor_id && roster.has(x.rapor_id));
+        const dilewati = aktif.length - kirim.length;
+        if (!kirim.length) throw new Tolak("Tidak ada siswa yang cocok dengan daftar kelas di e-Rapor. Minta admin menjalankan Sinkron dulu.");
+
+        const hit: Record<string, { S: number; I: number; A: number }> = {};
+        kirim.forEach((x) => hit[x.id] = { S: 0, I: 0, A: 0 });
+        for (let off = 0; off < 100000; off += 1000) {
+          const r = ok(await db.from("pres_absen").select("siswa_id,status").in("siswa_id", kirim.map((x) => x.id)).in("status", STATUS)
+            .gte("tanggal", body.dari).lte("tanggal", body.sampai).order("id").range(off, off + 999)) as { siswa_id: unknown; status: "S" | "I" | "A" }[];
+          r.forEach((x) => { const c = hit[S(x.siswa_id)]; if (c) c[x.status]++; });
+          if (r.length < 1000) break;
+        }
+
+        // Isian Presensi yang sudah ada di e-Rapor: dihitung berapa yang akan berubah (untuk konfirmasi di layar).
+        const ada = new Map((await raporSemua(me.token, `rekap_presensi?select=id,siswa_id,jumlah_sakit,jumlah_izin,jumlah_alpha&kelas_id=eq.${enc(S(kelas.rapor_id))}&tahun_ajaran_id=eq.${enc(S(tahun.rapor_id))}`) as
+          { siswa_id: unknown; jumlah_sakit: unknown; jumlah_izin: unknown; jumlah_alpha: unknown }[]).map((x) => [S(x.siswa_id), x] as const));
+        let berbeda = 0;
+        for (const x of kirim) {
+          const e = ada.get(x.rapor_id!), h = hit[x.id];
+          if (!e) continue;
+          const s0 = Number(e.jumlah_sakit) || 0, i0 = Number(e.jumlah_izin) || 0, a0 = Number(e.jumlah_alpha) || 0;
+          if ((s0 || i0 || a0) && (s0 !== h.S || i0 !== h.I || a0 !== h.A)) berbeda++;
+        }
+        if (body.simulasi) return json({ ok: true, simulasi: true, siswa: kirim.length, dilewati, berbeda });
+
+        const now = new Date().toISOString();
+        const rows = kirim.map((x) => ({
+          siswa_id: x.rapor_id, kelas_id: S(kelas.rapor_id), tahun_ajaran_id: S(tahun.rapor_id),
+          jumlah_sakit: hit[x.id].S, jumlah_izin: hit[x.id].I, jumlah_alpha: hit[x.id].A,
+          dicatat_oleh: me.id, updated_at: now, // catatan_wali_kelas sengaja tidak dikirim: tidak tertimpa
+        }));
+        for (const c of chunk(rows, 200)) {
+          const r = await fetch(`${RAPOR_URL}/rest/v1/rekap_presensi?on_conflict=siswa_id,kelas_id,tahun_ajaran_id`, {
+            method: "POST",
+            headers: { apikey: RAPOR_ANON, Authorization: `Bearer ${me.token}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(c),
+          });
+          if (!r.ok) throw new Tolak("e-Rapor menolak penyimpanan: " + (await r.text()).slice(0, 200), r.status === 401 || r.status === 403 ? 403 : 502);
+        }
+        return json({ ok: true, terkirim: rows.length, dilewati });
       }
 
       // ---------- Khusus admin ----------
