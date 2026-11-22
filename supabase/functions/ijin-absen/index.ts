@@ -8,6 +8,9 @@
 //   simpan       : { jenis, tanggal_mulai, tanggal_selesai, deskripsi }  -> semua guru/staf/admin
 //                  (status awal 'menunggu'; pengajuan admin sendiri langsung 'disetujui')
 //   daftar       : { }  -> milik sendiri; admin & kepsek melihat semua
+//   hari_ini     : { }  -> semua peran; daftar guru yang TIDAK HADIR HARI INI (WIB):
+//                  hanya pengajuan berstatus 'disetujui' yang tanggalnya mencakup hari ini.
+//                  Hanya nama, jenis, dan tanggal (deskripsi/alasan TIDAK ikut dikirim).
 //   hapus        : { id } -> milik sendiri (selama belum disetujui); admin boleh menghapus siapa pun
 //   setujui      : { id } -> ADMIN saja
 //   tolak        : { id, catatan? } -> ADMIN saja
@@ -47,6 +50,9 @@ const MAKS_HARI = 90;          // satu pengajuan paling lama 90 hari
 const MAKS_MUNDUR_HARI = 120;  // boleh mengisi ijin yang sudah lewat sampai 120 hari
 const MAKS_MAJU_HARI = 365;
 const MAKS_DESKRIPSI = 500;
+// Peran yang ditampilkan di daftar "Tidak hadir hari ini" (Menu Utama).
+// Tambahkan "staf" bila staf juga ingin ditampilkan: ["guru", "staf"]
+const ROLE_TAMPIL_HARI_INI = ["guru"];
 const MAKS_CATATAN = 200;
 const MAKS_MASSAL = 500;
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -125,6 +131,32 @@ Deno.serve(async (req: Request) => {
     let body: Record<string, unknown> = {};
     try { body = await req.json(); } catch { /* body kosong */ }
     const aksi = String(body.aksi || "");
+
+    // ================= HARI INI (GURU TIDAK HADIR) =================
+    if (aksi === "hari_ini") {
+      // Tanggal hari ini menurut WIB (UTC+7), bukan UTC
+      const hariIniWib = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      const r = await rekap(
+        `/absen_ijin?select=pdp_user_id,nama,jenis,tanggal_mulai,tanggal_selesai` +
+        `&status=eq.disetujui&tanggal_mulai=lte.${hariIniWib}&tanggal_selesai=gte.${hariIniWib}` +
+        `&order=nama.asc&limit=200`);
+      if (!r.ok) return galatRekap(r);
+      const baris = Array.isArray(r.data)
+        ? r.data as { pdp_user_id: string | null; nama: string; jenis: string; tanggal_mulai: string; tanggal_selesai: string }[]
+        : [];
+      const ids = [...new Set(baris.map((b) => b.pdp_user_id).filter((x): x is string => typeof x === "string" && UUID_RE.test(x)))];
+      let tampil: typeof baris = [];
+      if (ids.length) {
+        const { data: pf } = await adminClient.from("profiles").select("id, role").in("id", ids);
+        const peran = new Map<string, string>((pf || []).map((p: { id: string; role: string }) => [p.id, p.role] as [string, string]));
+        tampil = baris.filter((b) => ROLE_TAMPIL_HARI_INI.includes(String(peran.get(b.pdp_user_id ?? "") ?? "")));
+      }
+      return json({
+        success: true,
+        tanggal: hariIniWib,
+        data: tampil.map((b) => ({ nama: b.nama, jenis: b.jenis, tanggal_mulai: b.tanggal_mulai, tanggal_selesai: b.tanggal_selesai })),
+      }, 200);
+    }
 
     // ================= SIMPAN =================
     if (aksi === "simpan") {

@@ -115,6 +115,21 @@
   .pt-sec { display: flex; align-items: center; gap: 10px; margin: 28px 2px 14px; font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
   .pt-sec::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
+  /* Guru tidak hadir hari ini (guru & staf) */
+  .gth-n { font-family: var(--font-body, inherit); font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: var(--danger-tint); color: var(--danger); }
+  .gth-n--nol { background: var(--success-tint); color: var(--success); }
+  .gth-tgl { font-family: var(--font-body, inherit); font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+  .gth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .gth-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); min-width: 0; }
+  .gth-av { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: 15px; background: var(--primary-tint-strong); color: var(--primary-dim); }
+  .gth-nm { font-size: 14px; font-weight: 700; line-height: 1.3; word-break: break-word; }
+  .gth-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+  .gth-b { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800; }
+  .gth-b--sakit { background: var(--danger-tint); color: var(--danger); }
+  .gth-b--ijin { background: #fff7ed; color: #ea580c; }
+  .gth-b--dl { background: var(--primary-tint-strong); color: var(--primary-dim); }
+  .gth-kosong { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
+
   .pt-mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
   .pt-mod { display: flex; align-items: flex-start; gap: 14px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s, border-color .15s; }
   .pt-mod:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--primary-soft); }
@@ -237,6 +252,9 @@
       </section>
 
       <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec" id="secGth" style="display:none;">Guru Tidak Hadir Hari Ini <span class="gth-n" id="gthN"></span><span class="gth-tgl" id="gthTgl"></span></div>
+      <div id="gthWadah"></div>
 
       <div class="pt-sec" id="secPeng" style="display:none;">Pengumuman Sekolah</div>
       <div id="pkPengWadah"></div>
@@ -548,6 +566,60 @@
     if (window.lucide) lucide.createIcons();
   }
 
+  // ---------- Guru tidak hadir hari ini (khusus guru & staf) ----------
+  // Data: pengajuan Ijin / Sakit / Dinas Luar yang sudah DISETUJUI admin (Edge Function ijin-absen, aksi "hari_ini").
+  var GTH_JENIS = { sakit: { l: 'Sakit', c: 'gth-b--sakit' }, ijin: { l: 'Ijin', c: 'gth-b--ijin' }, dinas_luar: { l: 'Dinas Luar', c: 'gth-b--dl' } };
+  var gthTerakhir = 0, gthSedangMuat = false;
+  function gthTglPendek(s) {
+    var b = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'], p = String(s).split('-');
+    return p.length === 3 ? (parseInt(p[2], 10) + ' ' + b[parseInt(p[1], 10) - 1]) : s;
+  }
+  async function muatGuruTidakHadir() {
+    var sec = document.getElementById('secGth'), wadah = document.getElementById('gthWadah');
+    if (!sec || !wadah || gthSedangMuat) return;
+    gthSedangMuat = true;
+    try {
+      var sesi = await supabaseClient.auth.getSession();
+      var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
+      if (!token) return;
+      var resp = await fetch(SUPABASE_URL + '/functions/v1/ijin-absen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ aksi: 'hari_ini' })
+      });
+      var out = await resp.json().catch(function () { return {}; });
+      if (!resp.ok || !out.success) throw new Error(out.error || ('HTTP ' + resp.status));
+      var daftar = out.data || [], hariIni = out.tanggal || '';
+      var tglTxt = '';
+      try { tglTxt = new Date(hariIni + 'T00:00:00Z').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch (e) { /* abaikan */ }
+      document.getElementById('gthTgl').textContent = tglTxt;
+      var n = document.getElementById('gthN');
+      n.textContent = daftar.length ? (daftar.length + ' orang') : 'Nihil';
+      n.className = 'gth-n' + (daftar.length ? '' : ' gth-n--nol');
+      if (!daftar.length) {
+        wadah.innerHTML = '<div class="gth-kosong">Tidak ada guru yang tercatat ijin, sakit, atau dinas luar hari ini.</div>';
+      } else {
+        wadah.innerHTML = '<div class="gth-grid">' + daftar.map(function (x) {
+          var j = GTH_JENIS[x.jenis] || { l: x.jenis, c: 'gth-b--ijin' };
+          var nm = String(x.nama || '—');
+          var lanjut = (x.tanggal_selesai && x.tanggal_selesai > hariIni) ? '<span>s.d. ' + esc(gthTglPendek(x.tanggal_selesai)) + '</span>' : '';
+          return '<div class="gth-item"><div class="gth-av" aria-hidden="true">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>' +
+            '<div style="min-width:0;"><div class="gth-nm">' + esc(nm) + '</div>' +
+            '<div class="gth-meta"><span class="gth-b ' + j.c + '">' + esc(j.l) + '</span>' + lanjut + '</div></div></div>';
+        }).join('') + '</div>';
+      }
+      sec.style.display = '';
+      gthTerakhir = Date.now();
+    } catch (e) {
+      // Fitur tambahan: bila Edge Function belum diperbarui / gagal, bagian ini disembunyikan tanpa mengganggu halaman.
+      if (!wadah.innerHTML) sec.style.display = 'none';
+      if (window.console) console.warn('Guru tidak hadir hari ini:', e && e.message ? e.message : e);
+    } finally { gthSedangMuat = false; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && gthTerakhir && Date.now() - gthTerakhir > 300000) muatGuruTidakHadir();
+  });
+
   (async function () {
     var ses = await supabaseClient.auth.getSession();
     if (!ses.data.session) { window.location.href = 'index.html'; return; }
@@ -643,6 +715,7 @@
       document.getElementById('secDk').style.display = '';
       DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });
     }
+    if (!admin && !kepsek && !pengawas) muatGuruTidakHadir(); // guru & staf; dimuat paralel, gagal tidak mengganggu
     if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else if (pengawas) await muatAdmin(ta, 'Pengawas Sekolah'); else await muatGuru(ta, user.id);
   })();
 
