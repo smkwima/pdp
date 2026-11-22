@@ -27,7 +27,7 @@
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=12" defer></script>
 <script src="kepsek-nav.js?v=10"></script>
-<script src="pelanggaran-cp.js?v=1"></script>
+<script src="pelanggaran-cp.js?v=2"></script>
 <script src="mobile.js?v=2" defer></script>
 <script src="bottomnav.js?v=18" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
@@ -172,7 +172,7 @@
       '<button class="btn-small" id="btnTutupSemua">Tutup semua</button>' +
       '</div>' +
       '<div class="panel-note">Total seluruh tahun ajaran di kelas ini: <b>' + totalSemua + '</b> catatan, <b>' + poinSemua + '</b> poin. Detail tiap siswa menampilkan catatan dari semua tahun ajaran, lengkap dengan nama pencatat.</div>' +
-      '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Catatan TA ini</th><th>Poin TA ini</th><th>Total catatan</th><th>Detail</th></tr></thead><tbody id="bodySiswa"></tbody></table></div>';
+      '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Catatan TA ini</th><th>Poin TA ini</th><th>Penanganan TA ini</th><th>Total catatan</th><th>Detail</th></tr></thead><tbody id="bodySiswa"></tbody></table></div>';
 
     function tampilkan() {
       var kata = document.getElementById('cariNama').value.trim().toLowerCase();
@@ -185,12 +185,12 @@
         var ini = semua.filter(function (r) { return r.tahun_ajaran === ta; });
         n++;
         baris += '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama">' + esc(s.nama) + '</td><td data-label="NIS">' + esc(s.nis || '—') + '</td>' +
-          '<td data-label="Catatan TA ini">' + ini.length + '</td><td data-label="Poin TA ini">' + PelanggaranCP.totalPoin(ini) + '</td><td data-label="Total catatan">' + semua.length + '</td>' +
+          '<td data-label="Catatan TA ini">' + ini.length + '</td><td data-label="Poin TA ini">' + PelanggaranCP.totalPoin(ini) + '</td><td data-label="Penanganan TA ini">' + esc(PelanggaranCP.penanganan(PelanggaranCP.totalPoin(ini))) + '</td><td data-label="Total catatan">' + semua.length + '</td>' +
           '<td data-label="Detail">' + (semua.length
             ? '<details><summary style="cursor:pointer;color:var(--primary);">Lihat ' + semua.length + ' catatan</summary>' + PelanggaranCP.tabelHtml(semua, { pelapor: true }) + '</details>'
             : '<span style="color:var(--ink-soft);">—</span>') + '</td></tr>';
       });
-      document.getElementById('bodySiswa').innerHTML = baris || '<tr><td colspan="7">Tidak ada siswa yang cocok.</td></tr>';
+      document.getElementById('bodySiswa').innerHTML = baris || '<tr><td colspan="8">Tidak ada siswa yang cocok.</td></tr>';
     }
     tampilkan();
     document.getElementById('cariNama').addEventListener('input', tampilkan);

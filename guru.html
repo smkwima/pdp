@@ -32,7 +32,7 @@
 <script src="jadwal-kegiatan.js?v=1"></script>
 <script src="app-switcher.js?v=12" defer></script>
 <script src="bukuinduk-fields.js?v=2"></script>
-<script src="pelanggaran-cp.js?v=1"></script>
+<script src="pelanggaran-cp.js?v=2"></script>
 <script src="simpan-atas.js?v=1"></script>
 <script src="sticky-nama.js?v=1"></script>
 <script src="mobile.js?v=2" defer></script>
@@ -5366,7 +5366,7 @@
         totalKasus += tahunIni.length;
         if (tahunIni.length) bermasalah++;
         return '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(s.nama) + '</td><td>' + escapeHtml(s.nis || '—') + '</td>' +
-          '<td>' + tahunIni.length + '</td><td>' + window.PelanggaranCP.totalPoin(tahunIni) + '</td>' +
+          '<td>' + tahunIni.length + '</td><td>' + window.PelanggaranCP.totalPoin(tahunIni) + '</td><td>' + escapeHtml(window.PelanggaranCP.penanganan(window.PelanggaranCP.totalPoin(tahunIni))) + '</td>' +
           '<td>' + (semua.length
             ? '<details><summary style="cursor:pointer;color:var(--primary);">Lihat ' + semua.length + ' catatan</summary>' + window.PelanggaranCP.tabelHtml(semua, { pelapor: true }) + '</details>'
             : '<span style="color:var(--ink-soft);">—</span>') + '</td></tr>';
@@ -5374,7 +5374,7 @@
       content.innerHTML =
         '<div class="panel-head"><div><div class="panel-head__title">Pelanggaran Kelas — ' + escapeHtml(wk.kelas.nama) + '</div>' +
         '<div class="panel-head__desc">Dibaca dari aplikasi CP (hanya baca). Tahun ajaran ' + escapeHtml(ta) + ': ' + totalKasus + ' catatan pada ' + bermasalah + ' siswa. Detail menampilkan seluruh tahun ajaran.</div></div></div>' +
-        '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Catatan TA ini</th><th>Poin TA ini</th><th>Detail</th></tr></thead><tbody>' + baris + '</tbody></table></div>';
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Catatan TA ini</th><th>Poin TA ini</th><th>Penanganan TA ini</th><th>Detail</th></tr></thead><tbody>' + baris + '</tbody></table></div>';
     }
 
     async function renderCatatanWaliKelas(wk) {

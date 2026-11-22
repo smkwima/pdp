@@ -123,7 +123,25 @@
     return hasil;
   }
 
+  // Penanganan menurut Pasal 8 (sama dengan aplikasi CP), dihitung dari total poin SATU tahun ajaran.
+  function penanganan(p) {
+    p = Number(p) || 0;
+    if (p <= 0) return '-';
+    if (p <= 25) return 'Pembinaan/pendekatan lisan';
+    if (p <= 50) return 'Surat pernyataan + orang tua/wali dipanggil/dihubungi; Surat Peringatan I';
+    if (p <= 75) return 'Orang tua/wali dipanggil/dihubungi; Surat Peringatan II';
+    if (p <= 99) return 'Orang tua/wali dipanggil ke sekolah; Surat Peringatan III';
+    return 'Dikembalikan ke orang tua/wali';
+  }
+
   function totalPoin(rows) { return rows.reduce(function (t, r) { return t + (Number(r.poin) || 0); }, 0); }
+
+  // [{ ta, poin }] per tahun ajaran, terbaru di atas
+  function perTahun(rows) {
+    var m = {};
+    rows.forEach(function (r) { var k = r.tahun_ajaran || '-'; m[k] = (m[k] || 0) + (Number(r.poin) || 0); });
+    return Object.keys(m).sort().reverse().map(function (k) { return { ta: k, poin: m[k] }; });
+  }
 
   // Tabel catatan dikelompokkan per tahun ajaran (terbaru di atas).
   // opsi.pelapor: tampilkan kolom "Dicatat oleh" (untuk guru/admin saja)
@@ -141,6 +159,7 @@
       var a = grup[k];
       return '<div class="section-title" style="margin-top:14px;">Tahun Ajaran ' + esc(k) +
         ' <span class="chip chip--danger" style="margin-left:6px;">' + a.length + ' catatan · ' + totalPoin(a) + ' poin</span></div>' +
+        '<div class="panel-note" style="margin:6px 0;"><b>Penanganan (Pasal 8):</b> ' + esc(penanganan(totalPoin(a))) + '</div>' +
         '<div class="table-wrap"><table class="data-table"><thead><tr><th>Tanggal</th><th>Kategori</th><th>Pelanggaran</th><th>Poin</th><th>Keterangan</th>' +
         (opsi.pelapor ? '<th>Dicatat oleh</th>' : '') + '</tr></thead><tbody>' +
         a.map(function (r) {
@@ -157,8 +176,11 @@
       rows.map(function (r) {
         return '<tr><td>' + esc(tgl(r.tanggal)) + '</td><td>' + esc(r.kategori || '') + '</td><td>' + esc(r.pelanggaran) + '</td><td style="text-align:center;">' + esc(r.poin) + '</td><td>' + esc(r.keterangan || '') + '</td></tr>';
       }).join('') + '</tbody></table>' +
-      '<div style="margin-top:3px;font-size:8.5pt;">Total: <b>' + rows.length + '</b> catatan, <b>' + totalPoin(rows) + '</b> poin.</div>';
+      '<div style="margin-top:3px;font-size:8.5pt;">Total: <b>' + rows.length + '</b> catatan, <b>' + totalPoin(rows) + '</b> poin.</div>' +
+      perTahun(rows).map(function (t) {
+        return '<div style="margin-top:2px;font-size:8.5pt;">Penanganan TA ' + esc(t.ta) + ' (' + t.poin + ' poin): <b>' + esc(penanganan(t.poin)) + '</b></div>';
+      }).join('');
   }
 
-  g.PelanggaranCP = { ambil: ambil, totalPoin: totalPoin, tabelHtml: tabelHtml, tabelCetak: tabelCetak, tgl: tgl };
+  g.PelanggaranCP = { ambil: ambil, totalPoin: totalPoin, penanganan: penanganan, tabelHtml: tabelHtml, tabelCetak: tabelCetak, tgl: tgl };
 })(window);
