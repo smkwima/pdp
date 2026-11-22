@@ -715,7 +715,7 @@
       document.getElementById('secDk').style.display = '';
       DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });
     }
-    if (!admin && !kepsek && !pengawas) muatGuruTidakHadir(); // guru & staf; dimuat paralel, gagal tidak mengganggu
+    if (!admin && !pengawas) muatGuruTidakHadir(); // guru, staf & kepala sekolah; dimuat paralel, gagal tidak mengganggu
     if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else if (pengawas) await muatAdmin(ta, 'Pengawas Sekolah'); else await muatGuru(ta, user.id);
   })();
 
