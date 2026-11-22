@@ -15,6 +15,9 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="preconnect" href="https://sfuucjmnlmfcghobpnkf.supabase.co" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <script src="pwa.js" defer></script>
 <title>Presensi Siswa — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,8 +28,6 @@
 <script src="akses-guard.js?v=5"></script>
 <script src="mobile.js?v=2" defer></script>
 <script src="bottomnav.js?v=18" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   /* Presensi Siswa memakai kerangka & warna yang sama dengan halaman lain (style.css).
      Di sini hanya komponen khusus, semuanya berawalan ps- (umum) atau pw- (khusus presensi siswa). */
@@ -226,16 +227,26 @@ function gagalView(pesan) {
   <p class="ps-actions" style="justify-content:center"><button class="btn-small btn-small--primary" id="ulang">Coba lagi</button><button class="btn-small" id="out2">Menu Utama</button></p></div>`;
   ikon(); $("#ulang").onclick = () => init(); $("#out2").onclick = () => { location.href = "portal.html"; };
 }
+const terapkanAwal = aw => { hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs; waliPairs = aw.wali || []; };
 async function masuk(user) {
+  // Daftar tahun ajaran & kelas jarang berubah: bila sudah pernah dimuat di perangkat ini, langsung dipakai lalu disegarkan di latar belakang.
+  const kunci = "pres_awal_v1_" + user.id; let simpanan = null;
+  try { simpanan = JSON.parse(localStorage.getItem(kunci) || "null"); } catch (e) { /* abaikan */ }
+  const awalP = api("awal"); awalP.catch(() => { /* ditangani di bawah */ });   // berjalan paralel dengan pembacaan profil
   const { data, error: pe } = await sb.from("profiles").select("id,nama,email,role,nip").eq("id", user.id).maybeSingle();
   if (pe) return gagalView("Gagal membaca profil e-Rapor: " + pe.message);
   if (!data) return blokView("Profil e-Rapor tidak ditemukan untuk akun ini.");
   if (!["guru", "admin", "kepsek"].includes(data.role)) return blokView("Akun ini (peran " + data.role + ") tidak dipakai untuk presensi siswa.");
   me = data; me.jabatan = { guru: "Guru", admin: "Admin", kepsek: "Kepala Sekolah" }[data.role];
+  const pakaiSimpanan = !!(simpanan && simpanan.role === me.role && Array.isArray(simpanan.tahun) && simpanan.tahun.length && Array.isArray(simpanan.kelas) && simpanan.kelas.length);
   let aw;
-  try { aw = await api("awal"); }
-  catch (e) { return gagalView("Gagal memuat data presensi siswa (jika baru pertama kali, deploy fungsi presensi-siswa-api di project presensi siswa): " + e.message); }
-  hak = aw; tahun = aw.tahun; kelas = aw.kelas; pairs = aw.pairs; waliPairs = aw.wali || [];
+  if (pakaiSimpanan) aw = simpanan;
+  else {
+    try { aw = await awalP; }
+    catch (e) { return gagalView("Gagal memuat data presensi siswa (jika baru pertama kali, deploy fungsi presensi-siswa-api di project presensi siswa): " + e.message); }
+    try { localStorage.setItem(kunci, JSON.stringify(aw)); } catch (e) { /* abaikan */ }
+  }
+  terapkanAwal(aw);
   if (me.role === "guru" && !kelas.length) return blokView("Data kelas presensi siswa belum ada. Minta admin menyinkronkan data kelas dari e-Rapor (menu Presensi Siswa > Sinkron).");
   F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
   const kelasWali = waliPairs.find(p => p.tahun_id === F.thn); // wali kelas: mulai dari kelasnya sendiri
@@ -245,6 +256,15 @@ async function masuk(user) {
   if (TAB_INFO[awal] && menuTab().includes(awal)) tab = awal;
   history.replaceState({ d: 0, t: tab }, "");
   shell();
+  if (pakaiSimpanan) awalP.then(f => { // segarkan di latar belakang; tampilan hanya dibangun ulang bila datanya berubah dan tidak ada isian yang belum disimpan
+    try { localStorage.setItem(kunci, JSON.stringify(f)); } catch (e) { /* abaikan */ }
+    if (JSON.stringify(f) === JSON.stringify(aw) || dirty || !me) return;
+    terapkanAwal(f);
+    if (!tahun.some(t => t.id === F.thn)) F.thn = (tahun.find(t => t.aktif) || tahun[0] || {}).id || "";
+    if (!kelasOpsi().some(k => k.id === F.kls)) F.kls = (kelasOpsi()[0] || {}).id || "";
+    SM.key = ""; perluMuat = true; shell();
+  }).catch(() => { /* gagal menyegarkan: tetap pakai data tersimpan */ });
+  (window.requestIdleCallback || (fn => setTimeout(fn, 1500)))(() => { ensurePdf().catch(() => { /* dimuat ulang saat dibutuhkan */ }); });
 }
 
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
@@ -626,6 +646,15 @@ function rSinkron() {
 }
 
 /* ---------- PDF ---------- */
+// Pustaka PDF (jsPDF + AutoTable) tidak lagi menghambat pembukaan halaman: dimuat di latar belakang setelah halaman tampil,
+// dan dipastikan siap saat tombol Unduh PDF ditekan.
+const PDF_SRC = ["https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"];
+let pdfP = null;
+const muatSkrip = src => new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("Pustaka PDF gagal dimuat. Periksa koneksi internet lalu coba lagi.")); document.head.append(el); });
+function ensurePdf() {
+  if (!pdfP) pdfP = muatSkrip(PDF_SRC[0]).then(() => muatSkrip(PDF_SRC[1])).catch(e => { pdfP = null; throw e; });
+  return pdfP;
+}
 const NOW = () => fmtS(ymdSkrg());
 function newDoc(landscape) {
   if (!window.jspdf || !window.jspdf.jsPDF) { toast("Pustaka PDF belum termuat. Periksa koneksi internet lalu muat ulang halaman.", true); return null; }
@@ -777,7 +806,9 @@ function pdfSemuaKelas() {
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-pdf]"); if (!b) return;
-  try { ({ H: pdfHarian, B: pdfBulanan, S: pdfSem, K: pdfSemuaKelas })[b.dataset.pdf]() } catch (err) { toast("Gagal membuat PDF: " + (err.message || err), true) }
+  ensurePdf().then(() => {
+    try { ({ H: pdfHarian, B: pdfBulanan, S: pdfSem, K: pdfSemuaKelas })[b.dataset.pdf]() } catch (err) { toast("Gagal membuat PDF: " + (err.message || err), true) }
+  }).catch(err => toast(err.message || String(err), true));
 });
 
 init();
