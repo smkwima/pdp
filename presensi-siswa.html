@@ -372,11 +372,20 @@ function rInput() {
     + (dirty ? `<div class="ps-savebar"><span class="mut">Perubahan belum disimpan</span><button class="btn-small btn-small--primary" id="saveP2"><i data-lucide="save"></i> Simpan presensi</button></div>` : "");
   ikon();
 }
+function infoPel(p) {
+  if (!p) return { t: "", err: false };
+  if (!p.ok) return { t: " — tetapi sinkron ke pelanggaran GAGAL: " + p.error, err: true };
+  const a = [];
+  if (p.dibuat) a.push(p.dibuat + " dicatat ke pelanggaran");
+  if (p.dihapus) a.push(p.dihapus + " catatan pelanggaran dihapus");
+  if (p.dilewati && p.dilewati.length) a.push("tidak ditemukan/ambigu di CP, tidak dicatat: " + p.dilewati.join(", "));
+  return { t: a.length ? " (" + a.join("; ") + ")" : "", err: !!(p.dilewati && p.dilewati.length) };
+}
 async function simpan(btn) {
   const d = F.tgl, peta = {};
   stu.forEach(x => { const v = att[d + "|" + x.id]; if (v) peta[x.id] = v; });
   document.querySelectorAll("#saveP,#saveP2").forEach(b => b.disabled = true);
-  try { await api("simpan_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d, absen: peta }); sesi.add(d); dirty = false; toast("Presensi tersimpan ✓"); }
+  try { const j = await api("simpan_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d, absen: peta }); sesi.add(d); dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tersimpan ✓" + i.t, i.err); }
   catch (e) { toast("Gagal menyimpan: " + e.message, true); }
   if (tab === "input") rInput();
 }
@@ -384,8 +393,8 @@ async function hapusHari() {
   if (!clrArm) { clrArm = true; return rInput(); }
   clrArm = false; const d = F.tgl;
   try {
-    await api("hapus_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d });
-    stu.forEach(x => delete att[d + "|" + x.id]); sesi.delete(d); dirty = false; toast("Presensi tanggal ini dihapus.");
+    const j = await api("hapus_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d });
+    stu.forEach(x => delete att[d + "|" + x.id]); sesi.delete(d); dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tanggal ini dihapus." + i.t, i.err);
   } catch (e) { toast("Gagal menghapus: " + e.message, true); }
   rInput();
 }
