@@ -250,10 +250,10 @@ async function masuk(user) {
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
 const TAB_INFO = {
   input: ["Presensi Siswa", "Presensi", "user-check"], harian: ["Rekap Harian", "Harian", "calendar-days"],
-  bulanan: ["Rekap Bulanan", "Bulanan", "calendar-range"], sem: ["Rekap Semester", "Semester", "calendar-check"],
+  semuakelas: ["Rekap Semua Kelas", "Semua Kelas", "layout-list"], bulanan: ["Rekap Bulanan", "Bulanan", "calendar-range"], sem: ["Rekap Semester", "Semester", "calendar-check"],
   cetak: ["Pengaturan Cetak PDF", "Cetak", "printer"], data: ["Kelas & Siswa", "Kelas & Siswa", "users"], sinkron: ["Sinkron e-Rapor", "Sinkron", "refresh-cw"]
 };
-const menuSaya = () => me.role === "kepsek" ? ["harian", "bulanan", "sem", "cetak"] : ["input", "harian", "bulanan", "sem", "cetak"];
+const menuSaya = () => me.role === "kepsek" ? ["harian", "semuakelas", "bulanan", "sem", "cetak"] : ["input", "harian", "semuakelas", "bulanan", "sem", "cetak"];
 const menuKelola = () => me.role === "admin" ? ["data", "sinkron"] : [];
 const menuTab = () => [...menuSaya(), ...menuKelola()];
 function shell() {
@@ -308,13 +308,14 @@ const opsiKls = () => kelasOpsi().map(k => `<option value="${esc(k.id)}"${k.id =
 function filterHtml() {
   return `<div class="ps-filter"><div class="field"><label for="fTgl">Tanggal</label><input type="date" id="fTgl" value="${esc(F.tgl)}"></div>
   <div class="field"><label for="fThn">Tahun ajaran / semester</label><select id="fThn">${opsiThn()}</select></div>
-  <div class="field"><label for="fKls">Kelas</label><select id="fKls">${opsiKls()}</select></div></div>`;
+  ${tab === "semuakelas" ? "" : `<div class="field"><label for="fKls">Kelas</label><select id="fKls">${opsiKls()}</select></div>`}</div>`;
 }
 function pasangFilter() {
   const T = $("#fTgl"), H = $("#fThn"), K = $("#fKls");
-  const pulih = () => { T.value = F.tgl; H.value = F.thn; K.innerHTML = opsiKls(); K.value = F.kls; };
+  const pulih = () => { T.value = F.tgl; H.value = F.thn; if (K) { K.innerHTML = opsiKls(); K.value = F.kls; } };
   T.onchange = () => {
     if (!T.value || !lepas()) return pulih();
+    if (tab === "semuakelas") { F.tgl = T.value; perluMuat = true; return render(); } // data per kelas dimuat ulang saat pindah tab
     const samaBulan = F.tgl.slice(0, 7) === T.value.slice(0, 7);
     F.tgl = T.value; clrArm = false;
     if (samaBulan && !perluMuat) render(); else { perluMuat = false; muat(); }
@@ -322,6 +323,7 @@ function pasangFilter() {
   H.onchange = () => {
     if (!lepas()) return pulih();
     F.thn = H.value; const o = kelasOpsi(); if (!o.some(k => k.id === F.kls)) F.kls = (o[0] || {}).id || "";
+    if (tab === "semuakelas") { semKey = ""; perluMuat = true; pulih(); return render(); }
     semKey = ""; perluMuat = false; pulih(); muat();
   };
   K.onchange = () => { if (!lepas()) return pulih(); F.kls = K.value; perluMuat = false; muat(); };
@@ -352,6 +354,7 @@ function render() {
     v.innerHTML = notice("warn", "database", "Belum ada data kelas", me.role === "admin" ? "Buka menu <b>Sinkron</b> untuk menyalin tahun ajaran, kelas, dan siswa dari e-Rapor." : "Admin belum menyinkronkan data kelas dari e-Rapor.");
     ikon(); return;
   }
+  if (tab === "semuakelas") return rSemuaKelas();
   if (!F.kls) { v.innerHTML = notice("warn", "triangle-alert", "Belum ada kelas untuk tahun ajaran ini", ""); ikon(); return; }
   ({ input: rInput, harian: rHarian, bulanan: rBulanan, sem: rSem, data: rData })[tab]();
   ikon();
@@ -385,7 +388,7 @@ async function simpan(btn) {
   const d = F.tgl, peta = {};
   stu.forEach(x => { const v = att[d + "|" + x.id]; if (v) peta[x.id] = v; });
   document.querySelectorAll("#saveP,#saveP2").forEach(b => b.disabled = true);
-  try { const j = await api("simpan_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d, absen: peta }); sesi.add(d); dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tersimpan ✓" + i.t, i.err); }
+  try { const j = await api("simpan_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d, absen: peta }); sesi.add(d); SM.key = ""; dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tersimpan ✓" + i.t, i.err); }
   catch (e) { toast("Gagal menyimpan: " + e.message, true); }
   if (tab === "input") rInput();
 }
@@ -394,7 +397,7 @@ async function hapusHari() {
   clrArm = false; const d = F.tgl;
   try {
     const j = await api("hapus_hari", { tahun_id: F.thn, kelas_id: F.kls, tanggal: d });
-    stu.forEach(x => delete att[d + "|" + x.id]); sesi.delete(d); dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tanggal ini dihapus." + i.t, i.err);
+    stu.forEach(x => delete att[d + "|" + x.id]); sesi.delete(d); SM.key = ""; dirty = false; const i = infoPel(j.pelanggaran); toast("Presensi tanggal ini dihapus." + i.t, i.err);
   } catch (e) { toast("Gagal menghapus: " + e.message, true); }
   rInput();
 }
@@ -442,6 +445,57 @@ function rBulanan() {
   <div class="task-section__body"><div class="pw-sc"><table class="pw-tbl"><thead><tr><th class="l sticky">Nama</th>${days.map(d => `<th class="${wk(B.y, B.m, d) ? "wk" : ""}">${d}</th>`).join("")}<th>S</th><th>I</th><th>A</th><th>H</th><th>%</th></tr></thead><tbody>
   ${B.rows.map(r => `<tr><td class="l sticky">${r.no}. ${esc(r.nama)}</td>${r.cells.map((v, i) => `<td class="${wk(B.y, B.m, i + 1) ? "wk " : ""}${v ? "c-" + v : ""}${v === "H" ? " dim" : ""}">${v}</td>`).join("")}<td class="c-S">${r.S}</td><td class="c-I">${r.I}</td><td class="c-A">${r.A}</td><td class="c-H">${r.H}</td><td><b>${r.pct}%</b></td></tr>`).join("")}</tbody></table></div>
   <p class="ps-hint">H = Hadir · S = Sakit · I = Ijin · A = Tanpa Keterangan. Hari tanpa presensi tersimpan dikosongkan.</p></div></section>`;
+}
+// ---------- Rekap semua kelas (satu tanggal) ----------
+// Daftar siswa tidak hadir seluruh kelas pada tanggal terpilih: "Budi (S), Indri (I), Rudi (A)". A = tanpa keterangan.
+// Data diambil per kelas lewat action "absen" yang sudah ada (tanpa perubahan backend).
+let SM = { key: "", rows: [], tok: 0 };
+const smKey = () => F.thn + "|" + F.tgl;
+const hurufAwal = w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : "";
+function labelTidakHadir(list) { // list: [{nama, v}] -> [{t, v}]; nama depan, bila kembar di kelas yang sama ditambah inisial nama berikutnya
+  const kata = n => String(n || "").trim().split(/\s+/).filter(Boolean);
+  const depan = list.map(x => hurufAwal(kata(x.nama)[0] || "-"));
+  return list.map((x, i) => {
+    const k = kata(x.nama); let nm = depan[i];
+    if (depan.filter(d => d === nm).length > 1 && k[1]) nm += " " + k[1].charAt(0).toUpperCase() + ".";
+    return { t: `${nm} (${x.v})`, v: x.v };
+  });
+}
+async function muatSemuaKelas() {
+  const tok = ++SM.tok, key = smKey(), tgl = F.tgl, thn = F.thn, ks = kelasOpsi(), rows = new Array(ks.length);
+  for (let i = 0; i < ks.length; i += 6) {
+    await Promise.all(ks.slice(i, i + 6).map(async (k, j) => {
+      try {
+        const r = await api("absen", { tahun_id: thn, kelas_id: k.id, dari: tgl, sampai: tgl });
+        const st = {}; r.absen.forEach(x => { if (x.tanggal === tgl) st[x.siswa_id] = x.status; });
+        const tdk = r.siswa.filter(x => st[x.id]).map(x => ({ nama: x.nama, v: st[x.id] }));
+        const cnt = { S: 0, I: 0, A: 0 }; tdk.forEach(x => cnt[x.v]++);
+        rows[i + j] = { kelas: k.nama, total: r.siswa.length, items: labelTidakHadir(tdk), cnt, ok: r.sesi.includes(tgl) || tdk.length > 0 };
+      } catch (e) { rows[i + j] = { kelas: k.nama, total: 0, items: [], cnt: { S: 0, I: 0, A: 0 }, ok: false, err: e.message }; }
+    }));
+    if (tok !== SM.tok) return;
+  }
+  SM.key = key; SM.rows = rows;
+  if (tab === "semuakelas" && smKey() === key) rSemuaKelas();
+}
+function rSemuaKelas() {
+  const v = $("#view"); if (!v) return;
+  if (SM.key !== smKey()) {
+    v.innerHTML = `<section class="task-section"><div class="task-section__body"><div class="panel-note">Memuat presensi semua kelas…</div></div></section>`;
+    if (!SM.loading || SM.loading !== smKey()) { SM.loading = smKey(); muatSemuaKelas().finally(() => { if (SM.loading === smKey()) SM.loading = ""; }); }
+    return;
+  }
+  const R = SM.rows, t = { S: 0, I: 0, A: 0 }; let belum = 0;
+  R.forEach(r => { t.S += r.cnt.S; t.I += r.cnt.I; t.A += r.cnt.A; if (!r.ok && !r.err) belum++; });
+  const sel = r => r.err ? `<span class="c-A">Gagal memuat: ${esc(r.err)}</span>`
+    : !r.ok ? `<span class="c-A">Presensi belum diisi</span>`
+    : r.items.length ? r.items.map(x => `<span class="c-${x.v}"><b>${esc(x.t)}</b></span>`).join(", ")
+    : `<span class="mut">Nihil</span>`;
+  v.innerHTML = `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="layout-list"></i> Rekap semua kelas</div><div class="task-section__desc">${esc(fmt(F.tgl))} · ${esc(labelThn())}</div></div><button class="btn-small btn-small--primary" data-pdf="K"><i data-lucide="download"></i> Unduh PDF</button></div>
+  <div class="task-section__body"><div class="stat-grid">${kartu("Kelas", R.length)}${kartu("Sakit", t.S, "c-S")}${kartu("Ijin", t.I, "c-I")}${kartu("Tanpa Ket.", t.A, "c-A")}${kartu("Belum diisi", belum, belum ? "c-A" : "")}</div>
+  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>No</th><th>Kelas</th><th>Siswa tidak hadir</th><th>Jml</th></tr></thead><tbody>${R.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.kelas)}</b></td><td>${sel(r)}</td><td>${r.items.length || ""}</td></tr>`).join("") || `<tr><td colspan="4" class="ps-empty">Belum ada kelas untuk tahun ajaran ini.</td></tr>`}</tbody></table></div>
+  <p class="ps-hint">S = Sakit · I = Ijin · A = Tanpa Keterangan. Siswa yang tidak tercantum dianggap hadir.</p></div></section>`;
+  ikon();
 }
 // rekap semester
 function rentang() {
@@ -697,9 +751,33 @@ function pdfSem() {
   pdfTtd(doc, doc.lastAutoTable.finalY, mg); pdfFoot(doc, mg);
   doc.save(`Rekap-Semester_${safe(kname())}_${safe(labelThn())}.pdf`); toast("PDF diunduh ✓");
 }
+function pdfSemuaKelas() {
+  if (SM.key !== smKey()) { toast("Data semua kelas belum selesai dimuat.", true); return }
+  const R = SM.rows; if (!R.length) { toast("Belum ada kelas untuk tahun ajaran ini.", true); return }
+  const doc = newDoc(false); if (!doc) return;
+  const mg = 14, W = doc.internal.pageSize.getWidth();
+  const y = pdfKop(doc, "REKAP KETIDAKHADIRAN SISWA SEMUA KELAS", [labelThn(), fmt(F.tgl)]);
+  doc.autoTable(Object.assign(tblBase(mg), {
+    startY: y, head: [["No", "Kelas", "Siswa Tidak Hadir", "Jml"]],
+    body: R.map((r, i) => [i + 1, r.kelas, r.err ? "Gagal memuat" : !r.ok ? "Presensi belum diisi" : r.items.length ? r.items.map(x => x.t).join(", ") : "Nihil", r.items.length || ""]),
+    columnStyles: { 0: { cellWidth: 12, halign: "center" }, 1: { cellWidth: 34, halign: "left" }, 2: { halign: "left" }, 3: { cellWidth: 14, halign: "center" } },
+    didParseCell: d => { if (d.section === "body" && d.column.index === 2) { const t = d.cell.text.join(" "); if (t === "Presensi belum diisi" || t === "Gagal memuat") { d.cell.styles.textColor = CL.A; d.cell.styles.fontStyle = "italic" } else if (t === "Nihil") d.cell.styles.textColor = [150, 156, 168] } }
+  }));
+  let fy = doc.lastAutoTable.finalY + 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 108, 120);
+  doc.text("Keterangan: S = Sakit, I = Ijin, A = Tanpa Keterangan. Siswa yang tidak tercantum dianggap hadir.", mg, fy);
+  const H = doc.internal.pageSize.getHeight(); fy += 6; if (fy > H - 50) { doc.addPage(); fy = 22 }
+  const cx = W - mg - 38; doc.setFontSize(9.5); doc.setTextColor(30, 35, 45);
+  doc.text((cfg.kota ? cfg.kota + ", " : "") + NOW(), cx, fy, { align: "center" }); doc.text("Kepala Sekolah", cx, fy + 5, { align: "center" });
+  doc.setFont("helvetica", "bold"); const nm = cfg.kepsek || "(................................)"; doc.text(nm, cx, fy + 26, { align: "center" });
+  if (cfg.kepsek) { const tw = doc.getTextWidth(nm); doc.setLineWidth(.3); doc.setDrawColor(30, 35, 45); doc.line(cx - tw / 2, fy + 27, cx + tw / 2, fy + 27) }
+  doc.setFont("helvetica", "normal"); if (cfg.nipKepsek) doc.text("NIP. " + cfg.nipKepsek, cx, fy + 31.5, { align: "center" });
+  pdfFoot(doc, mg);
+  doc.save(`Rekap-Semua-Kelas_${F.tgl}.pdf`); toast("PDF diunduh ✓");
+}
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-pdf]"); if (!b) return;
-  try { ({ H: pdfHarian, B: pdfBulanan, S: pdfSem })[b.dataset.pdf]() } catch (err) { toast("Gagal membuat PDF: " + (err.message || err), true) }
+  try { ({ H: pdfHarian, B: pdfBulanan, S: pdfSem, K: pdfSemuaKelas })[b.dataset.pdf]() } catch (err) { toast("Gagal membuat PDF: " + (err.message || err), true) }
 });
 
 init();
