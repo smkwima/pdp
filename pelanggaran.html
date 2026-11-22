@@ -90,7 +90,7 @@
   var siswaKelas = null;   // { kelas, siswa: [...], peta: { siswaId: [catatan] } } untuk kelas yang sedang dibuka
   var urutMuat = 0;        // mencegah balapan kalau pilihan kelas diganti saat masih memuat
   // Alamat aplikasi CP (Catatan Pelanggaran). ISI di sini; tombol "Laporkan Pelanggaran" membukanya di tab baru.
-  var CP_APP_URL = '';
+  var CP_APP_URL = 'https://spmbwima.github.io/cp/';
 
   function esc(s) {
     return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
