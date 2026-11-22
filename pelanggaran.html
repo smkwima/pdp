@@ -89,6 +89,8 @@
   var kelasList = [];
   var siswaKelas = null;   // { kelas, siswa: [...], peta: { siswaId: [catatan] } } untuk kelas yang sedang dibuka
   var urutMuat = 0;        // mencegah balapan kalau pilihan kelas diganti saat masih memuat
+  // Alamat aplikasi CP (Catatan Pelanggaran). ISI di sini; tombol "Laporkan Pelanggaran" membukanya di tab baru.
+  var CP_APP_URL = '';
 
   function esc(s) {
     return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) {
@@ -107,7 +109,8 @@
     }).join('');
     content.innerHTML =
       '<div class="panel-head"><div><div class="panel-head__title">Catatan Pelanggaran</div>' +
-      '<div class="panel-head__desc">Dibaca dari aplikasi CP (hanya baca). Pilih kelas untuk melihat seluruh catatan pelanggaran siswanya. Bisa diakses semua guru.</div></div></div>' +
+      '<div class="panel-head__desc">Dibaca dari aplikasi CP (hanya baca). Pilih kelas untuk melihat seluruh catatan pelanggaran siswanya. Bisa diakses semua guru.</div></div>' +
+      '<a href="' + esc(CP_APP_URL || '#') + '" target="_blank" rel="noopener" class="btn-small btn-small--primary" id="btnLapor"><i data-lucide="shield-alert" style="width:14px;height:14px;"></i> Laporkan Pelanggaran</a></div>' +
       '<form class="add-form" id="formPilih" onsubmit="return false;">' +
       '<div class="field"><label>Kelas</label><select id="pilihKelas">' + opsi + '</select></div>' +
       '</form>' +
@@ -115,6 +118,10 @@
     document.getElementById('pilihKelas').addEventListener('change', function () {
       bukaKelas(this.value);
     });
+    document.getElementById('btnLapor').addEventListener('click', function (e) {
+      if (!CP_APP_URL) { e.preventDefault(); alert('Alamat aplikasi CP belum diisi. Isi variabel CP_APP_URL di pelanggaran.html.'); }
+    });
+    if (window.lucide) lucide.createIcons();
   }
 
   async function bukaKelas(kelasId) {
