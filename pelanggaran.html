@@ -119,7 +119,12 @@
       bukaKelas(this.value);
     });
     document.getElementById('btnLapor').addEventListener('click', function (e) {
-      if (!CP_APP_URL) { e.preventDefault(); alert('Alamat aplikasi CP belum diisi. Isi variabel CP_APP_URL di pelanggaran.html.'); }
+      if (!CP_APP_URL) { e.preventDefault(); alert('Alamat aplikasi CP belum diisi. Isi variabel CP_APP_URL di pelanggaran.html.'); return; }
+      // Di PDP yang terpasang sebagai aplikasi (PWA): buka CP di jendela aplikasi yang sama, jangan pindah ke Chrome.
+      // Di browser biasa tetap tab baru.
+      var ua = navigator.userAgent || '';
+      var pwa = ((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true) && !/\bwv\b|Electron/i.test(ua);
+      if (pwa) { e.preventDefault(); location.href = CP_APP_URL; }
     });
     if (window.lucide) lucide.createIcons();
   }
