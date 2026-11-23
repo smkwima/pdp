@@ -34,6 +34,19 @@
     document.head.appendChild(sn);
   }
 
+  // Rekap Absen Fingerprint: di PWA yang sudah terpasang, tautan "tab baru" dibuka di jendela aplikasi yang sama
+  // (bukan dilempar ke browser). Di browser biasa tetap tab baru. Delegasi klik -> berlaku juga untuk menu yang dirender dinamis.
+  var modePwa = standalone || (window.matchMedia && (matchMedia('(display-mode: minimal-ui)').matches || matchMedia('(display-mode: window-controls-overlay)').matches));
+  if (modePwa && !dalamApp) {
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      var a = e.target && e.target.closest ? e.target.closest('a[href*="wima15.github.io/rekap-presensi"]') : null;
+      if (!a) return;
+      e.preventDefault();
+      location.href = a.href;
+    });
+  }
+
   if (!http || standalone || dalamApp || !tampilkanDiSini) return;
   if (baca('pwa-tutup') && Date.now() - Number(baca('pwa-tutup')) < 7 * 864e5) return;
 
