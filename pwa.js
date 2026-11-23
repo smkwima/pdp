@@ -25,6 +25,15 @@
   var halaman = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   var tampilkanDiSini = halaman === '' || halaman === 'index.html' || halaman === 'portal.html';
 
+  // Navigasi tengah-bawah (Sebelumnya · Muat Ulang · Berikutnya) untuk tampilan desktop, di semua halaman.
+  // Tidak dimuat di aplikasi Windows/APK (sudah punya toolbar sendiri).
+  if (!dalamApp && !document.getElementById('desktopNavScript')) {
+    var sn = document.createElement('script');
+    sn.id = 'desktopNavScript';
+    sn.src = 'desktopnav.js?v=1';
+    document.head.appendChild(sn);
+  }
+
   if (!http || standalone || dalamApp || !tampilkanDiSini) return;
   if (baca('pwa-tutup') && Date.now() - Number(baca('pwa-tutup')) < 7 * 864e5) return;
 
