@@ -131,6 +131,7 @@
   .gth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .gth-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); min-width: 0; }
   .gth-av { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: 15px; background: var(--primary-tint-strong); color: var(--primary-dim); }
+  .gth-av--foto { background-size: cover; background-position: center top; background-repeat: no-repeat; color: transparent; font-size: 0; }
   .gth-nm { font-size: 14px; font-weight: 700; line-height: 1.3; word-break: break-word; }
   .gth-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--ink-soft); font-weight: 600; }
   .gth-b { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800; }
@@ -612,7 +613,11 @@
           var j = GTH_JENIS[x.jenis] || { l: x.jenis, c: 'gth-b--ijin' };
           var nm = String(x.nama || '—');
           var lanjut = (x.tanggal_selesai && x.tanggal_selesai > hariIni) ? '<span>s.d. ' + esc(gthTglPendek(x.tanggal_selesai)) + '</span>' : '';
-          return '<div class="gth-item"><div class="gth-av" aria-hidden="true">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>' +
+          var foto = (typeof x.foto_url === 'string' && /^https:\/\//.test(x.foto_url)) ? x.foto_url : '';
+          var av = foto
+            ? '<div class="gth-av gth-av--foto" aria-hidden="true" style="background-image:url(\'' + foto.replace(/['"\\()\s]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }) + '\')">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>'
+            : '<div class="gth-av" aria-hidden="true">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>';
+          return '<div class="gth-item">' + av +
             '<div style="min-width:0;"><div class="gth-nm">' + esc(nm) + '</div>' +
             '<div class="gth-meta"><span class="gth-b ' + j.c + '">' + esc(j.l) + '</span>' + lanjut + '</div></div></div>';
         }).join('') + '</div>';
