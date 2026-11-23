@@ -405,6 +405,49 @@
       '<div class="dv-bar ' + kelasBar(persen) + '"><i style="width:' + persen + '%"></i></div></div>';
   }
 
+  // Project presensi (database terpisah dari PDP): dibaca lewat Edge Function masing-masing, aksi "kesehatan".
+  var PROJEK_PRESENSI = [
+    { judul: 'Presensi Guru',  url: 'https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api' },
+    { judul: 'Presensi Siswa', url: 'https://sfuucjmnlmfcghobpnkf.supabase.co/functions/v1/presensi-siswa-api' }
+  ];
+  async function ambilKesehatanPresensi(url, token) {
+    var batas = new AbortController(), t = setTimeout(function () { batas.abort(); }, 10000);
+    try {
+      var r = await fetch(url, { method: 'POST', signal: batas.signal,
+        headers: { 'Content-Type': 'application/json', 'x-rapor-token': token },
+        body: JSON.stringify({ action: 'kesehatan' }) });
+      var j = await r.json().catch(function () { return null; });
+      if (!r.ok || !j || j.error) return { galat: (j && j.error) ? j.error : 'HTTP ' + r.status + ' (function belum di-deploy ulang?)' };
+      return { d: j };
+    } catch (e) {
+      return { galat: e.name === 'AbortError' ? 'Tidak merespons (>10 dtk)' : 'Tidak dapat dihubungi: ' + (e.message || e) };
+    } finally { clearTimeout(t); }
+  }
+  function bagianPresensi(judul, x) {
+    var h = '<div class="dv-section-title" style="margin:22px 0 10px;font-size:14px;font-weight:700;color:#0f172a;">' + esc(judul) + ' <span class="dv-sub" style="font-weight:400;">(database terpisah)</span></div>';
+    if (x.galat) return h + '<div class="panel-note">Belum bisa dibaca: ' + esc(x.galat) + '</div>';
+    var d = x.d, st = (d.storage || []).reduce(function (a, b) { return a + (Number(b.ukuran) || 0); }, 0);
+    var berkas = (d.storage || []).reduce(function (a, b) { return a + (Number(b.berkas) || 0); }, 0);
+    h += '<div class="dv-grid">' + kartuUkuran('Database', d.db_bytes, BATAS_DB_MB, fmtAngka(d.koneksi) + ' koneksi DB') +
+      kartuUkuran('Storage', st, BATAS_STORAGE_MB, fmtAngka(berkas) + ' berkas') + '</div>';
+    if (d.cp && d.cp.tabel && d.cp.tabel.length) {
+      h += '<div class="dv-card"><h3>Catatan Pelanggaran (CP)</h3><div class="dv-big">' + fmtBytes(d.cp.ukuran) + '</div>' +
+        '<div class="dv-sub">' + fmtAngka(d.cp.baris) + ' baris (perkiraan) · sudah termasuk dalam angka Database di atas</div>' +
+        '<div class="dv-scroll" style="margin-top:10px;"><table class="dv-tbl"><thead><tr><th>Tabel</th><th class="n">Perkiraan baris</th><th class="n">Ukuran</th></tr></thead><tbody>' +
+        d.cp.tabel.map(function (t) { return '<tr><td><code>' + esc(t.tabel) + '</code></td><td class="n">' + fmtAngka(t.baris) + '</td><td class="n">' + fmtBytes(t.ukuran) + '</td></tr>'; }).join('') +
+        '</tbody></table></div></div>';
+    }
+    if (d.storage && d.storage.length) {
+      h += '<div class="dv-card"><h3>Storage per Bucket</h3><div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Bucket</th><th class="n">Berkas</th><th class="n">Ukuran</th></tr></thead><tbody>' +
+        d.storage.map(function (b) { return '<tr><td>' + esc(b.bucket) + '</td><td class="n">' + fmtAngka(b.berkas) + '</td><td class="n">' + fmtBytes(b.ukuran) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    }
+    if (d.tabel && d.tabel.length) {
+      h += '<div class="dv-card"><h3>Tabel Terbesar</h3><div class="dv-scroll"><table class="dv-tbl"><thead><tr><th>Tabel</th><th class="n">Perkiraan baris</th><th class="n">Ukuran</th></tr></thead><tbody>' +
+        d.tabel.map(function (t) { return '<tr><td><code>' + esc(t.tabel) + '</code></td><td class="n">' + fmtAngka(t.baris) + '</td><td class="n">' + fmtBytes(t.ukuran) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    }
+    return h;
+  }
+
   async function renderKesehatan() {
     clearInterval(kesehatanTimer);
     content.innerHTML =
@@ -430,9 +473,10 @@
 
       var hs = await Promise.all([
         supabaseClient.rpc('dev_kesehatan'),
-        Promise.all(FUNGSI.map(function (f) { return cekFungsi(f.nama, token); }))
+        Promise.all(FUNGSI.map(function (f) { return cekFungsi(f.nama, token); })),
+        Promise.all(PROJEK_PRESENSI.map(function (p) { return ambilKesehatanPresensi(p.url, token); }))
       ]);
-      var rpc = hs[0], fn = hs[1];
+      var rpc = hs[0], fn = hs[1], pres = hs[2];
       if (!document.getElementById('khIsi')) return; // pengguna sudah pindah tab
 
       var html = '';
@@ -481,6 +525,8 @@
           d.tabel.map(function (t) { return '<tr><td><code>' + esc(t.tabel) + '</code></td><td class="n">' + fmtAngka(t.baris) + '</td><td class="n">' + fmtBytes(t.ukuran) + '</td></tr>'; }).join('') +
           '</tbody></table></div></div>';
       }
+
+      PROJEK_PRESENSI.forEach(function (p, i) { html += bagianPresensi(p.judul, pres[i]); });
 
       isi.innerHTML = html;
       document.getElementById('khWaktu').textContent = 'Diperiksa ' + new Date().toLocaleTimeString('id-ID');
