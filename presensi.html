@@ -258,10 +258,16 @@ const sb = supabaseClient;
 // Database presensi ada di project Supabase TERPISAH (nrwexyezcbmsokelgkmp). Browser tidak memegang
 // kunci project itu: semua baca/tulis lewat Edge Function yang memverifikasi sesi login e-Rapor.
 const API_FN = "https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api";
-async function api(action, body = {}) {
+async function api(action, body = {}, timeoutMs = 0) {
   const { data } = await sb.auth.getSession();
-  if (!data.session) { location.href = "index.html"; throw new Error("Sesi login habis. Silakan masuk lagi di PDP."); }
-  const r = await fetch(API_FN, { method: "POST", headers: { "Content-Type": "application/json", "x-rapor-token": data.session.access_token }, body: JSON.stringify({ action, ...body }) });
+  if (!data.session) {
+    if (!navigator.onLine) throw new TypeError("Tidak ada koneksi internet.");
+    location.href = "index.html"; throw new Error("Sesi login habis. Silakan masuk lagi di PDP.");
+  }
+  const ac = timeoutMs ? new AbortController() : null, tm = ac && setTimeout(() => ac.abort(), timeoutMs);
+  let r;
+  try { r = await fetch(API_FN, { method: "POST", signal: ac?.signal, headers: { "Content-Type": "application/json", "x-rapor-token": data.session.access_token }, body: JSON.stringify({ action, ...body }) }); }
+  finally { if (tm) clearTimeout(tm); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || "Server presensi menolak (" + r.status + ")");
   return j;
@@ -285,6 +291,38 @@ const ikon = () => { if (window.lucide && lucide.createIcons) { try { lucide.cre
 const BULAN = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const tglPanjang = d => +d.slice(8) + " " + BULAN[+d.slice(5, 7)] + " " + d.slice(0, 4);
 const inisial = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(x => x[0]).join("").toUpperCase() || "?";
+/* ---------- Absen Tugas Luar tanpa sinyal: simpan di HP, kirim otomatis saat sinyal kembali ---------- */
+const jaringanGagal = e => e instanceof TypeError || e?.name === "AbortError" || !navigator.onLine;
+const wibTanggal = (d = new Date()) => new Date(d.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
+const antriKey = () => "pdp_tl_antri_" + me.id, cacheKey = () => "pdp_tl_cache_" + me.id;
+const antriBaca = () => { try { return JSON.parse(localStorage.getItem(antriKey()) || "[]"); } catch { return []; } };
+const antriTulis = a => { try { localStorage.setItem(antriKey(), JSON.stringify(a)); return true; } catch { return false; } };
+const antriHapus = id => antriTulis(antriBaca().filter(x => x.id !== id));
+let antriJalan = false;
+async function kirimAntrian() { // kembalikan jumlah yang berhasil terkirim
+  if (!me || antriJalan || !navigator.onLine) return 0;
+  const a = antriBaca(); if (!a.length) return 0;
+  antriJalan = true; let n = 0;
+  try {
+    for (const it of a) {
+      try {
+        await api("absen", { jenis: "tugas_luar", foto: it.foto, lat: it.lat, lng: it.lng, akurasi: it.akurasi, diambil: it.diambil }, 25000);
+        antriHapus(it.id); n++;
+        toast(`Absen Tugas Luar yang tersimpan di HP (pukul ${hhmm(new Date(it.diambil))}) berhasil terkirim.`);
+      } catch (e) {
+        if (jaringanGagal(e)) break; // masih tanpa sinyal: coba lagi nanti
+        antriHapus(it.id);
+        if (!/sudah tercatat/i.test(e.message)) toast("Absen Tugas Luar yang tersimpan di HP tidak bisa dikirim: " + e.message, true);
+      }
+    }
+  } finally { antriJalan = false; }
+  return n;
+}
+function segarkanSetelahKirim(n) { if (n && me && (tab === "tugas" || tab === "presensi")) { stop(); shell(); } }
+window.addEventListener("online", () => kirimAntrian().then(segarkanSetelahKirim));
+setInterval(() => { if (me && antriBaca().length) kirimAntrian().then(segarkanSetelahKirim); }, 60000);
+const jamLog = r => hhmm(new Date(r.diambil_at || r.waktu));
+const tundaChip = r => r.diambil_at ? ` <span class="ps-st ps-st--warn" title="Foto diambil di lokasi tanpa sinyal dan baru diterima server">dikirim terlambat (diterima ${hhmm(new Date(r.waktu))})</span>` : "";
 const petaUrl = (lat, lng) => `https://www.google.com/maps?q=${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
 const petaLink = (lat, lng) => `<a class="ps-foto" href="${petaUrl(lat, lng)}" target="_blank" rel="noopener"><i data-lucide="map-pin"></i> ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}</a>`;
 const menitDari = t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
@@ -329,6 +367,7 @@ async function masuk(user) {
   const awal = (location.hash || "").replace("#", "");
   if (awal === "rekap" && (me.role === "admin" || me.role === "kepsek")) { tab = "rekap"; history.replaceState({ d: 0, t: "rekap" }, ""); }
   shell();
+  kirimAntrian().then(segarkanSetelahKirim);
 }
 
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
@@ -411,9 +450,9 @@ async function presensi() {
     : ef.tipe === "libur" ? `<b>Hari ini libur.</b>`
     : ef.tipe === "fm" ? `<b>Force Majeure</b>${ef.ket ? " — " + esc(ef.ket) : ""}. Presensi tidak diperlukan.`
     : `<b>Tidak ada jadwal hari ini.</b>`;
-  const tile = (lb, ik, r, kosong) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${r ? hhmm(new Date(r.waktu)) : "—"}</div><div class="stat-card__sub">${r ? stChip(r.status) : kosong ? `<span class="ps-st ps-st--info">${kosong}</span>` : ij ? `<span class="ps-st ps-st--info">${esc(ij.label)}</span>` : "Belum presensi"}</div></div>`;
+  const tile = (lb, ik, r, kosong) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${r ? jamLog(r) : "—"}</div><div class="stat-card__sub">${r ? stChip(r.status) : kosong ? `<span class="ps-st ps-st--info">${kosong}</span>` : ij ? `<span class="ps-st ps-st--info">${esc(ij.label)}</span>` : "Belum presensi"}</div></div>`;
   const infoTugas = tg ? notice("info", "briefcase", "Tugas Luar hari ini: " + esc(tg.keperluan),
-    `Pukul ${esc(tg.jam_mulai)}–${esc(tg.jam_selesai)} WIB. ` + (tl ? `Absen lokasi sudah tercatat pukul ${hhmm(new Date(tl.waktu))} (${petaLink(tl.lat, tl.lng)}). ` : `<b>Absen Tugas Luar (foto + titik lokasi) dilakukan di menu Tugas Luar, satu kali saat sudah di lokasi tugas.</b> <button type="button" class="btn-small btn-small--primary" id="keTugas" style="margin-top:8px"><i data-lucide="briefcase"></i> Buka Tugas Luar &amp; absen</button> `)
+    `Pukul ${esc(tg.jam_mulai)}–${esc(tg.jam_selesai)} WIB. ` + (tl ? `Absen lokasi sudah tercatat pukul ${jamLog(tl)}${tundaChip(tl)} (${petaLink(tl.lat, tl.lng)}). ` : `<b>Absen Tugas Luar (foto + titik lokasi) dilakukan di menu Tugas Luar, satu kali saat sudah di lokasi tugas.</b> <button type="button" class="btn-small btn-small--primary" id="keTugas" style="margin-top:8px"><i data-lucide="briefcase"></i> Buka Tugas Luar &amp; absen</button> `)
     + (tg.jam_pulang ? (bebasPulang ? `Tugas selesai melewati jam pulang ${esc(tg.jam_pulang)}, jadi <b>tidak perlu absen pulang</b>.` : `Tugas selesai sebelum/tepat jam pulang ${esc(tg.jam_pulang)}, jadi Anda <b>wajib absen pulang</b> di sekolah.`) : "Tidak ada jadwal kerja hari ini, jadi tidak ada absen pulang.")) : "";
   const pilih = opsi.length > 1 ? `<div class="ps-actions" style="margin:0 0 14px">${opsi.map(o => `<button type="button" class="btn-small${o === jenis ? " btn-small--primary" : ""}" data-j="${o}">${o === "datang" ? "Presensi datang (di sekolah)" : o === "pulang" ? "Presensi pulang (di sekolah)" : ""}</button>`).join("")}</div>` : "";
   const kanan = jenis ? `<section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="camera"></i> ${isTL ? "Foto absen Tugas Luar" : "Foto presensi " + jenis}</div><div class="task-section__desc">${isTL ? "Cukup satu kali, setelah Anda tiba di lokasi tugas. Foto dan titik lokasi (koordinat GPS) tersimpan otomatis. Tidak ada batas radius sekolah." : "Pastikan wajah terlihat jelas dan Anda berada di area sekolah."}</div></div></div>
@@ -513,8 +552,18 @@ async function kameraTL(tok, tgl) {
     const b64 = kompres(v, c, `TUGAS LUAR · ${me.nama} · ${tgl} ${hhmm(new Date())} · ${pos.latitude.toFixed(5)},${pos.longitude.toFixed(5)}`);
     if (!b64) return toast("Foto tidak bisa diperkecil hingga " + FOTO_MAX_KB + " KB. Coba lagi.", true);
     btn.disabled = true; btn.textContent = "Mengirim…";
-    try { await api("absen", { jenis: "tugas_luar", foto: b64, lat: pos.latitude, lng: pos.longitude, akurasi: Math.round(pos.accuracy) }); }
-    catch (e) { btn.disabled = false; btn.innerHTML = btnHtml; ikon(); return toast(e.message, true); }
+    const diambil = new Date().toISOString(), badan = { jenis: "tugas_luar", foto: b64, lat: pos.latitude, lng: pos.longitude, akurasi: Math.round(pos.accuracy) };
+    const simpanHP = () => { // tanpa sinyal: simpan di HP, kirim otomatis nanti
+      const a = antriBaca();
+      if (a.some(x => x.tanggal === tgl)) { toast("Absen hari ini sudah tersimpan di HP dan menunggu terkirim.", true); return tugas(); }
+      a.push({ id: diambil + Math.random().toString(36).slice(2, 6), tanggal: tgl, foto: b64, lat: badan.lat, lng: badan.lng, akurasi: badan.akurasi, diambil });
+      if (!antriTulis(a)) { btn.disabled = false; btn.innerHTML = btnHtml; ikon(); return toast("Tidak ada sinyal dan penyimpanan HP penuh/tidak tersedia. Pindah ke tempat yang ada sinyal lalu coba lagi.", true); }
+      toast("Tidak ada sinyal. Foto dan titik lokasi tersimpan di HP, akan terkirim otomatis saat sinyal kembali.");
+      tugas();
+    };
+    if (!navigator.onLine) return simpanHP();
+    try { await api("absen", badan, 20000); }
+    catch (e) { if (jaringanGagal(e)) return simpanHP(); btn.disabled = false; btn.innerHTML = btnHtml; ikon(); return toast(e.message, true); }
     toast("Absen Tugas Luar tercatat beserta foto dan titik lokasi."); tugas();
   };
 }
@@ -522,24 +571,37 @@ async function kameraTL(tok, tgl) {
 /* ---------- Tugas Luar: guru mengisi sendiri (tanpa persetujuan admin), lalu absen di menu Presensi ---------- */
 async function tugas() {
   const tok = ++presTok; stop();
-  let data; try { data = await api("tugas_saya"); } catch (e) { return viewGalat("Gagal memuat Tugas Luar: " + e.message); }
+  await kirimAntrian(); if (tok !== presTok || tab !== "tugas") return;
+  let data, offline = false;
+  try { data = await api("tugas_saya", {}, 12000); try { localStorage.setItem(cacheKey(), JSON.stringify(data)); } catch {} }
+  catch (e) {
+    if (!jaringanGagal(e)) return viewGalat("Gagal memuat Tugas Luar: " + e.message);
+    try { data = JSON.parse(localStorage.getItem(cacheKey()) || "null"); } catch { data = null; }
+    if (!data) return viewGalat("Tidak ada koneksi internet dan belum ada data Tugas Luar tersimpan di HP. Buka halaman ini saat ada sinyal.");
+    offline = true; data.hari_ini = wibTanggal(); data.tugas.forEach(t => { t.lewat = t.tanggal < data.hari_ini; });
+  }
   if (tok !== presTok || tab !== "tugas") return;
+  const antri = antriBaca();
+  data.tugas.forEach(t => { t.antri = !t.absen ? antri.find(x => x.tanggal === t.tanggal) : null; });
   const hariIni = data.hari_ini, tg = t => hariNama(t).slice(0, 3) + ", " + tglIdn(t);
   const baris = data.tugas.map(t => {
     const pul = t.tipe === "kerja" ? (t.wajib_pulang ? `<span class="ps-st ps-st--warn">Wajib absen pulang</span>` : `<span class="ps-st ps-st--ok">Tidak perlu</span>`) : `<span class="mut">Tanpa jadwal</span>`;
-    const abs = t.absen ? `<span class="ps-time">${hhmm(new Date(t.absen.waktu))}</span>${t.absen.foto ? `<a class="ps-foto" href="${esc(t.absen.foto)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}<br>${petaLink(t.absen.lat, t.absen.lng)}${t.absen.akurasi_m != null ? ` <span class="mut">±${t.absen.akurasi_m} m</span>` : ""}` : t.lewat ? `<span class="ps-belum">Tidak absen</span>` : `<span class="ps-st ps-st--warn">Belum absen</span>`;
-    const aksi = !t.absen && !t.lewat ? `<button class="btn-small" data-h="${t.id}"><i data-lucide="trash-2"></i> Hapus</button>` : "";
+    const abs = t.antri ? `<span class="ps-st ps-st--warn">Tersimpan di HP, menunggu terkirim</span>` : t.absen ? `<span class="ps-time">${hhmm(new Date(t.absen.waktu))}</span>${t.absen.diterima ? ` <span class="ps-st ps-st--warn" title="Foto diambil di lokasi tanpa sinyal dan baru diterima server">dikirim terlambat (diterima ${hhmm(new Date(t.absen.diterima))})</span>` : ""}${t.absen.foto ? `<a class="ps-foto" href="${esc(t.absen.foto)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}<br>${petaLink(t.absen.lat, t.absen.lng)}${t.absen.akurasi_m != null ? ` <span class="mut">±${t.absen.akurasi_m} m</span>` : ""}` : t.lewat ? `<span class="ps-belum">Tidak absen</span>` : `<span class="ps-st ps-st--warn">Belum absen</span>`;
+    const aksi = !t.absen && !t.antri && !t.lewat ? `<button class="btn-small" data-h="${t.id}"><i data-lucide="trash-2"></i> Hapus</button>` : "";
     return `<tr><td>${tg(t.tanggal)}${t.tanggal === hariIni ? ' <span class="ps-st ps-st--info">hari ini</span>' : ""}</td><td>${esc(t.jam_mulai)}–${esc(t.jam_selesai)}</td><td>${esc(t.keperluan)}</td><td>${abs}</td><td>${pul}</td><td>${aksi}</td></tr>`;
   }).join("");
-  const hariTugas = data.tugas.find(t => t.tanggal === hariIni), perluAbsen = hariTugas && !hariTugas.absen;
-  const sudahAbsen = hariTugas && hariTugas.absen ? `<section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="circle-check"></i> Absen Tugas Luar hari ini sudah tercatat</div><div class="task-section__desc">${esc(hariTugas.keperluan)} · pukul ${hhmm(new Date(hariTugas.absen.waktu))} WIB</div></div></div><div class="task-section__body">${hariTugas.absen.foto ? `<a href="${esc(hariTugas.absen.foto)}" target="_blank" rel="noopener"><img src="${esc(hariTugas.absen.foto)}" alt="Foto absen Tugas Luar" style="max-width:240px;width:100%;border-radius:12px;display:block;margin-bottom:10px"></a>` : ""}${petaLink(hariTugas.absen.lat, hariTugas.absen.lng)}${hariTugas.wajib_pulang && hariTugas.tipe === "kerja" ? `<p class="ps-hint"><b>Jangan lupa absen pulang</b> di menu Presensi (jam selesai tugas tidak melewati jam pulang ${esc(hariTugas.jam_pulang)}).</p>` : `<p class="ps-hint">Tidak perlu absen pulang.</p>`}</div></section>` : "";
+  const hariTugas = data.tugas.find(t => t.tanggal === hariIni), perluAbsen = hariTugas && !hariTugas.absen && !hariTugas.antri;
+  const sudahAbsen = hariTugas && hariTugas.absen ? `<section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="circle-check"></i> Absen Tugas Luar hari ini sudah tercatat</div><div class="task-section__desc">${esc(hariTugas.keperluan)} · pukul ${hhmm(new Date(hariTugas.absen.waktu))} WIB${hariTugas.absen.diterima ? ` · dikirim terlambat (diterima ${hhmm(new Date(hariTugas.absen.diterima))})` : ""}</div></div></div><div class="task-section__body">${hariTugas.absen.foto ? `<a href="${esc(hariTugas.absen.foto)}" target="_blank" rel="noopener"><img src="${esc(hariTugas.absen.foto)}" alt="Foto absen Tugas Luar" style="max-width:240px;width:100%;border-radius:12px;display:block;margin-bottom:10px"></a>` : ""}${petaLink(hariTugas.absen.lat, hariTugas.absen.lng)}${hariTugas.wajib_pulang && hariTugas.tipe === "kerja" ? `<p class="ps-hint"><b>Jangan lupa absen pulang</b> di menu Presensi (jam selesai tugas tidak melewati jam pulang ${esc(hariTugas.jam_pulang)}).</p>` : `<p class="ps-hint">Tidak perlu absen pulang.</p>`}</div></section>` : "";
+  const itemAntri = hariTugas && hariTugas.antri;
+  const antriSec = itemAntri ? `<section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="cloud-upload"></i> Absen Tugas Luar tersimpan di HP</div><div class="task-section__desc">${esc(hariTugas.keperluan)} · foto diambil pukul ${hhmm(new Date(itemAntri.diambil))} WIB. Akan terkirim otomatis begitu ada sinyal.</div></div></div><div class="task-section__body"><img src="data:image/jpeg;base64,${itemAntri.foto}" alt="Foto absen Tugas Luar" style="max-width:240px;width:100%;border-radius:12px;display:block;margin-bottom:10px">${petaLink(itemAntri.lat, itemAntri.lng)}<div class="ps-actions"><button class="btn-small btn-small--primary" id="kirimSkrg"><i data-lucide="send"></i> Kirim sekarang</button></div><p class="ps-hint">Jangan menghapus data browser atau membersihkan penyimpanan HP sebelum terkirim.</p></div></section>` : "";
+  const offBanner = offline ? notice("warn", "wifi-off", "Tidak ada koneksi internet", "Menampilkan data yang tersimpan di HP. Absen Tugas Luar tetap bisa dilakukan: foto dan titik lokasi disimpan di HP lalu dikirim otomatis saat sinyal kembali.") : "";
   const kamSec = perluAbsen ? `<section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="camera"></i> Absen Tugas Luar hari ini</div><div class="task-section__desc">${esc(hariTugas.keperluan)} · ${esc(hariTugas.jam_mulai)}–${esc(hariTugas.jam_selesai)}. Ambil foto <b>satu kali</b> setelah Anda tiba di lokasi tugas. Foto dan titik lokasi (koordinat GPS) tersimpan otomatis. Tidak ada batas radius sekolah.</div></div></div>
       <div class="task-section__body"><div id="loc" class="ps-loc ps-loc--wait" style="margin:0 0 14px"><div><b>Mencari lokasi…</b><span>Aktifkan GPS dan izinkan akses lokasi.</span></div></div>
       <div class="ps-cam"><video id="vid" autoplay playsinline muted></video><div class="ps-cam__wait" id="camwait">Menyalakan kamera…</div></div><canvas id="cv" hidden></canvas>
       <div class="ps-cta"><button class="btn-primary" id="snap"><i data-lucide="camera"></i> Ambil foto &amp; kirim absen Tugas Luar</button></div></div></section>` : "";
   $("#view").innerHTML = `<div class="ps-narrow">
-  ${kamSec}${sudahAbsen}
-  <details class="ps-notice ps-notice--info ps-petunjuk"><summary><i data-lucide="info"></i><b>Petunjuk Tugas Luar</b><span class="ps-petunjuk__hint">ketuk untuk membuka</span><i data-lucide="chevron-down" class="ps-petunjuk__chev"></i></summary><div class="ps-petunjuk__isi"><ol style="margin:6px 0 0 18px;padding:0;line-height:1.55"><li>Isi <b>keperluan</b>, <b>tanggal</b>, dan <b>rentang jam</b> tugas. <b>Tidak perlu persetujuan admin</b>, langsung berlaku.</li><li>Pada hari tugas, buka halaman ini lagi dan lakukan <b>absen Tugas Luar</b> (foto + titik lokasi) <b>satu kali</b> di bagian <b>Absen Tugas Luar hari ini</b>, saat Anda sudah berada di lokasi tugas.</li><li>Bila jam selesai tugas <b>melewati jam pulang</b> jadwal Anda, <b>tidak perlu absen pulang</b>. Bila tidak melewati, Anda <b>wajib absen pulang</b> di sekolah (lewat menu Presensi).</li><li>Berbeda dengan <b>Dinas Luar</b> (menu Ijin &amp; Dinas Luar) yang tidak memerlukan absen.</li></ol></div></details>
+  ${offBanner}${kamSec}${antriSec}${sudahAbsen}
+  <details class="ps-notice ps-notice--info ps-petunjuk"><summary><i data-lucide="info"></i><b>Petunjuk Tugas Luar</b><span class="ps-petunjuk__hint">ketuk untuk membuka</span><i data-lucide="chevron-down" class="ps-petunjuk__chev"></i></summary><div class="ps-petunjuk__isi"><ol style="margin:6px 0 0 18px;padding:0;line-height:1.55"><li>Isi <b>keperluan</b>, <b>tanggal</b>, dan <b>rentang jam</b> tugas <b>sebelum berangkat, saat masih ada sinyal</b>. <b>Tidak perlu persetujuan admin</b>, langsung berlaku.</li><li>Pada hari tugas, buka halaman ini lagi dan lakukan <b>absen Tugas Luar</b> (foto + titik lokasi) <b>satu kali</b> di bagian <b>Absen Tugas Luar hari ini</b>, saat Anda sudah berada di lokasi tugas.</li><li>Bila jam selesai tugas <b>melewati jam pulang</b> jadwal Anda, <b>tidak perlu absen pulang</b>. Bila tidak melewati, Anda <b>wajib absen pulang</b> di sekolah (lewat menu Presensi).</li><li>Bila di lokasi <b>tidak ada sinyal</b>, tetap lakukan absen: foto dan titik lokasi <b>disimpan di HP</b> dan <b>dikirim otomatis</b> saat sinyal kembali (paling lama 24 jam). Halaman ini harus sudah dibuka sebelum berangkat, dan jam HP jangan diubah.</li><li>Berbeda dengan <b>Dinas Luar</b> (menu Ijin &amp; Dinas Luar) yang tidak memerlukan absen.</li></ol></div></details>
   <section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="briefcase"></i> Buat Tugas Luar</div><div class="task-section__desc">Satu tugas per tanggal.</div></div></div>
   <div class="task-section__body"><div class="form-grid">
     <div class="field field--full"><label for="tk">Keperluan</label><input id="tk" type="text" maxlength="200" placeholder="Contoh: Melaksanakan PPDB"></div>
@@ -552,6 +614,7 @@ async function tugas() {
   <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Waktu</th><th>Keperluan</th><th>Absen lokasi</th><th>Absen pulang</th><th></th></tr></thead><tbody>${baris || `<tr><td colspan="6" class="ps-empty">Belum ada Tugas Luar.</td></tr>`}</tbody></table></div></section></div>`;
   ikon();
   if (perluAbsen) kameraTL(tok, hariIni);
+  const ks = $("#kirimSkrg"); if (ks) ks.onclick = async () => { ks.disabled = true; const n = await kirimAntrian(); if (n) tugas(); else { ks.disabled = false; toast("Belum bisa terkirim. Pastikan ada sinyal, lalu coba lagi.", true); } };
   let cekTok = 0;
   const hint = async () => {
     const t = $("#tt").value, m = $("#tm").value, sl = $("#ts").value, box = $("#tghint"), my = ++cekTok;
@@ -589,7 +652,7 @@ async function riwayat() {
   if (tab !== "riwayat") return;
   const tg = t => /^\d{4}-\d{2}-\d{2}$/.test(t) ? hariNama(t).slice(0, 3) + ", " + tglIdn(t) : esc(t);
   $("#view").innerHTML = `<div class="panel-head"><div><div class="panel-head__title">Riwayat presensi</div><div class="panel-head__desc">${data.length} catatan presensi Anda</div></div></div>
-  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak / Lokasi</th></tr></thead><tbody>${data.map(r => `<tr><td>${tg(r.tanggal)}</td><td><span class="ps-st ps-st--info">${r.jenis === "tugas_luar" ? "tugas luar" : esc(r.jenis)}</span></td><td><span class="ps-time">${hhmm(new Date(r.waktu))}</span></td><td>${stChip(r.status)}</td><td>${r.jenis === "tugas_luar" && r.lat != null ? petaLink(r.lat, r.lng) : r.jarak_m + " m"}</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
+  <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak / Lokasi</th></tr></thead><tbody>${data.map(r => `<tr><td>${tg(r.tanggal)}</td><td><span class="ps-st ps-st--info">${r.jenis === "tugas_luar" ? "tugas luar" : esc(r.jenis)}</span></td><td><span class="ps-time">${jamLog(r)}</span>${tundaChip(r)}</td><td>${stChip(r.status)}</td><td>${r.jenis === "tugas_luar" && r.lat != null ? petaLink(r.lat, r.lng) : r.jarak_m + " m"}</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
 }
 async function rekap() {
   $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="d">Tanggal</label><input type="date" id="d" value="${ymd(new Date())}"></div><button class="btn-small btn-small--primary" id="cari"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasil"><div class="panel-note">Memuat…</div></div>`;
@@ -618,7 +681,7 @@ async function rekap() {
       const t = tugasDari(p), r = f(p, "tugas_luar");
       if (!t && !r) return `<td class="mut">—</td>`;
       const u = r && urls[r.foto_path];
-      return `<td>${t ? `<div>${esc(t.keperluan)} <span class="mut">(${esc(t.jam_mulai)}–${esc(t.jam_selesai)})</span></div>` : ""}${r ? `<span class="ps-time">${hhmm(new Date(r.waktu))}</span>${u ? `<a class="ps-foto" href="${esc(u)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}<br>${petaLink(r.lat, r.lng)}${r.akurasi_m != null ? ` <span class="mut">±${r.akurasi_m} m</span>` : ""}` : `<span class="ps-st ps-st--warn">Belum absen lokasi</span>`}</td>`;
+      return `<td>${t ? `<div>${esc(t.keperluan)} <span class="mut">(${esc(t.jam_mulai)}–${esc(t.jam_selesai)})</span></div>` : ""}${r ? `<span class="ps-time">${jamLog(r)}</span>${tundaChip(r)}${u ? `<a class="ps-foto" href="${esc(u)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}<br>${petaLink(r.lat, r.lng)}${r.akurasi_m != null ? ` <span class="mut">±${r.akurasi_m} m</span>` : ""}` : `<span class="ps-st ps-st--warn">Belum absen lokasi</span>`}</td>`;
     };
     const nTL = pg.filter(p => f(p, "tugas_luar")).length, nTugas = pg.filter(p => tugasDari(p)).length;
     const nIjin = pg.filter(p => !f(p, "datang") && !f(p, "pulang") && !f(p, "tugas_luar") && !tugasDari(p) && ijinDari(p)).length, nDatang = pg.filter(p => f(p, "datang") || f(p, "tugas_luar")).length, nTelat = pg.filter(p => f(p, "datang")?.status === "terlambat").length, nPulang = pg.filter(p => f(p, "pulang")).length;
