@@ -55,9 +55,9 @@ async function siapa(token: string) {
 }
 
 // Waktu server (WIB) — tidak percaya jam HP.
-function wib() {
+function wib(at: Date = new Date()) {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
-  const p = Object.fromEntries(f.formatToParts(new Date()).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
   const tanggal = `${p.year}-${p.month}-${p.day}`;
   return { tanggal, jam: `${p.hour}:${p.minute}:${p.second}`, hari: new Date(tanggal + "T00:00:00Z").getUTCDay() || 7 };
 }
@@ -280,7 +280,17 @@ Deno.serve(async (req) => {
         if (bin.length < 1000 || bin.length > MAX) throw new Tolak("Ukuran foto harus 1 KB – 20 KB");
         if (bin[0] !== 0xff || bin[1] !== 0xd8 || bin[2] !== 0xff) throw new Tolak("Bukan file JPEG");
 
-        const cfg = await lokasi(), w = wib();
+        // Absen Tugas Luar yang disimpan di HP (tanpa sinyal) dikirim belakangan: tanggal & jam mengikuti saat foto DIAMBIL.
+        // Syarat: bukan di masa depan (toleransi 5 menit) dan paling lama 24 jam sebelum diterima.
+        let at = new Date(), diambil: string | null = null;
+        if (tl && body.diambil) {
+          const t = Date.parse(String(body.diambil)), now = Date.now();
+          if (!Number.isFinite(t)) throw new Tolak("Waktu pengambilan foto tidak valid");
+          if (t > now + 5 * 60000) throw new Tolak("Waktu pengambilan foto ada di masa depan. Periksa pengaturan jam di HP Anda.");
+          if (now - t > 24 * 3600000) throw new Tolak("Absen yang tersimpan di HP sudah lebih dari 24 jam sehingga tidak bisa dikirim. Hubungi admin.");
+          if (now - t > 2 * 60000) { at = new Date(t); diambil = at.toISOString(); }
+        }
+        const cfg = await lokasi(), w = wib(at);
         const ctx = await muatCtx();
         const ef = efektif(ctx, me.id, me.role!, await jadwalSaya(me.id), w.tanggal, w.hari);
         if (ef.tipe === "libur") throw new Tolak("Hari ini libur, presensi tidak diperlukan");
@@ -306,14 +316,14 @@ Deno.serve(async (req) => {
         else if (detik(w.jam) < detik(ef.pulang!)) status = "pulang cepat";
 
         const path = `${me.id}/${w.tanggal}-${jenis}.jpg`;
-        const ins = await db.from("presensi_log").insert({ pegawai_id: me.id, tanggal: w.tanggal, jenis, lat, lng, jarak_m: d, akurasi_m: akurasi, foto_path: path, status });
+        const ins = await db.from("presensi_log").insert({ pegawai_id: me.id, tanggal: w.tanggal, jenis, lat, lng, jarak_m: d, akurasi_m: akurasi, diambil_at: diambil, foto_path: path, status });
         if (ins.error) throw new Tolak(ins.error.code === "23505" ? (tl ? "Absen Tugas Luar hari ini sudah tercatat" : `Presensi ${jenis} hari ini sudah tercatat`) : ins.error.message, ins.error.code === "23505" ? 409 : 500);
         const up = await db.storage.from(BUCKET).upload(path, bin, { upsert: true, contentType: "image/jpeg" });
         if (up.error) { // batalkan log agar tidak ada presensi tanpa foto
           await db.from("presensi_log").delete().eq("pegawai_id", me.id).eq("tanggal", w.tanggal).eq("jenis", jenis);
           throw new Tolak("Gagal menyimpan foto: " + up.error.message, 500);
         }
-        return json({ ok: true, status, jarak_m: d, lat, lng, tanggal: w.tanggal, jam: w.jam });
+        return json({ ok: true, status, jarak_m: d, lat, lng, tanggal: w.tanggal, jam: w.jam, tertunda: !!diambil });
       }
 
       case "tugas_cek": { // petunjuk langsung di form: wajib absen pulang atau tidak, menurut jadwal pada tanggal itu
@@ -349,15 +359,15 @@ Deno.serve(async (req) => {
         const w = wib(), dari = new Date(Date.parse(w.tanggal + "T00:00:00Z") - 30 * 86400000).toISOString().slice(0, 10);
         const [tgs, logs, rows, ctx] = await Promise.all([
           db.from("presensi_tugas").select("*").eq("pegawai_id", me.id).gte("tanggal", dari).order("tanggal", { ascending: false }).limit(120),
-          db.from("presensi_log").select("tanggal,jenis,waktu,lat,lng,akurasi_m,foto_path").eq("pegawai_id", me.id).gte("tanggal", dari),
+          db.from("presensi_log").select("tanggal,jenis,waktu,diambil_at,lat,lng,akurasi_m,foto_path").eq("pegawai_id", me.id).gte("tanggal", dari),
           jadwalSaya(me.id), muatCtx(),
         ]);
-        const L = ok(logs) as { tanggal: string; jenis: string; waktu: string; lat: number; lng: number; akurasi_m: number | null; foto_path: string | null }[];
+        const L = ok(logs) as { tanggal: string; jenis: string; waktu: string; diambil_at: string | null; lat: number; lng: number; akurasi_m: number | null; foto_path: string | null }[];
         const urls = await signedUrls(L.filter((x) => x.jenis === "tugas_luar" && x.foto_path).map((x) => x.foto_path as string).slice(0, 120));
         const tugas = (ok(tgs) as Tg[]).map((t) => {
           const a = L.find((x) => x.tanggal === t.tanggal && x.jenis === "tugas_luar");
           const p = L.find((x) => x.tanggal === t.tanggal && x.jenis === "pulang");
-          return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.waktu, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m, foto: a.foto_path ? urls[a.foto_path] ?? null : null } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
+          return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.diambil_at ?? a.waktu, diterima: a.diambil_at ? a.waktu : null, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m, foto: a.foto_path ? urls[a.foto_path] ?? null : null } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
         });
         return json({ tugas, hari_ini: w.tanggal });
       }
