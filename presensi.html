@@ -121,6 +121,17 @@
 
   .ps-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.55; }
   .ps-notice[hidden] { display: none; }
+  .ps-petunjuk { display: block; padding: 0; }
+  .ps-petunjuk > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; }
+  .ps-petunjuk > summary::-webkit-details-marker { display: none; }
+  .ps-petunjuk > summary > b { display: inline; }
+  .ps-petunjuk__hint { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+  .ps-petunjuk[open] .ps-petunjuk__hint { display: none; }
+  .ps-petunjuk[open] > summary { margin-left: 0; }
+  .ps-petunjuk[open] > summary .ps-petunjuk__chev { margin-left: auto; transform: rotate(180deg); }
+  .ps-petunjuk__chev { width: 18px; height: 18px; flex: none; transition: transform .15s; }
+  .ps-petunjuk__isi { padding: 0 16px 14px 48px; color: var(--ink-soft); font-size: 14px; }
+  .ps-petunjuk__isi ol { margin: 0 !important; padding-left: 18px !important; }
   .ps-notice > svg, .ps-notice > i { width: 20px; height: 20px; flex: none; margin-top: 1px; }
   .ps-notice b { display: block; font-size: 14px; }
   .ps-notice span { color: var(--ink-soft); }
@@ -528,7 +539,7 @@ async function tugas() {
       <div class="ps-cta"><button class="btn-primary" id="snap"><i data-lucide="camera"></i> Ambil foto &amp; kirim absen Tugas Luar</button></div></div></section>` : "";
   $("#view").innerHTML = `<div class="ps-narrow">
   ${kamSec}${sudahAbsen}
-  ${notice("info", "info", "Petunjuk Tugas Luar", `<ol style="margin:6px 0 0 18px;padding:0;line-height:1.55"><li>Isi <b>keperluan</b>, <b>tanggal</b>, dan <b>rentang jam</b> tugas. <b>Tidak perlu persetujuan admin</b>, langsung berlaku.</li><li>Pada hari tugas, buka halaman ini lagi dan lakukan <b>absen Tugas Luar</b> (foto + titik lokasi) <b>satu kali</b> di bagian <b>Absen Tugas Luar hari ini</b>, saat Anda sudah berada di lokasi tugas.</li><li>Bila jam selesai tugas <b>melewati jam pulang</b> jadwal Anda, <b>tidak perlu absen pulang</b>. Bila tidak melewati, Anda <b>wajib absen pulang</b> di sekolah (lewat menu Presensi).</li><li>Berbeda dengan <b>Dinas Luar</b> (menu Ijin &amp; Dinas Luar) yang tidak memerlukan absen.</li></ol>`)}
+  <details class="ps-notice ps-notice--info ps-petunjuk"><summary><i data-lucide="info"></i><b>Petunjuk Tugas Luar</b><span class="ps-petunjuk__hint">ketuk untuk membuka</span><i data-lucide="chevron-down" class="ps-petunjuk__chev"></i></summary><div class="ps-petunjuk__isi"><ol style="margin:6px 0 0 18px;padding:0;line-height:1.55"><li>Isi <b>keperluan</b>, <b>tanggal</b>, dan <b>rentang jam</b> tugas. <b>Tidak perlu persetujuan admin</b>, langsung berlaku.</li><li>Pada hari tugas, buka halaman ini lagi dan lakukan <b>absen Tugas Luar</b> (foto + titik lokasi) <b>satu kali</b> di bagian <b>Absen Tugas Luar hari ini</b>, saat Anda sudah berada di lokasi tugas.</li><li>Bila jam selesai tugas <b>melewati jam pulang</b> jadwal Anda, <b>tidak perlu absen pulang</b>. Bila tidak melewati, Anda <b>wajib absen pulang</b> di sekolah (lewat menu Presensi).</li><li>Berbeda dengan <b>Dinas Luar</b> (menu Ijin &amp; Dinas Luar) yang tidak memerlukan absen.</li></ol></div></details>
   <section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="briefcase"></i> Buat Tugas Luar</div><div class="task-section__desc">Satu tugas per tanggal.</div></div></div>
   <div class="task-section__body"><div class="form-grid">
     <div class="field field--full"><label for="tk">Keperluan</label><input id="tk" type="text" maxlength="200" placeholder="Contoh: Melaksanakan PPDB"></div>
