@@ -390,7 +390,10 @@ body.intro-done .reveal{animation:revealUp .8s cubic-bezier(.2,.8,.2,1) both;ani
     var authResult = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
 
     if (authResult.error) {
-      note.textContent = 'NIS/email atau kata sandi salah.';
+      var galatJaringan = authResult.error.name === 'AuthRetryableFetchError' || /fetch|network|offline/i.test(authResult.error.message || '');
+      note.textContent = galatJaringan
+        ? 'Tidak ada koneksi internet. Login pertama di perangkat ini harus online; setelah itu bisa login tanpa koneksi.'
+        : 'NIS/email atau kata sandi salah.';
       note.style.color = '#B3261E';
       submitBtn.disabled = false;
       submitBtn.textContent = 'Masuk';

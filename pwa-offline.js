@@ -6,8 +6,9 @@
  *  - Tulis (POST/PATCH/PUT/DELETE ke /rest/v1/, bukan RPC) saat offline -> masuk antrean di perangkat,
  *    dikirim otomatis begitu koneksi kembali.
  *  - Muat ulang token login saat offline -> memakai token terakhir, sesi tidak terputus.
- *    (Login PERTAMA tetap wajib online: kata sandi hanya bisa diperiksa server.)
- *  - Keluar (logout) / tidak ada sesi -> salinan data di perangkat dihapus.
+ *  - Login OFFLINE: setelah pernah login online di perangkat ini, kata sandi diperiksa di perangkat
+ *    (PBKDF2 + AES-GCM; kata sandi & token tidak disimpan terbuka). Login PERTAMA tetap wajib online.
+ *  - Keluar (logout): token sesi dihapus; salinan data tetap ada tapi hanya bisa dibaca sesi pemilik datanya.
  *  - Pojok kiri bawah: indikator koneksi + jumlah data menunggu kirim.
  */
 (function () {
@@ -114,18 +115,50 @@
       { status: m === 'POST' ? 201 : 200, headers: { 'content-type': 'application/json', 'x-pdp-offline': 'queued' } });
   }
 
+  /* ======================= LOGIN OFFLINE (terenkripsi) ======================= */
+  function kunciDari(pw, salt) {
+    return crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']).then(function (km) {
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 150000, hash: 'SHA-256' }, km,
+        { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    });
+  }
+  async function simpanKredensial(email, pw, teks) {       // dipanggil setelah login online berhasil
+    try {
+      if (!window.crypto || !crypto.subtle) return;
+      var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+      var k = await kunciDari(pw, salt);
+      var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, new TextEncoder().encode(teks));
+      await cacheSet({ key: 'olcred|' + email, salt: salt, iv: iv, ct: new Uint8Array(ct) });
+    } catch (e) {}
+  }
+  async function bukaKredensial(email, pw) {                // null = tidak ada data / kata sandi salah
+    try {
+      var c = await cacheGet('olcred|' + email);
+      if (!c || !crypto.subtle) return { ada: false };
+      var k = await kunciDari(pw, c.salt);
+      var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: c.iv }, k, c.ct);
+      return { ada: true, teks: new TextDecoder().decode(pt) };
+    } catch (e) { return { ada: true, teks: null }; }
+  }
+  function tolakLogin() {
+    return new Response(JSON.stringify({ code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' }),
+      { status: 400, headers: { 'content-type': 'application/json', 'x-pdp-offline': 'auth' } });
+  }
+
   /* ======================= STATUS KONEKSI ======================= */
+  var lastProbe = 0;
   function setOnline(v) {
     if (online === v) return;
     online = v; render();
     if (v) flush();
   }
-  async function probe() {
+  async function probe(ms) {
+    lastProbe = Date.now();
     if (!supaOrigin && typeof SUPABASE_URL !== 'undefined') supaOrigin = SUPABASE_URL;
     if (!supaKey && typeof SUPABASE_ANON_KEY !== 'undefined') supaKey = SUPABASE_ANON_KEY;
     if (!supaOrigin) { setOnline(navigator.onLine !== false); return; }
     try {
-      await denganWaktu(rawFetch(supaOrigin + '/auth/v1/health', { headers: supaKey ? { apikey: supaKey } : {}, cache: 'no-store' }), 6000);
+      await denganWaktu(rawFetch(supaOrigin + '/auth/v1/health', { headers: supaKey ? { apikey: supaKey } : {}, cache: 'no-store' }), ms || 6000);
       setOnline(true);                       // respons HTTP apa pun = server terjangkau
     } catch (e) { setOnline(false); }
   }
@@ -153,26 +186,42 @@
     /* ---- Auth: simpan & pakai ulang token agar sesi tidak putus saat offline ---- */
     if (authp) {
       if (x.pathname === '/auth/v1/token' && m === 'POST') {
+        var refresh = x.search.indexOf('grant_type=refresh_token') >= 0;
+        var sandi = x.search.indexOf('grant_type=password') >= 0;
+        var kirim = null; try { kirim = JSON.parse(body || '{}'); } catch (e0) { kirim = {}; }
+        // Browser kadang salah mengira offline: periksa singkat sebelum memutuskan.
+        if (!online && Date.now() - lastProbe > 5000) await probe(3000);
         try {
-          if (!online && x.search.indexOf('grant_type=refresh_token') >= 0) throw new TypeError('offline');
+          if (!online) throw new TypeError('offline');
           var ra = await rawFetch(input, init);
-          if (ra.ok) ra.clone().text().then(function (t) { cacheSet({ key: 'auth-token', text: t }); });
+          if (ra.ok) ra.clone().text().then(function (t) {
+            cacheSet({ key: 'auth-token', text: t });
+            if (sandi && kirim.email && kirim.password) simpanKredensial(String(kirim.email).toLowerCase(), kirim.password, t);
+          });
           return ra;
         } catch (e) {
-          if (!isNetErr(e) || x.search.indexOf('grant_type=refresh_token') < 0) throw e;
+          if (!isNetErr(e) || !(refresh || sandi)) throw e;
           if (online) setOnline(false);
-          var c = await cacheGet('auth-token');
-          if (!c || !c.text) throw e;
-          var j; try { j = JSON.parse(c.text); } catch (e2) { throw e; }
-          var minta = ''; try { minta = JSON.parse(body || '{}').refresh_token; } catch (e3) {}
-          if (minta && j.refresh_token && minta !== j.refresh_token) throw e;   // jangan serahkan sesi orang lain
+          var c = null, j = null;
+          if (refresh) {
+            c = await cacheGet('auth-token');
+            if (!c || !c.text) throw e;
+            try { j = JSON.parse(c.text); } catch (e2) { throw e; }
+            if (kirim.refresh_token && j.refresh_token && kirim.refresh_token !== j.refresh_token) throw e;   // jangan serahkan sesi orang lain
+          } else {
+            // Login offline: hanya bila pernah login online di perangkat ini dengan email yang sama.
+            var hasil = await bukaKredensial(String(kirim.email || '').toLowerCase(), kirim.password || '');
+            if (!hasil.ada) throw e;                      // belum pernah login di perangkat ini: wajib online
+            if (!hasil.teks) return tolakLogin();         // kata sandi tidak cocok
+            try { j = JSON.parse(hasil.teks); } catch (e4) { throw e; }
+          }
           j.expires_in = 60; delete j.expires_at;       // pendek: segera dicoba perbarui lagi saat online
           return new Response(JSON.stringify(j), { status: 200, headers: { 'content-type': 'application/json', 'x-pdp-offline': 'auth' } });
         }
       }
       if (x.pathname === '/auth/v1/logout') {
         try { return await rawFetch(input, init); }
-        finally { cacheClear(); }
+        finally { tx('cache', 'readwrite', function (st) { return st.delete('auth-token'); }).catch(function () {}); }
       }
       if (x.pathname === '/auth/v1/user' && m === 'GET') return bacaDenganCache(input, init, sub + '|auth-user');
       return rawFetch(input, init);
@@ -255,7 +304,7 @@
           try { res = await denganWaktu(rawFetch(it.url, { method: it.method, headers: hd, body: it.body }), 30000); }
           catch (e) { if (isNetErr(e)) { online = false; break; } throw e; }
           if (res.ok) { await qDel(it.id); terkirim++; continue; }
-          if (res.status >= 500 || res.status === 429 || res.status === 408) break;      // server sibuk: coba lagi nanti, urutan dijaga
+          if (res.status >= 500 || res.status === 429 || res.status === 408 || res.status === 401) break;      // server sibuk: coba lagi nanti, urutan dijaga
           var err = ''; try { err = (await res.text()).slice(0, 300); } catch (e) {}
           await qDel(it.id);
           await fAdd({ id: it.id, ts: it.ts, method: it.method, url: it.url, headers: it.headers, body: it.body, sub: it.sub,
@@ -374,8 +423,6 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buat); else buat();
 
   /* ======================= AWAL ======================= */
-  // Tidak ada sesi login di perangkat -> buang salinan data milik pengguna sebelumnya.
-  if (!adaSesi()) cacheClear();
   // Kirim sisa antrean (mis. dari sesi sebelumnya) begitu halaman terbuka & online.
   qAll().then(function (q) { jumlah.pending = q.length; if (q.length && online) setTimeout(flush, 1500); });
 

@@ -358,15 +358,26 @@ function gagalView(pesan) {
 // "Keluar" dari Presensi = kembali ke Menu Utama PDP (tidak mengeluarkan akun dari PDP).
 function keluar() { stop(); location.href = "portal.html"; }
 async function masuk(user) {
-  const { data, error: pe } = await sb.from("profiles").select("id,nama,email,role,kode_mesin,nip").eq("id", user.id).maybeSingle();
+  let { data, error: pe } = await sb.from("profiles").select("id,nama,email,role,kode_mesin,nip").eq("id", user.id).maybeSingle();
+  const kunciMe = "pdp_pres_me_" + user.id;   // salinan profil di HP agar halaman tetap terbuka tanpa sinyal
+  if (!pe && data) { try { localStorage.setItem(kunciMe, JSON.stringify(data)); } catch {} }
+  else if (pe) { try { const c = JSON.parse(localStorage.getItem(kunciMe) || "null"); if (c) { data = c; pe = null; } } catch {} }
   if (pe) return gagalView("Gagal membaca profil e-Rapor: " + pe.message);
   if (!data) return blokView("Profil e-Rapor tidak ditemukan untuk akun ini.");
   if (!["guru", "staf", "kepsek", "admin"].includes(data.role)) return blokView("Akun ini (peran " + data.role + ") tidak dipakai untuk presensi.");
   me = data; me.jabatan = { guru: "Guru", staf: "Staf", kepsek: "Kepala Sekolah", admin: "Admin" }[data.role];
-  try { cfg = (await api("lokasi")).lokasi; }
-  catch (e) { return gagalView("Gagal memuat pengaturan presensi (jika baru pertama kali, jalankan setup.sql di project presensi dan deploy fungsi presensi-api): " + e.message); }
+  const kunciCfg = "pdp_pres_cfg_" + user.id;
+  let tanpaSinyal = false;
+  try { cfg = (await api("lokasi", {}, 8000)).lokasi; try { localStorage.setItem(kunciCfg, JSON.stringify(cfg)); } catch {} }
+  catch (e) {
+    if (!jaringanGagal(e)) return gagalView("Gagal memuat pengaturan presensi (jika baru pertama kali, jalankan setup.sql di project presensi dan deploy fungsi presensi-api): " + e.message);
+    // Tanpa sinyal: tetap masuk. Presensi datang/pulang butuh server, tetapi Tugas Luar bisa dipakai dari data di HP.
+    try { cfg = JSON.parse(localStorage.getItem(kunciCfg) || "null"); } catch { cfg = null; }
+    tanpaSinyal = true;
+  }
   const awal = (location.hash || "").replace("#", "");
-  if (awal === "rekap" && (me.role === "admin" || me.role === "kepsek")) { tab = "rekap"; history.replaceState({ d: 0, t: "rekap" }, ""); }
+  if (tanpaSinyal) { tab = "tugas"; history.replaceState({ d: 0, t: "tugas" }, ""); }
+  else if (awal === "rekap" && (me.role === "admin" || me.role === "kepsek")) { tab = "rekap"; history.replaceState({ d: 0, t: "rekap" }, ""); }
   shell();
   kirimAntrian().then(segarkanSetelahKirim);
 }
@@ -433,7 +444,14 @@ function kompres(v, c, label) {
 let pilihJenis = null; // mode kamera yang dipilih pengguna bila ada lebih dari satu (datang / tugas_luar / pulang)
 async function presensi() {
   const tok = ++presTok;
-  let hi; try { hi = await api("hari_ini"); } catch (e) { return viewGalat("Gagal memuat presensi: " + e.message); }
+  let hi;
+  try {
+    if (!cfg) { cfg = (await api("lokasi", {}, 8000)).lokasi; try { localStorage.setItem("pdp_pres_cfg_" + me.id, JSON.stringify(cfg)); } catch {} }
+    hi = await api("hari_ini");
+  } catch (e) {
+    if (jaringanGagal(e)) { $("#view").innerHTML = `<div class="ps-narrow">${notice("warn", "wifi-off", "Tidak ada koneksi internet", "Presensi datang dan pulang membutuhkan internet. Absen Tugas Luar tetap bisa dilakukan dari menu Tugas Luar: foto dan lokasi disimpan di HP lalu terkirim otomatis saat sinyal kembali.")}<p class="ps-actions"><button class="btn-small btn-small--primary" id="keTugas">Buka Tugas Luar</button> <button class="btn-small" id="cobaLagi">Coba lagi</button></p></div>`; ikon(); $("#keTugas").onclick = () => goTab("tugas"); $("#cobaLagi").onclick = () => { stop(); shell(); }; return; }
+    return viewGalat("Gagal memuat presensi: " + e.message);
+  }
   if (tok !== presTok || tab !== "presensi") return;
   const tgl = hi.tanggal, hr = hi.log, ef = hi.ef, libur = ef.tipe === "libur" || ef.tipe === "fm";
   const datang = hr.find(x => x.jenis === "datang"), pulang = hr.find(x => x.jenis === "pulang"), tl = hr.find(x => x.jenis === "tugas_luar");
@@ -697,6 +715,7 @@ async function rekap() {
 
 /* ---------- Admin: lokasi ---------- */
 function lokasi() {
+  if (!cfg) return viewGalat("Tidak ada koneksi internet. Pengaturan lokasi belum bisa dimuat.");
   $("#view").innerHTML = `<div class="ps-narrow"><section class="task-section"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="map-pin"></i> Titik lokasi &amp; radius absen</div><div class="task-section__desc">Pegawai hanya bisa presensi bila berada di dalam radius dari titik ini.</div></div></div>
   <div class="task-section__body"><div class="form-grid">
     <div class="field field--full"><label for="nm">Nama lokasi</label><input id="nm" type="text" value="${esc(cfg.nama_lokasi)}"></div>
