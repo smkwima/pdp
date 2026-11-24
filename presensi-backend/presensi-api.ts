@@ -203,6 +203,18 @@ async function jadwalSaya(id: string) {
   return ok(await db.from("presensi_jadwal").select("pegawai_id,jenis,hari,jam_masuk,jam_pulang,jp,kelas").eq("pegawai_id", id)) as Jd[];
 }
 
+// ---------- Tugas Luar (diisi sendiri oleh pegawai, tanpa persetujuan admin) ----------
+// Absen Tugas Luar: foto + titik lokasi satu kali per hari (jenis log 'tugas_luar').
+// Absen pulang: tidak perlu bila jam selesai tugas MELEWATI jam pulang jadwal; bila tidak melewati, wajib absen pulang.
+type Tg = { id: string; pegawai_id: string; role: string | null; tanggal: string; jam_mulai: string; jam_selesai: string; keperluan: string };
+function infoPulang(ef: Ef, jamSelesai: string) {
+  const js = jamHM(jamSelesai);
+  if (ef.tipe === "libur" || ef.tipe === "fm") return { tipe: ef.tipe, wajib: false, jam_pulang: "" };
+  if (ef.tipe !== "kerja") return { tipe: ef.tipe, wajib: false, jam_pulang: "" }; // tidak ada jadwal kerja hari itu
+  return { tipe: ef.tipe, wajib: js <= ef.pulang!, jam_pulang: ef.pulang! };
+}
+const tgOut = (t: Tg, ef: Ef) => ({ id: t.id, pegawai_id: t.pegawai_id, tanggal: t.tanggal, jam_mulai: jamHM(t.jam_mulai), jam_selesai: jamHM(t.jam_selesai), keperluan: t.keperluan, ...infoPulang(ef, t.jam_selesai) });
+
 async function lokasi() {
   return ok(await db.from("presensi_lokasi").select("*").eq("id", 1).single());
 }
@@ -247,17 +259,21 @@ Deno.serve(async (req) => {
 
       case "hari_ini": { // data layar Presensi: jadwal yang berlaku hari ini + log hari ini milik sendiri
         const w = wib();
-        const [ctx, rows, log, ij] = await Promise.all([
+        const [ctx, rows, log, ij, tgs] = await Promise.all([
           muatCtx(), jadwalSaya(me.id),
           db.from("presensi_log").select("*").eq("pegawai_id", me.id).eq("tanggal", w.tanggal),
           ijinPada(w.tanggal),
+          db.from("presensi_tugas").select("*").eq("pegawai_id", me.id).eq("tanggal", w.tanggal).limit(1),
         ]);
-        return json({ tanggal: w.tanggal, jam: w.jam, hari: w.hari, ef: efektif(ctx, me.id, me.role!, rows, w.tanggal, w.hari), log: ok(log), ijin: ijinSaya(ij, me.kode_mesin) });
+        const ef = efektif(ctx, me.id, me.role!, rows, w.tanggal, w.hari), tg = (ok(tgs) as Tg[])[0];
+        return json({ tanggal: w.tanggal, jam: w.jam, hari: w.hari, ef, log: ok(log), ijin: ijinSaya(ij, me.kode_mesin), tugas: tg ? tgOut(tg, ef) : null });
       }
 
       case "absen": { // validasi radius, status, simpan foto + log — semua di server
         const jenis = body.jenis;
-        if (!["datang", "pulang"].includes(jenis)) throw new Tolak("jenis tidak valid");
+        if (!["datang", "pulang", "tugas_luar"].includes(jenis)) throw new Tolak("jenis tidak valid");
+        const tl = jenis === "tugas_luar"; // Tugas Luar: tanpa batas radius sekolah, harus sudah diisi di menu Tugas Luar
+        const akurasi = Number.isFinite(Number(body.akurasi)) ? Math.max(0, Math.min(99999, Math.round(Number(body.akurasi)))) : null;
         const lat = Number(body.lat), lng = Number(body.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Tolak("Lokasi tidak valid");
         const bin = Uint8Array.from(atob(String(body.foto ?? "")), (c) => c.charCodeAt(0));
@@ -270,30 +286,91 @@ Deno.serve(async (req) => {
         if (ef.tipe === "libur") throw new Tolak("Hari ini libur, presensi tidak diperlukan");
         if (ef.tipe === "fm") throw new Tolak("Hari ini Force Majeure" + (ef.ket ? " (" + ef.ket + ")" : "") + ", presensi tidak diperlukan");
         const d = jarak(cfg.lat, cfg.lng, lat, lng);
-        if (d > cfg.radius_m) throw new Tolak(`Di luar radius presensi (${d} m dari titik, batas ${cfg.radius_m} m)`);
+        if (!tl && d > cfg.radius_m) throw new Tolak(`Di luar radius presensi (${d} m dari titik, batas ${cfg.radius_m} m)`);
 
         const hr = ok(await db.from("presensi_log").select("jenis").eq("pegawai_id", me.id).eq("tanggal", w.tanggal));
-        if (hr.length === 0) { // sudah tercatat ijin/sakit/dinas luar (disetujui) dan belum presensi: tidak perlu presensi
+        if (tl) {
+          const t = ok(await db.from("presensi_tugas").select("id").eq("pegawai_id", me.id).eq("tanggal", w.tanggal).limit(1)) as unknown[];
+          if (!t.length) throw new Tolak("Anda belum mengisi Tugas Luar untuk hari ini. Isi dulu di menu Tugas Luar (keperluan dan rentang waktu).", 403);
+        } else if (hr.length === 0) { // sudah tercatat ijin/sakit/dinas luar (disetujui) dan belum presensi: tidak perlu presensi
           const ij = ijinSaya(await ijinPada(w.tanggal), me.kode_mesin);
           if (ij) throw new Tolak(`Hari ini Anda tercatat ${ij.label} (disetujui), presensi tidak diperlukan`, 409);
         }
-        if (hr.some((x: { jenis: string }) => x.jenis === jenis)) throw new Tolak(`Presensi ${jenis} hari ini sudah tercatat`, 409);
-        if (jenis === "pulang" && !hr.some((x: { jenis: string }) => x.jenis === "datang")) throw new Tolak("Belum presensi datang hari ini");
+        if (hr.some((x: { jenis: string }) => x.jenis === jenis)) throw new Tolak(tl ? "Absen Tugas Luar hari ini sudah tercatat" : `Presensi ${jenis} hari ini sudah tercatat`, 409);
+        if (jenis === "pulang" && !hr.some((x: { jenis: string }) => x.jenis === "datang" || x.jenis === "tugas_luar")) throw new Tolak("Belum presensi datang atau absen Tugas Luar hari ini");
 
         let status = "tepat waktu";
-        if (ef.tipe !== "kerja") status = "tanpa jadwal";
+        if (tl) status = "tugas luar";
+        else if (ef.tipe !== "kerja") status = "tanpa jadwal";
         else if (jenis === "datang") { if (detik(w.jam) > detik(ef.masuk!) + cfg.toleransi_menit * 60 + 59) status = "terlambat"; }
         else if (detik(w.jam) < detik(ef.pulang!)) status = "pulang cepat";
 
         const path = `${me.id}/${w.tanggal}-${jenis}.jpg`;
-        const ins = await db.from("presensi_log").insert({ pegawai_id: me.id, tanggal: w.tanggal, jenis, lat, lng, jarak_m: d, foto_path: path, status });
-        if (ins.error) throw new Tolak(ins.error.code === "23505" ? `Presensi ${jenis} hari ini sudah tercatat` : ins.error.message, ins.error.code === "23505" ? 409 : 500);
+        const ins = await db.from("presensi_log").insert({ pegawai_id: me.id, tanggal: w.tanggal, jenis, lat, lng, jarak_m: d, akurasi_m: akurasi, foto_path: path, status });
+        if (ins.error) throw new Tolak(ins.error.code === "23505" ? (tl ? "Absen Tugas Luar hari ini sudah tercatat" : `Presensi ${jenis} hari ini sudah tercatat`) : ins.error.message, ins.error.code === "23505" ? 409 : 500);
         const up = await db.storage.from(BUCKET).upload(path, bin, { upsert: true, contentType: "image/jpeg" });
         if (up.error) { // batalkan log agar tidak ada presensi tanpa foto
           await db.from("presensi_log").delete().eq("pegawai_id", me.id).eq("tanggal", w.tanggal).eq("jenis", jenis);
           throw new Tolak("Gagal menyimpan foto: " + up.error.message, 500);
         }
-        return json({ ok: true, status, jarak_m: d, tanggal: w.tanggal, jam: w.jam });
+        return json({ ok: true, status, jarak_m: d, lat, lng, tanggal: w.tanggal, jam: w.jam });
+      }
+
+      case "tugas_cek": { // petunjuk langsung di form: wajib absen pulang atau tidak, menurut jadwal pada tanggal itu
+        const tgl = String(body.tanggal), js = jamHM(body.jam_selesai);
+        if (!tglOk(tgl) || !js) throw new Tolak("Tanggal / jam selesai tidak valid");
+        const ef = efektif(await muatCtx(), me.id, me.role!, await jadwalSaya(me.id), tgl, hariDari(tgl));
+        return json({ ...infoPulang(ef, js), ket: ef.tipe === "libur" ? "" : ef.tipe === "fm" ? ef.ket ?? "" : "" });
+      }
+
+      case "tugas_simpan": { // pegawai mengisi sendiri; langsung berlaku, tanpa persetujuan admin
+        const tgl = String(body.tanggal), jm = jamHM(body.jam_mulai), js = jamHM(body.jam_selesai), kep = String(body.keperluan ?? "").trim().replace(/\s+/g, " ");
+        const w = wib();
+        if (!tglOk(tgl)) throw new Tolak("Tanggal tidak valid");
+        if (tgl < w.tanggal) throw new Tolak("Tanggal tugas tidak boleh sebelum hari ini");
+        if ((Date.parse(tgl + "T00:00:00Z") - Date.parse(w.tanggal + "T00:00:00Z")) / 86400000 > 90) throw new Tolak("Tanggal tugas terlalu jauh (maksimal 90 hari ke depan)");
+        if (!jm || !js) throw new Tolak("Isi jam mulai dan jam selesai");
+        if (js <= jm) throw new Tolak("Jam selesai harus setelah jam mulai");
+        if (tgl === w.tanggal && js <= w.jam.slice(0, 5)) throw new Tolak("Jam selesai sudah lewat. Isi rentang waktu yang masih berjalan atau yang akan datang.");
+        if (kep.length < 3) throw new Tolak("Keperluan Tugas Luar wajib diisi (contoh: Melaksanakan PPDB)");
+        if (kep.length > 200) throw new Tolak("Keperluan paling banyak 200 karakter");
+        const ctx = await muatCtx(), th = tipeHari(ctx, tgl);
+        if (th.tipe === "libur") throw new Tolak("Tanggal itu hari libur, Tugas Luar tidak diperlukan");
+        if (th.tipe === "fm") throw new Tolak("Tanggal itu Force Majeure, Tugas Luar tidak diperlukan");
+        const ada = ok(await db.from("presensi_tugas").select("id").eq("pegawai_id", me.id).eq("tanggal", tgl).limit(1)) as unknown[];
+        if (ada.length) throw new Tolak("Anda sudah punya Tugas Luar pada tanggal itu. Hapus dulu bila ingin menggantinya.", 409);
+        const ins = await db.from("presensi_tugas").insert({ pegawai_id: me.id, role: me.role, tanggal: tgl, jam_mulai: jm, jam_selesai: js, keperluan: kep }).select().single();
+        if (ins.error) throw new Tolak(ins.error.code === "23505" ? "Anda sudah punya Tugas Luar pada tanggal itu." : ins.error.message, ins.error.code === "23505" ? 409 : 500);
+        const ef = efektif(ctx, me.id, me.role!, await jadwalSaya(me.id), tgl, hariDari(tgl));
+        return json({ ok: true, tugas: tgOut(ins.data as Tg, ef) });
+      }
+
+      case "tugas_saya": { // daftar Tugas Luar milik sendiri (30 hari terakhir sampai yang akan datang) + status absen lokasinya
+        const w = wib(), dari = new Date(Date.parse(w.tanggal + "T00:00:00Z") - 30 * 86400000).toISOString().slice(0, 10);
+        const [tgs, logs, rows, ctx] = await Promise.all([
+          db.from("presensi_tugas").select("*").eq("pegawai_id", me.id).gte("tanggal", dari).order("tanggal", { ascending: false }).limit(120),
+          db.from("presensi_log").select("tanggal,jenis,waktu,lat,lng,akurasi_m").eq("pegawai_id", me.id).gte("tanggal", dari),
+          jadwalSaya(me.id), muatCtx(),
+        ]);
+        const L = ok(logs) as { tanggal: string; jenis: string; waktu: string; lat: number; lng: number; akurasi_m: number | null }[];
+        const tugas = (ok(tgs) as Tg[]).map((t) => {
+          const a = L.find((x) => x.tanggal === t.tanggal && x.jenis === "tugas_luar");
+          const p = L.find((x) => x.tanggal === t.tanggal && x.jenis === "pulang");
+          return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.waktu, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
+        });
+        return json({ tugas, hari_ini: w.tanggal });
+      }
+
+      case "tugas_hapus": { // hanya milik sendiri, yang belum diabsen dan belum lewat
+        const id = String(body.id ?? "");
+        if (!UUID.test(id)) throw new Tolak("ID tidak valid");
+        const t = (ok(await db.from("presensi_tugas").select("*").eq("id", id).eq("pegawai_id", me.id).limit(1)) as Tg[])[0];
+        if (!t) throw new Tolak("Tugas Luar tidak ditemukan", 404);
+        if (t.tanggal < wib().tanggal) throw new Tolak("Tugas Luar yang sudah lewat tidak bisa dihapus", 409);
+        const a = ok(await db.from("presensi_log").select("id").eq("pegawai_id", me.id).eq("tanggal", t.tanggal).eq("jenis", "tugas_luar").limit(1)) as unknown[];
+        if (a.length) throw new Tolak("Sudah ada absen Tugas Luar pada tanggal itu, tidak bisa dihapus", 409);
+        ok(await db.from("presensi_tugas").delete().eq("id", id));
+        return json({ ok: true });
       }
 
       case "riwayat":
@@ -306,7 +383,14 @@ Deno.serve(async (req) => {
         const hariInfo = tipeHari(await muatCtx(), body.tanggal);
         const paths = log.map((x: { foto_path: string | null }) => x.foto_path).filter(Boolean).slice(0, 600) as string[];
         const ij = await ijinPada(body.tanggal);
-        return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null });
+        const tgs = ok(await db.from("presensi_tugas").select("*").eq("tanggal", body.tanggal).limit(1000)) as Tg[];
+        let tugas: unknown[] = [];
+        if (tgs.length) {
+          const ctx = await muatCtx(), hari = hariDari(body.tanggal);
+          const jd = ok(await db.from("presensi_jadwal").select("pegawai_id,jenis,hari,jam_masuk,jam_pulang,jp,kelas").in("pegawai_id", tgs.map((t) => t.pegawai_id))) as Jd[];
+          tugas = tgs.map((t) => tgOut(t, efektif(ctx, t.pegawai_id, t.role ?? "guru", jd.filter((r) => r.pegawai_id === t.pegawai_id), body.tanggal, hari)));
+        }
+        return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null, tugas });
       }
 
       case "url": { // admin & kepala sekolah: semua foto; lainnya: hanya foto sendiri
