@@ -349,14 +349,15 @@ Deno.serve(async (req) => {
         const w = wib(), dari = new Date(Date.parse(w.tanggal + "T00:00:00Z") - 30 * 86400000).toISOString().slice(0, 10);
         const [tgs, logs, rows, ctx] = await Promise.all([
           db.from("presensi_tugas").select("*").eq("pegawai_id", me.id).gte("tanggal", dari).order("tanggal", { ascending: false }).limit(120),
-          db.from("presensi_log").select("tanggal,jenis,waktu,lat,lng,akurasi_m").eq("pegawai_id", me.id).gte("tanggal", dari),
+          db.from("presensi_log").select("tanggal,jenis,waktu,lat,lng,akurasi_m,foto_path").eq("pegawai_id", me.id).gte("tanggal", dari),
           jadwalSaya(me.id), muatCtx(),
         ]);
-        const L = ok(logs) as { tanggal: string; jenis: string; waktu: string; lat: number; lng: number; akurasi_m: number | null }[];
+        const L = ok(logs) as { tanggal: string; jenis: string; waktu: string; lat: number; lng: number; akurasi_m: number | null; foto_path: string | null }[];
+        const urls = await signedUrls(L.filter((x) => x.jenis === "tugas_luar" && x.foto_path).map((x) => x.foto_path as string).slice(0, 120));
         const tugas = (ok(tgs) as Tg[]).map((t) => {
           const a = L.find((x) => x.tanggal === t.tanggal && x.jenis === "tugas_luar");
           const p = L.find((x) => x.tanggal === t.tanggal && x.jenis === "pulang");
-          return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.waktu, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
+          return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.waktu, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m, foto: a.foto_path ? urls[a.foto_path] ?? null : null } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
         });
         return json({ tugas, hari_ini: w.tanggal });
       }
