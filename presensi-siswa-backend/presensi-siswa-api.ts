@@ -14,6 +14,9 @@
 //   kirim_erapor : kirim rekap Sakit/Ijin/Tanpa Ket. ke tabel rekap_presensi e-Rapor (menu Presensi wali kelas).
 //            Hanya admin atau wali kelas dari kelas itu. Ditulis dengan token PEMAKAI (RLS e-Rapor tetap berlaku);
 //            kolom catatan_wali_kelas tidak disentuh.
+//   simpan_hari / hapus_hari : siswa berstatus A (Tanpa Keterangan) otomatis dicatat ke Catatan Pelanggaran (database CP,
+//            tabel pv_catatan). Bila status diubah (mis. jadi hadir/sakit/ijin) atau presensi hari itu dihapus, catatan
+//            otomatis itu ikut dihapus. Catatan manual di CP (pelapor lain) tidak pernah disentuh.
 //
 // PENTING: matikan "Verify JWT" (token e-Rapor bukan JWT project ini):
 //   supabase functions deploy presensi-siswa-api --no-verify-jwt --project-ref sfuucjmnlmfcghobpnkf
@@ -22,6 +25,9 @@
 // Secrets (Edge Functions > Secrets):
 //   RAPOR_URL       = https://iejpwxmcqwecejsrezry.supabase.co
 //   RAPOR_ANON_KEY  = kunci publishable/anon project e-Rapor (kunci publik, bukan service_role)
+//   (opsional, bila tidak diisi dipakai nilai bawaan di bawah)
+//   CP_URL, CP_KEY  = URL + kunci publishable project CP
+//   CP_ALPA_KATEGORI, CP_ALPA_PELANGGARAN, CP_ALPA_POIN = isi catatan otomatis untuk "Tanpa Keterangan"
 //
 // POST { action, ... }  ->  JSON. Daftar action ada di switch di bawah.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -120,6 +126,92 @@ async function raporSemua(token: string, path: string) {
   return out;
 }
 
+// ---------- Catatan Pelanggaran (database CP, tabel pv_siswa & pv_catatan) ----------
+// CP memakai policy anon_all, jadi cukup kunci publishable. Catatan otomatis ditandai PELAPOR_OTO supaya
+// hanya catatan buatan fungsi ini yang bisa dihapus saat presensi berubah. Catatan manual tidak tersentuh.
+const CP_URL = (Deno.env.get("CP_URL") ?? "https://nrwexyezcbmsokelgkmp.supabase.co").replace(/\/+$/, "");
+const CP_KEY = Deno.env.get("CP_KEY") ?? "sb_publishable_eKH7VdAJy17PjYuTL-3X9w_pKViejAd";
+const ALPA_KATEGORI = Deno.env.get("CP_ALPA_KATEGORI") ?? "Kehadiran";
+const ALPA_PELANGGARAN = Deno.env.get("CP_ALPA_PELANGGARAN") ?? "Tidak hadir tanpa keterangan (alpa)";
+const ALPA_POIN = Number(Deno.env.get("CP_ALPA_POIN") ?? "5") || 0;
+const PELAPOR_OTO = "Presensi Siswa (otomatis)";
+const norm = (s: unknown) => S(s).toLowerCase().replace(/\s+/g, " ").trim();
+const kutip = (v: unknown) => '"' + S(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; // nilai operator in.(...) PostgREST
+
+async function cpReq(method: string, path: string, body?: unknown, extra: Record<string, string> = {}) {
+  const r = await fetch(`${CP_URL}/rest/v1/${path}`, {
+    method,
+    headers: { apikey: CP_KEY, Authorization: `Bearer ${CP_KEY}`, "Content-Type": "application/json", ...extra },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error("Database CP: " + (await r.text()).slice(0, 200));
+  return method === "GET" ? await r.json() : null;
+}
+async function cpGet(path: string) {
+  const out: any[] = []; // deno-lint-ignore no-explicit-any
+  for (let off = 0; off < 100000; off += 1000) {
+    const rows = await cpReq("GET", path, undefined, { Range: `${off}-${off + 999}` }) as any[];
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
+// Cocokkan siswa presensi -> pv_siswa CP: NIS dulu, lalu nama (nama kembar dipilah dengan kelas; masih ambigu = dilewati).
+async function cpCocok(daftar: Stu[], namaKelas: string) {
+  const peta = new Map<string, { id: unknown; nama: string }>();
+  const namaAsli = [...new Set(daftar.map((x) => x.nama.trim()))];
+  const nisList = [...new Set(daftar.map((x) => S(x.nis).trim()).filter(Boolean))];
+  // deno-lint-ignore no-explicit-any
+  const pv = new Map<string, any>();
+  for (const c of chunk(namaAsli, 40)) for (const r of await cpGet(`pv_siswa?select=*&nama=in.(${c.map(kutip).join(",")})`)) pv.set(S(r.id), r);
+  for (const c of chunk(nisList, 60)) for (const r of await cpGet(`pv_siswa?select=*&nis=in.(${c.map(kutip).join(",")})`)) pv.set(S(r.id), r);
+  const semua = [...pv.values()];
+  for (const x of daftar) {
+    let m = x.nis ? semua.filter((r) => S(r.nis).trim() === S(x.nis).trim()) : [];
+    if (m.length !== 1) {
+      m = semua.filter((r) => norm(r.nama) === norm(x.nama));
+      if (m.length > 1) { const k = m.filter((r) => norm(r.kelas) === norm(namaKelas)); if (k.length === 1) m = k; }
+    }
+    if (m.length === 1) peta.set(x.id, { id: m[0].id, nama: S(m[0].nama) });
+  }
+  return peta;
+}
+
+// Samakan catatan otomatis CP dengan presensi satu tanggal satu kelas. Gagal di sini TIDAK menggagalkan simpan presensi.
+async function sinkronPelanggaran(tanggal: string, tahunNama: string, namaKelas: string, daftar: Stu[], alpa: Set<string>) {
+  try {
+    const peta = await cpCocok(daftar, namaKelas);
+    const cpIds = [...peta.values()].map((v) => S(v.id));
+    // catatan otomatis yang sudah ada pada tanggal itu untuk siswa kelas ini
+    // deno-lint-ignore no-explicit-any
+    const ada: any[] = [];
+    for (const c of chunk(cpIds, 80)) {
+      ada.push(...await cpGet(`pv_catatan?select=id,siswa_id&tanggal=eq.${tanggal}&pelapor=eq.${encodeURIComponent(kutip(PELAPOR_OTO))}&pelanggaran=eq.${encodeURIComponent(kutip(ALPA_PELANGGARAN))}&siswa_id=in.(${c.join(",")})`));
+    }
+    const cpAlpa = new Set<string>(), dilewati: string[] = [];
+    for (const x of daftar) {
+      if (!alpa.has(x.id)) continue;
+      const m = peta.get(x.id);
+      if (m) cpAlpa.add(S(m.id)); else dilewati.push(x.nama);
+    }
+    const sudah = new Set(ada.map((r) => S(r.siswa_id)));
+    // hapus: catatan otomatis milik siswa yang sekarang tidak lagi alpa
+    const hapusId = ada.filter((r) => !cpAlpa.has(S(r.siswa_id))).map((r) => r.id);
+    for (const c of chunk(hapusId, 80)) await cpReq("DELETE", `pv_catatan?id=in.(${c.join(",")})`, undefined, { Prefer: "return=minimal" });
+    // tambah: siswa alpa yang belum punya catatan otomatis
+    const baru = daftar.filter((x) => alpa.has(x.id) && peta.has(x.id) && !sudah.has(S(peta.get(x.id)!.id))).map((x) => ({
+      tanggal, tahun_ajaran: tahunNama, siswa_id: peta.get(x.id)!.id, siswa_nama: peta.get(x.id)!.nama, kelas: namaKelas,
+      kategori: ALPA_KATEGORI, pelanggaran: ALPA_PELANGGARAN, poin: ALPA_POIN,
+      keterangan: "Dicatat otomatis dari Presensi Siswa", pelapor: PELAPOR_OTO,
+    }));
+    for (const c of chunk(baru, 100)) await cpReq("POST", "pv_catatan", c, { Prefer: "return=minimal" });
+    return { ok: true, dibuat: baru.length, dihapus: hapusId.length, dilewati };
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message ?? e) };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Gunakan POST" }, 405);
@@ -170,10 +262,11 @@ Deno.serve(async (req: Request) => {
       }
 
       case "simpan_hari": { // simpan presensi satu kelas pada satu tanggal; siswa yang tidak ada di daftar = hadir
-        await akses(me, body.tahun_id, body.kelas_id, true);
+        const { tahun, kelas } = await akses(me, body.tahun_id, body.kelas_id, true);
         if (!tglOk(body.tanggal)) throw new Tolak("Tanggal tidak valid");
         const peta = body.absen && typeof body.absen === "object" && !Array.isArray(body.absen) ? body.absen as Record<string, unknown> : {};
-        const semua = (await siswaKelas(body.tahun_id, body.kelas_id)).map((x) => x.id);
+        const daftarKelas = await siswaKelas(body.tahun_id, body.kelas_id);
+        const semua = daftarKelas.map((x) => x.id);
         const sah = new Set(semua);
         const baris: { tanggal: string; siswa_id: string; status: string }[] = [];
         for (const [sid, st] of Object.entries(peta)) {
@@ -186,16 +279,21 @@ Deno.serve(async (req: Request) => {
         for (const c of chunk(baris, 200)) ok(await db.from("pres_absen").upsert(c, { onConflict: "tanggal,siswa_id" }));
         const hadir = semua.filter((x) => !(x in peta));
         for (const c of chunk(hadir, 100)) ok(await db.from("pres_absen").delete().eq("tanggal", body.tanggal).in("siswa_id", c));
-        return json({ ok: true, tersimpan: baris.length, hadir: hadir.length });
+        // Tanpa Keterangan (A) -> Catatan Pelanggaran CP; yang berubah jadi hadir/sakit/ijin -> catatan otomatisnya dihapus.
+        const alpa = new Set(baris.filter((b) => b.status === "A").map((b) => b.siswa_id));
+        const pelanggaran = await sinkronPelanggaran(body.tanggal, S(tahun.nama), S(kelas.nama), daftarKelas, alpa);
+        return json({ ok: true, tersimpan: baris.length, hadir: hadir.length, pelanggaran });
       }
 
       case "hapus_hari": { // hapus seluruh presensi satu kelas pada satu tanggal
-        await akses(me, body.tahun_id, body.kelas_id, true);
+        const { tahun, kelas } = await akses(me, body.tahun_id, body.kelas_id, true);
         if (!tglOk(body.tanggal)) throw new Tolak("Tanggal tidak valid");
-        const semua = (await siswaKelas(body.tahun_id, body.kelas_id)).map((x) => x.id);
+        const daftarKelas = await siswaKelas(body.tahun_id, body.kelas_id);
+        const semua = daftarKelas.map((x) => x.id);
         for (const c of chunk(semua, 100)) ok(await db.from("pres_absen").delete().eq("tanggal", body.tanggal).in("siswa_id", c));
         ok(await db.from("pres_sesi").delete().eq("tanggal", body.tanggal).eq("kelas_id", body.kelas_id));
-        return json({ ok: true });
+        const pelanggaran = await sinkronPelanggaran(body.tanggal, S(tahun.nama), S(kelas.nama), daftarKelas, new Set());
+        return json({ ok: true, pelanggaran });
       }
 
       case "kirim_erapor": { // kirim rekap S/I/A rentang tanggal -> rekap_presensi e-Rapor (menu Presensi wali kelas)
