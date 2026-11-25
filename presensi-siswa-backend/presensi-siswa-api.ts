@@ -11,6 +11,7 @@
 //   guru   : SEMUA kelas, isi/ubah presensi + rekap (tidak harus wali kelas). Kelas yang ia wali hanya dipakai
 //            sebagai kelas awal & pengisi nama wali kelas otomatis di PDF (field `wali` pada action awal)
 //   kepsek : semua kelas, BACA SAJA (rekap + cetak)
+//   developer : hanya action "kesehatan" (angka ukuran DB/storage/tabel), butuh kesehatan_presensi.sql di project ini.
 //   kirim_erapor_semua : admin, kirim rekap SEMUA kelas sekaligus ke e-Rapor (tiap kelas ke kelasnya sendiri), aturan sama.
 //   kirim_erapor : kirim rekap Sakit/Ijin/Tanpa Ket. ke tabel rekap_presensi e-Rapor (menu Presensi wali kelas).
 //            Hanya admin atau wali kelas dari kelas itu. Ditulis dengan token PEMAKAI (RLS e-Rapor tetap berlaku);
@@ -229,6 +230,13 @@ Deno.serve(async (req: Request) => {
   try {
     const me = await siapa(req.headers.get("x-rapor-token") ?? "");
     if (!me) return json({ error: "Sesi login e-Rapor tidak valid. Login ulang." }, 401);
+    // Developer: HANYA boleh membaca angka kesehatan (ukuran DB, storage, tabel) untuk panel Kesehatan Sistem.
+    if (me.role === "developer") {
+      if (body.action !== "kesehatan") return json({ error: "Peran tidak diizinkan" }, 403);
+      const r = await db.rpc("presensi_kesehatan");
+      if (r.error) throw new Tolak("Gagal membaca kesehatan database (sudah menjalankan kesehatan_presensi.sql di project ini?): " + r.error.message, 500);
+      return json(r.data);
+    }
     if (!PERAN.includes(me.role)) return json({ error: "Peran tidak diizinkan" }, 403);
 
     switch (body.action) {
