@@ -11,6 +11,7 @@
 //   guru   : SEMUA kelas, isi/ubah presensi + rekap (tidak harus wali kelas). Kelas yang ia wali hanya dipakai
 //            sebagai kelas awal & pengisi nama wali kelas otomatis di PDF (field `wali` pada action awal)
 //   kepsek : semua kelas, BACA SAJA (rekap + cetak)
+//   kirim_erapor_semua : admin, kirim rekap SEMUA kelas sekaligus ke e-Rapor (tiap kelas ke kelasnya sendiri), aturan sama.
 //   kirim_erapor : kirim rekap Sakit/Ijin/Tanpa Ket. ke tabel rekap_presensi e-Rapor (menu Presensi wali kelas).
 //            Hanya admin atau wali kelas dari kelas itu. Ditulis dengan token PEMAKAI (RLS e-Rapor tetap berlaku);
 //            kolom catatan_wali_kelas tidak disentuh.
@@ -348,6 +349,84 @@ Deno.serve(async (req: Request) => {
           if (!r.ok) throw new Tolak("e-Rapor menolak penyimpanan: " + (await r.text()).slice(0, 200), r.status === 401 || r.status === 403 ? 403 : 502);
         }
         return json({ ok: true, terkirim: rows.length, dilewati });
+      }
+
+      case "kirim_erapor_semua": { // admin: kirim rekap S/I/A SEMUA kelas satu semester -> rekap_presensi e-Rapor, tiap kelas ke kelasnya sendiri
+        butuhAdmin(me);
+        if (!idOk(body.tahun_id)) throw new Tolak("Tahun ajaran tidak valid");
+        if (!tglOk(body.dari) || !tglOk(body.sampai) || body.dari > body.sampai) throw new Tolak("Rentang tanggal tidak valid");
+        if (hariSelisih(body.dari, body.sampai) > 400) throw new Tolak("Rentang tanggal terlalu panjang (maks. 400 hari)");
+        // deno-lint-ignore no-explicit-any
+        const tahun = ok(await db.from("pres_tahun").select("id,rapor_id,nama,semester").eq("id", body.tahun_id).maybeSingle()) as any;
+        if (!tahun) throw new Tolak("Tahun ajaran tidak ditemukan", 404);
+        if (!tahun.rapor_id) throw new Tolak("Semester ini data manual (bukan dari e-Rapor), jadi tidak bisa dikirim. Jalankan Sinkron dulu.");
+        const enc = encodeURIComponent;
+
+        const kelasRows = ok(await db.from("pres_kelas").select("id,rapor_id,nama")) as { id: unknown; rapor_id: string | null; nama: string }[];
+        const kelasRapor = new Map<string, { rapor: string; nama: string }>();
+        kelasRows.forEach((k) => { if (k.rapor_id) kelasRapor.set(S(k.id), { rapor: S(k.rapor_id), nama: k.nama }); });
+
+        // Semua penempatan siswa di semester ini (dibaca per 1000 baris).
+        // deno-lint-ignore no-explicit-any
+        const rombel: any[] = [];
+        for (let off = 0; off < 100000; off += 1000) {
+          const r = ok(await db.from("pres_rombel").select("kelas_id,siswa:pres_siswa(id,rapor_id,status)").eq("tahun_id", body.tahun_id).order("id").range(off, off + 999)) as
+            // deno-lint-ignore no-explicit-any
+            any[];
+          rombel.push(...r);
+          if (r.length < 1000) break;
+        }
+        const roster = new Set((await raporSemua(me.token, `siswa_kelas?select=id,siswa_id,kelas_id&tahun_ajaran_id=eq.${enc(S(tahun.rapor_id))}`) as { siswa_id: unknown; kelas_id: unknown }[]).map((x) => S(x.kelas_id) + "|" + S(x.siswa_id)));
+
+        const kirim: { sid: string; rapor: string; kelas: string; kelasNama: string }[] = [];
+        const kelasTerlibat = new Set<string>();
+        let dilewati = 0;
+        for (const r of rombel) {
+          const sw = r.siswa; if (!sw) continue;
+          if (sw.status && String(sw.status).toLowerCase() !== "aktif") continue;
+          const k = kelasRapor.get(S(r.kelas_id));
+          if (!k || !sw.rapor_id || !roster.has(k.rapor + "|" + S(sw.rapor_id))) { dilewati++; continue; }
+          kirim.push({ sid: S(sw.id), rapor: S(sw.rapor_id), kelas: k.rapor, kelasNama: k.nama });
+          kelasTerlibat.add(k.rapor);
+        }
+        if (!kirim.length) throw new Tolak("Tidak ada siswa yang cocok dengan daftar kelas di e-Rapor. Jalankan Sinkron dulu.");
+
+        // Hitung S/I/A seluruh siswa sekaligus (satu pemindaian rentang tanggal).
+        const hit = new Map<string, { S: number; I: number; A: number }>();
+        kirim.forEach((x) => hit.set(x.sid, { S: 0, I: 0, A: 0 }));
+        for (let off = 0; off < 500000; off += 1000) {
+          const r = ok(await db.from("pres_absen").select("siswa_id,status").in("status", STATUS)
+            .gte("tanggal", body.dari).lte("tanggal", body.sampai).order("id").range(off, off + 999)) as { siswa_id: unknown; status: "S" | "I" | "A" }[];
+          r.forEach((x) => { const c = hit.get(S(x.siswa_id)); if (c) c[x.status]++; });
+          if (r.length < 1000) break;
+        }
+
+        const ada = new Map((await raporSemua(me.token, `rekap_presensi?select=id,siswa_id,kelas_id,jumlah_sakit,jumlah_izin,jumlah_alpha&tahun_ajaran_id=eq.${enc(S(tahun.rapor_id))}`) as
+          { siswa_id: unknown; kelas_id: unknown; jumlah_sakit: unknown; jumlah_izin: unknown; jumlah_alpha: unknown }[]).map((x) => [S(x.kelas_id) + "|" + S(x.siswa_id), x] as const));
+        let berbeda = 0;
+        for (const x of kirim) {
+          const e = ada.get(x.kelas + "|" + x.rapor), h = hit.get(x.sid)!;
+          if (!e) continue;
+          const s0 = Number(e.jumlah_sakit) || 0, i0 = Number(e.jumlah_izin) || 0, a0 = Number(e.jumlah_alpha) || 0;
+          if ((s0 || i0 || a0) && (s0 !== h.S || i0 !== h.I || a0 !== h.A)) berbeda++;
+        }
+        if (body.simulasi) return json({ ok: true, simulasi: true, kelas: kelasTerlibat.size, siswa: kirim.length, dilewati, berbeda });
+
+        const now = new Date().toISOString();
+        const rows = kirim.map((x) => ({
+          siswa_id: x.rapor, kelas_id: x.kelas, tahun_ajaran_id: S(tahun.rapor_id),
+          jumlah_sakit: hit.get(x.sid)!.S, jumlah_izin: hit.get(x.sid)!.I, jumlah_alpha: hit.get(x.sid)!.A,
+          dicatat_oleh: me.id, updated_at: now, // catatan_wali_kelas sengaja tidak dikirim: tidak tertimpa
+        }));
+        for (const c of chunk(rows, 200)) {
+          const r = await fetch(`${RAPOR_URL}/rest/v1/rekap_presensi?on_conflict=siswa_id,kelas_id,tahun_ajaran_id`, {
+            method: "POST",
+            headers: { apikey: RAPOR_ANON, Authorization: `Bearer ${me.token}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(c),
+          });
+          if (!r.ok) throw new Tolak("e-Rapor menolak penyimpanan: " + (await r.text()).slice(0, 200), r.status === 401 || r.status === 403 ? 403 : 502);
+        }
+        return json({ ok: true, terkirim: rows.length, kelas: kelasTerlibat.size, dilewati });
       }
 
       // ---------- Khusus admin ----------
