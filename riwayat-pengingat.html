@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
+<title>Riwayat Pengingat — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="pwa-offline.js?v=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
+<script src="app-switcher.js?v=12" defer></script>
+<script src="kepsek-nav.js?v=10"></script>
+<script src="pengingat-kepsek.js?v=4"></script>
+<script src="dashboard-kepsek.js?v=8"></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="bottomnav.js?v=18" defer></script>
+<script src="foto-profil.js?v=4" defer></script>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo SMK Widya Mandala Tambak">
+      <div class="sidebar__brand-text">
+        <span class="sidebar__brand-mark">Riwayat Pengingat</span>
+        <span class="sidebar__brand-school">SMK Widya Mandala Tambak</span>
+      </div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="bell-ring" style="width:13px;height:13px;"></i> <span id="roleLabel">Kepala Sekolah</span></div>
+
+    <div class="sidebar__section-label">Pembinaan</div>
+    <nav class="menu-list">
+      <a href="riwayat-pengingat.html" class="menu-item menu-item--active"><i data-lucide="bell-ring" class="menu-icon"></i><span class="menu-item__title">Riwayat Pengingat</span></a>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div style="margin-bottom:8px; opacity:0.8;">SMK Widya Mandala Tambak · Banyumas</div>
+      <div style="margin-top:8px;font-size:10px;opacity:0.45;">developed by Hanif Shohibul A.</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar__title">Riwayat Pengingat</div>
+        <div class="topbar__row"><div class="topbar__meta" id="topbarMeta">Pengingat yang sudah dikirim ke guru</div><a href="portal.html" class="btn-small topbar__app"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i> Menu Utama</a></div>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip__text">
+          <div class="user-chip__name" id="userName">Memuat...</div>
+          <div class="user-chip__role" id="userRoleLabel">Kepala Sekolah</div>
+          <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a>
+        </div>
+        <div class="user-chip__avatar" id="userAvatar">•</div>
+      </div>
+    </div>
+
+    <div class="content" id="content"><div class="panel-note">Memuat...</div></div>
+  </div>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  (async function () {
+    var ses = await supabaseClient.auth.getSession();
+    if (!ses.data.session) { window.location.href = 'index.html'; return; }
+    var user = ses.data.session.user;
+
+    var pr = await supabaseClient.from('profiles').select('nama, role').eq('id', user.id).single();
+    if (pr.error || !pr.data) { window.location.href = 'portal.html'; return; }
+    // Hanya Kepala Sekolah yang mengirim pengingat; selain itu kembali ke Menu Utama.
+    if (pr.data.role !== 'kepsek') { window.location.href = 'portal.html'; return; }
+    var nama = pr.data.nama || user.email;
+
+    document.getElementById('userName').textContent = nama;
+    document.getElementById('userAvatar').textContent = nama.trim().charAt(0).toUpperCase();
+    document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+      e.preventDefault();
+      try { await catatAktivitas('logout', 'Akun', 'Keluar dari aplikasi'); } catch (x) { /* abaikan */ }
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    });
+
+    var wadah = document.getElementById('content');
+    wadah.innerHTML = '';
+    if (window.DashboardKepsek) await DashboardKepsek.riwayat(wadah);
+    else wadah.innerHTML = '<div class="panel-note">Gagal memuat komponen riwayat. Muat ulang halaman.</div>';
+    if (window.lucide) lucide.createIcons();
+  })();
+</script>
+
+</body>
+</html>

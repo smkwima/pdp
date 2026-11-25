@@ -47,6 +47,7 @@ var LOKAL = [
  "pengaturan-admin.html",
  "pengingat-guru.js",
  "pengingat-kepsek.js",
+ "riwayat-pengingat.html",
  "pengumuman-kepsek.js",
  "penilaian-rekan.html",
  "penilaian-saya.js",

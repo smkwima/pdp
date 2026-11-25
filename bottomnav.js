@@ -65,6 +65,7 @@
   else if (berkas === 'catatan-pengawas.html') { kunciAktif = 'cat'; }
   else if (berkas === 'pelanggaran.html') { kunciAktif = 'pel'; }
   else if (berkas === 'pengaduan.html') { kunciAktif = 'pgd'; }
+  else if (berkas === 'riwayat-pengingat.html') { kunciAktif = 'ripe'; roleDariBerkas = 'kepsek'; }
   else if (berkas === 'ijin.html') { kunciAktif = 'ijin'; }
   else if (berkas === 'presensi.html') { kunciAktif = 'presensi'; }
   else if (berkas === 'presensi-siswa.html') { kunciAktif = 'presiswa'; }
@@ -88,6 +89,7 @@
       { k: 'pel',   label: 'Pelanggaran', judul: 'Catatan Pelanggaran', href: 'pelanggaran.html', warna: 'merah' },
       { k: 'pgd',   label: 'Pengaduan',   judul: 'Pengaduan Siswa',     href: 'pengaduan.html', warna: 'merah', sheetSaja: true, hanyaPimpinan: true },
       { k: 'cat',   label: 'Catatan',     judul: 'Catatan Pengawas',    href: 'catatan-pengawas.html', warna: 'ungu', sheetSaja: true, hanyaCatatan: true },
+      { k: 'ripe',  label: 'Pengingat',   judul: 'Riwayat Pengingat',   href: 'riwayat-pengingat.html', warna: 'oranye', sheetSaja: true, hanyaKepsek: true },
       { k: 'presensi', label: 'Presensi', judul: 'Presensi',          href: 'presensi.html', warna: 'hijau' },
       { k: 'presiswa', label: 'Pres. Siswa', judul: 'Presensi Siswa', href: 'presensi-siswa.html', warna: 'hijau' },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },

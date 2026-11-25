@@ -3,11 +3,10 @@
  * DASHBOARD RINGKASAN KEPALA SEKOLAH (satu layar) di Beranda (portal.html).
  *
  *   - 4 kartu: progres E-Rapor, Kinerja Guru, Nilai PKL, Supervisi.
- *   - Tabel "Perlu ditindaklanjuti": guru yang masih punya pekerjaan belum
- *     lengkap di salah satu modul, beserta tombol Ingatkan (pengingat-kepsek.js).
- *
- *   - Panel "Riwayat Pengingat": semua pengingat yang pernah dikirim, status
- *     dibaca / belum dibaca, filter modul & status, dan tombol "Ingatkan lagi".
+ *   - Riwayat Pengingat TIDAK lagi di dashboard: tampil di halaman sendiri
+ *     (riwayat-pengingat.html) lewat DashboardKepsek.riwayat(elemen):
+ *     semua pengingat yang pernah dikirim, status dibaca / belum dibaca,
+ *     filter modul & status, dan tombol "Ingatkan lagi".
  *
  *   - Panel paling bawah "Kirim ke grup WhatsApp": menyusun ringkasan teks
  *     (bisa diedit) untuk disalin / dibagikan; Kepala Sekolah mengirim manual ke grup.
@@ -16,6 +15,7 @@
  * kalau satu gagal, kartu lain tetap tampil.
  *
  * Pakai:  DashboardKepsek.muat(tahunAjaranAktif, elemenWadah)
+ *         DashboardKepsek.riwayat(elemenWadah)   // halaman Riwayat Pengingat
  * Dimuat setelah supabase-client.js dan pengingat-kepsek.js.
  * -----------------------------------------------------------------
  */
@@ -23,9 +23,7 @@
   'use strict';
   if (window.DashboardKepsek) return;
 
-  var BATAS_BARIS = 10;
   var D = { guru: [], erapor: null, kinerja: null, pkl: null, supervisi: null, ta: null };
-  var semuaDitampilkan = false;
   var R = { rows: null, modul: '', status: '', tampil: 15 };
   var NAMA_MODUL = { erapor: 'E-Rapor', kinerja: 'Kinerja', pkl: 'Nilai PKL', supervisi: 'Supervisi', bukuinduk: 'Buku Induk', umum: 'Umum' };
   var HARI_LAMA = 3; // belum dibaca lebih dari ini ditandai "sudah lama"
@@ -321,7 +319,7 @@
       s.terlambat > 0 ? lencana(s.terlambat + ' jadwal lewat tanggal, belum selesai', 'bad') : lencana('Tidak ada yang terlambat', 'ok'));
   }
 
-  // ---------- tabel guru yang perlu ditindaklanjuti ----------
+  // ---------- pekerjaan guru yang belum lengkap (dipakai ringkasan WhatsApp) ----------
   function masalahGuru(id) {
     var m = { erapor: null, kinerja: null, pend: null, uji: null, jumlah: 0 };
     var e = D.erapor && D.erapor.perGuru[id];
@@ -335,93 +333,7 @@
     return m;
   }
 
-  function pesanGuru(id) {
-    var m = masalahGuru(id), L = [];
-    if (m.erapor) {
-      var kr = m.erapor.kurang.slice().sort(function (a, b) { return pct(a.filled, a.total) - pct(b.filled, b.total); });
-      var ringkas = kr.slice(0, 3).map(function (r) { return r.mapel + ' ' + r.kelas + ' (' + r.filled + '/' + r.total + ')'; }).join('; ');
-      L.push('• E-Rapor: nilai baru terisi ' + pct(m.erapor.filled, m.erapor.total) + '%' + (ringkas ? ' — ' + ringkas + (kr.length > 3 ? ', dan ' + (kr.length - 3) + ' lainnya' : '') : '') + '.');
-    }
-    if (m.kinerja) {
-      if (m.kinerja.total === 0) L.push('• Kinerja: belum ada butir bukti dukung kinerja.');
-      else {
-        var b = [];
-        if (m.kinerja.draft > 0) b.push(m.kinerja.draft + ' butir belum diajukan');
-        if (m.kinerja.revisi > 0) b.push(m.kinerja.revisi + ' butir perlu direvisi');
-        L.push('• Kinerja: ' + b.join(', ') + '.');
-      }
-    }
-    if (m.pend) L.push('• Nilai PKL (Pendamping): kelengkapan baru ' + m.pend.pct + '% untuk ' + m.pend.n + ' siswa.');
-    if (m.uji) L.push('• Nilai PKL (Penguji): kelengkapan baru ' + m.uji.pct + '% untuk ' + m.uji.n + ' siswa.');
-    return 'Mohon dilengkapi:\n' + L.join('\n');
-  }
-
-  function selKinerja(m, k) {
-    if (!D.kinerja) return '<span class="dk-mut">—</span>';
-    if (k.total === 0) return '<span class="dk-bad">Belum ada butir</span>';
-    var rinci = [];
-    if (k.draft > 0) rinci.push(k.draft + ' belum diajukan');
-    if (k.revisi > 0) rinci.push(k.revisi + ' revisi');
-    if (k.diajukan > 0) rinci.push(k.diajukan + ' menunggu cek');
-    return '<div class="dk-cell">' + bar(pct(k.disetujui, k.total)) + '<small>' + k.disetujui + '/' + k.total + ' disetujui' + (rinci.length ? ' · ' + rinci.join(', ') : '') + '</small></div>';
-  }
-
-  function renderTabel() {
-    var el = document.getElementById('dkTabel');
-    if (!el) return;
-    var baris = D.guru.map(function (g) { return { g: g, m: masalahGuru(g.id) }; })
-      .filter(function (x) { return x.m.jumlah > 0; });
-    baris.sort(function (a, b) { return b.m.jumlah - a.m.jumlah || a.g.nama.localeCompare(b.g.nama, 'id'); });
-
-    var modulTersedia = D.erapor || D.kinerja || D.pkl;
-    if (!modulTersedia) { el.innerHTML = ''; return; }
-
-    if (!baris.length) {
-      el.innerHTML = '<div class="dk-panel"><div class="dk-panel__h"><b>Perlu ditindaklanjuti</b></div>' +
-        '<div class="dk-good">Semua guru sudah melengkapi pekerjaannya di E-Rapor, Kinerja, dan Nilai PKL. 🎉</div></div>';
-      return;
-    }
-
-    var tampil = semuaDitampilkan ? baris : baris.slice(0, BATAS_BARIS);
-    var tombolSemua = window.Pengingat ? Pengingat.tombolHtml('data-dk-ingat="semua"', 'Ingatkan semua (' + baris.length + ')') : '';
-    el.innerHTML = '<div class="dk-panel"><div class="dk-panel__h"><b>Perlu ditindaklanjuti</b>' +
-      '<span class="dk-hint">' + baris.length + ' guru masih punya pekerjaan belum lengkap · diurutkan dari yang paling banyak</span>' +
-      '<span class="dk-sp">' + tombolSemua + '</span></div>' +
-      '<div class="dk-wrap"><table class="dk-tbl"><thead><tr><th>Guru</th><th>E-Rapor</th><th>Kinerja</th><th>Nilai PKL</th><th></th></tr></thead><tbody>' +
-      tampil.map(function (x) {
-        var m = x.m, e = D.erapor && D.erapor.perGuru[x.g.id];
-        var cE = !D.erapor ? '<span class="dk-mut">—</span>' : (!e || e.total === 0 ? '<span class="dk-mut">—</span>' :
-          '<div class="dk-cell">' + bar(pct(e.filled, e.total)) + '<small>' + pct(e.filled, e.total) + '% · ' + e.filled + '/' + e.total + ' nilai</small></div>');
-        var k = D.kinerja && (D.kinerja.perGuru[x.g.id] || { total: 0, draft: 0, diajukan: 0, disetujui: 0, revisi: 0 });
-        var cK = D.kinerja ? selKinerja(m, k) : '<span class="dk-mut">—</span>';
-        var p = [];
-        if (D.pkl && D.pkl.pend[x.g.id]) p.push('Pendamping ' + D.pkl.pend[x.g.id].pct + '%');
-        if (D.pkl && D.pkl.uji[x.g.id]) p.push('Penguji ' + D.pkl.uji[x.g.id].pct + '%');
-        var cP = p.length ? '<div class="dk-cell"><small style="font-size:12.5px;color:inherit;">' + esc(p.join(' · ')) + '</small></div>' : '<span class="dk-mut">—</span>';
-        // Di HP sel kosong ("—") dan yang sudah lengkap disembunyikan (kelas dk-na); di desktop tetap tampil.
-        function td(label, isi, lengkap) { return '<td data-label="' + label + '"' + (lengkap || isi.indexOf('dk-mut') >= 0 ? ' class="dk-na"' : '') + '>' + isi + '</td>'; }
-        return '<tr data-dk-guru="' + esc(x.g.id) + '"><td><span class="dk-nama">' + esc(x.g.nama) + '</span><span class="pk-diingat" data-dk-label></span></td>' +
-          td('E-Rapor', cE, !m.erapor) + td('Kinerja', cK, !m.kinerja) + td('Nilai PKL', cP, !m.pend && !m.uji) +
-          '<td>' + (window.Pengingat ? Pengingat.tombolHtml('data-dk-ingat="' + esc(x.g.id) + '"', 'Ingatkan') : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' +
-      (baris.length > BATAS_BARIS ? '<button type="button" class="dk-more" id="dkMore">' + (semuaDitampilkan ? 'Tampilkan lebih sedikit' : 'Tampilkan semua ' + baris.length + ' guru') + '</button>' : '') +
-      '</div>';
-    if (window.lucide) lucide.createIcons();
-    isiLabelRiwayat();
-  }
-
-  async function isiLabelRiwayat() {
-    if (!window.Pengingat) return;
-    var r = await Pengingat.riwayat('umum');
-    document.querySelectorAll('tr[data-dk-guru]').forEach(function (tr) {
-      var info = r[tr.getAttribute('data-dk-guru')], l = tr.querySelector('[data-dk-label]');
-      if (l && info) l.textContent = Pengingat.labelRiwayat(info);
-    });
-  }
-
   function onKlik(e) {
-    var more = e.target.closest ? e.target.closest('#dkMore') : null;
-    if (more) { semuaDitampilkan = !semuaDitampilkan; renderTabel(); return; }
     var wa = e.target.closest ? e.target.closest('#dkWaBtn') : null;
     if (wa) { e.preventDefault(); bukaDialogWa(); return; }
     var rm = e.target.closest ? e.target.closest('#dkRMore') : null;
@@ -444,26 +356,6 @@
     }
     var ul = e.target.closest ? e.target.closest('[data-dk-ulang]') : null;
     if (ul) { e.preventDefault(); ingatkanLagi(ul.getAttribute('data-dk-ulang')); return; }
-    var b = e.target.closest ? e.target.closest('[data-dk-ingat]') : null;
-    if (!b || !window.Pengingat) return;
-    e.preventDefault();
-    var tujuan = b.getAttribute('data-dk-ingat'), penerima = [];
-    if (tujuan === 'semua') {
-      D.guru.forEach(function (g) { if (masalahGuru(g.id).jumlah > 0) penerima.push({ id: g.id, nama: g.nama, pesan: pesanGuru(g.id) }); });
-    } else {
-      var g = D.guru.filter(function (x) { return x.id === tujuan; })[0];
-      if (g) penerima = [{ id: g.id, nama: g.nama, pesan: pesanGuru(g.id) }];
-    }
-    Pengingat.buka({
-      modul: 'umum', tautan: 'portal.html', judul: 'Ada pekerjaan yang belum lengkap', penerima: penerima,
-      onSelesai: function () {
-        penerima.forEach(function (p) {
-          var l = wadah.querySelector('tr[data-dk-guru="' + p.id + '"] [data-dk-label]');
-          if (l) l.textContent = 'Diingatkan baru saja · belum dibaca';
-        });
-        segarkanRiwayat();
-      }
-    });
   }
 
 
@@ -704,19 +596,17 @@
   // ---------- titik masuk ----------
   async function muat(ta, el, opsi) {
     if (!el) return;
-    var ringkas = !!(opsi && opsi.ringkas); // true = tampilan Pengawas: kartu saja, tanpa tindak lanjut per guru
+    var ringkas = !!(opsi && opsi.ringkas); // true = tampilan Pengawas: kartu saja, tanpa tombol WhatsApp
     wadah = el;
     pasangGaya();
     D = { guru: [], erapor: null, kinerja: null, pkl: null, supervisi: null, ta: ta };
-    semuaDitampilkan = false;
-    R = { rows: null, modul: '', status: '', tampil: 15 };
 
     el.innerHTML = '<div class="dk-cards">' +
       kartu('dkErapor', 'file-text', 'Nilai E-Rapor', 'admin.html') +
       kartu('dkKinerja', 'award', 'Kinerja Guru', 'kinerja.html') +
       kartu('dkPkl', 'briefcase-business', 'Nilai PKL', 'pkl.html') +
       kartu('dkSupervisi', 'clipboard-check', 'Supervisi', 'supervisi-admin.html') +
-      '</div><div id="dkGalat"></div><div id="dkTabel"></div><div id="dkRiwayat"></div><div id="dkWa"></div>';
+      '</div><div id="dkGalat"></div><div id="dkWa"></div>';
     if (window.lucide) lucide.createIcons();
     // Kartu aplikasi yang disembunyikan developer ikut hilang (developer tetap melihat); kartu lain mengisi tempatnya.
     if (window.AksesAplikasi) {
@@ -737,7 +627,6 @@
 
     var tugas = [
       muatGuru().then(function (v) { D.guru = v; }, catatGalat('daftar guru')),
-      ringkas ? Promise.resolve() : muatRiwayat(),
       muatSupervisi().then(function (v) { D.supervisi = v; renderKartuSupervisi(); }, function () { gagalKartu('dkSupervisi'); galat.push('Supervisi'); })
     ];
     if (ta) {
@@ -753,13 +642,26 @@
       var g = document.getElementById('dkGalat');
       if (g) g.innerHTML = '<div class="dk-err">Sebagian data belum bisa dimuat: ' + esc(galat.join(', ')) + '. Muat ulang halaman, atau buka modulnya langsung.</div>';
     }
-    if (!ringkas) {
-      if (D.guru.length) renderTabel();
-      renderRiwayat();
-      renderWa();
-    }
+    if (!ringkas) renderWa();
     if (window.lucide) lucide.createIcons();
   }
 
-  window.DashboardKepsek = { muat: muat };
+  // Halaman Riwayat Pengingat (riwayat-pengingat.html): hanya daftar pengingat, tanpa kartu dashboard.
+  async function riwayat(el) {
+    if (!el) return;
+    wadah = el;
+    pasangGaya();
+    R = { rows: null, modul: '', status: '', tampil: 15 };
+    el.innerHTML = '<div id="dkRiwayat"></div>';
+    el.addEventListener('click', onKlik);
+    el.addEventListener('change', onUbah);
+    await muatRiwayat();
+    if (R.rows === null) {
+      el.innerHTML = '<div class="dk-err">Riwayat pengingat belum bisa dimuat. Pastikan <b>migrasi_pengingat.sql</b> sudah dijalankan di Supabase, lalu muat ulang halaman.</div>';
+      return;
+    }
+    renderRiwayat();
+  }
+
+  window.DashboardKepsek = { muat: muat, riwayat: riwayat };
 })();
