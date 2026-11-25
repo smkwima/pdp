@@ -94,6 +94,21 @@ const ijinSaya = (daftar: Ijin[] | null, kode: unknown) => {
   return e ? { jenis: e.jenis, label: JENIS_IJIN[e.jenis] ?? e.jenis } : null;
 };
 
+// Ijin/sakit/dinas luar milik SATU pegawai pada rentang tanggal (untuk data presensi bulanan).
+type IjinR = Ijin & { tanggal_mulai: string; tanggal_selesai: string };
+async function ijinRentang(dari: string, sampai: string, kode: unknown): Promise<IjinR[] | null> {
+  if (!REKAP_URL || !REKAP_ANON) return null;
+  const k = kodeNorm(kode);
+  if (!k) return [];
+  try {
+    const q = `select=kode_mesin,nama,jenis,tanggal_mulai,tanggal_selesai&tanggal_mulai=lte.${sampai}&tanggal_selesai=gte.${dari}&limit=1000`;
+    const r = await fetch(`${REKAP_URL}/rest/v1/absen_ijin?${q}`, { headers: { apikey: REKAP_ANON, Authorization: `Bearer ${REKAP_ANON}` } });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) ? (rows as IjinR[]).filter((x) => kodeNorm(x.kode_mesin) === k) : null;
+  } catch { return null; }
+}
+
 // ---------- Pengaturan jadwal (libur, force majeure, jam staf, acuan tes/pasca tes/piket) ----------
 type Peng = {
   staf: Record<string, { masuk: string; pulang: string }>; // jam staf per hari: "1" (Senin) ... "6" (Sabtu); kosong = tidak bekerja
@@ -226,6 +241,33 @@ async function signedUrls(paths: string[]) {
     for (const d of data ?? []) if (d.signedUrl && d.path) urls[d.path] = d.signedUrl;
   }
   return urls;
+}
+
+// Kosongkan bucket foto (rekursif, per 1000 berkas). Berhenti bila melewati batas waktu; panggil lagi untuk melanjutkan.
+async function kosongkanFoto(batasMs: number) {
+  const st = db.storage.from(BUCKET), mulai = Date.now();
+  let hapus = 0, selesai = true;
+  const habis = () => Date.now() - mulai > batasMs;
+  async function isi(prefix: string): Promise<void> {
+    for (let i = 0; i < 500; i++) {
+      if (habis()) { selesai = false; return; }
+      const { data, error } = await st.list(prefix, { limit: 1000, offset: 0 });
+      if (error) throw new Tolak("Gagal membaca storage: " + error.message, 500);
+      if (!data || !data.length) return;
+      const folder = data.filter((x) => x.id === null).map((x) => (prefix ? prefix + "/" : "") + x.name);
+      const berkas = data.filter((x) => x.id !== null).map((x) => (prefix ? prefix + "/" : "") + x.name);
+      if (berkas.length) {
+        const r = await st.remove(berkas);
+        if (r.error) throw new Tolak("Gagal menghapus foto: " + r.error.message, 500);
+        hapus += r.data?.length ?? 0;
+        if (!r.data?.length) throw new Tolak("Foto tidak bisa dihapus dari storage (tidak ada berkas yang terhapus).", 500);
+      }
+      for (const f of folder) { await isi(f); if (!selesai) return; }
+      if (!berkas.length) return; // hanya folder (kosong atau sudah diproses): selesai
+    }
+  }
+  await isi("");
+  return { hapus, selesai };
 }
 
 Deno.serve(async (req) => {
@@ -393,6 +435,48 @@ Deno.serve(async (req) => {
       case "riwayat":
         return json({ log: ok(await db.from("presensi_log").select("*").eq("pegawai_id", me.id).order("waktu", { ascending: false }).limit(60)) });
 
+      case "bulanan": { // data presensi satu bulan milik sendiri: tanggal, datang, pulang, keterangan
+        const bln = String(body.bulan ?? "");
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bln) || bln < "2000-01") throw new Tolak("Bulan tidak valid");
+        const jml = new Date(Date.UTC(+bln.slice(0, 4), +bln.slice(5, 7), 0)).getUTCDate();
+        const dari = `${bln}-01`, sampai = `${bln}-${String(jml).padStart(2, "0")}`, w = wib();
+        const [ctx, jd, logs, tgs, ij] = await Promise.all([
+          muatCtx(), jadwalSaya(me.id),
+          db.from("presensi_log").select("tanggal,jenis,status,waktu,diambil_at").eq("pegawai_id", me.id).gte("tanggal", dari).lte("tanggal", sampai).limit(500),
+          db.from("presensi_tugas").select("tanggal").eq("pegawai_id", me.id).gte("tanggal", dari).lte("tanggal", sampai).limit(100),
+          ijinRentang(dari, sampai, me.kode_mesin),
+        ]);
+        type Lg = { tanggal: string; jenis: string; status: string; waktu: string; diambil_at: string | null };
+        const L = ok(logs) as Lg[], T = new Set((ok(tgs) as { tanggal: string }[]).map((x) => x.tanggal));
+        const jam = (x?: Lg) => (x ? wib(new Date(x.diambil_at ?? x.waktu)).jam.slice(0, 5) : null);
+        const rows = [];
+        for (let i = 1; i <= jml; i++) {
+          const t = `${bln}-${String(i).padStart(2, "0")}`, hari = hariDari(t);
+          const th = tipeHari(ctx, t), ef = efektif(ctx, me.id, me.role!, jd, t, hari);
+          const d = L.find((x) => x.tanggal === t && x.jenis === "datang"), p = L.find((x) => x.tanggal === t && x.jenis === "pulang"), tl = L.find((x) => x.tanggal === t && x.jenis === "tugas_luar");
+          const r: { tanggal: string; hari: number; datang: string | null; pulang: string | null; kode: string; info: string; jenis: string } =
+            { tanggal: t, hari, datang: jam(d) ?? jam(tl), pulang: jam(p), kode: "", info: "", jenis: "kerja" };
+          if (t > w.tanggal) { r.jenis = "depan"; rows.push(r); continue; }
+          if (th.tipe === "libur") { r.jenis = "libur"; r.info = "Libur"; if (!d && !p && !tl) { rows.push(r); continue; } }
+          else if (th.tipe === "fm") { r.jenis = "fm"; r.info = th.ket ? `Force Majeure (${th.ket})` : "Force Majeure"; if (!d && !p && !tl) { rows.push(r); continue; } }
+          // belum waktunya pulang (hari ini) tidak dihitung "tanpa absen pulang"
+          const lewat = t < w.tanggal || (ef.tipe === "kerja" && w.jam.slice(0, 5) > ef.pulang!);
+          const telat = d?.status === "terlambat", tap = !!d && !p && lewat;
+          if (d || p || tl) {
+            r.kode = telat && tap ? "TTAP" : telat ? "T" : tap ? "TAP" : tl && !d ? "TL" : "";
+            if (!r.kode && tl && d) r.kode = "TL";
+          } else {
+            const e = ij?.find((x) => x.tanggal_mulai <= t && x.tanggal_selesai >= t);
+            if (e) r.kode = e.jenis === "dinas_luar" ? "DL" : e.jenis === "sakit" ? "Sakit" : e.jenis === "ijin" ? "Ijin" : String(e.jenis);
+            else if (T.has(t)) { r.kode = "TL"; r.info = "belum absen lokasi"; }
+            else if (ef.tipe !== "kerja") r.jenis = "tanpa";
+            else if (lewat) r.jenis = "kosong";
+          }
+          rows.push(r);
+        }
+        return json({ bulan: bln, hari_ini: w.tanggal, ijin_ok: ij !== null, rows });
+      }
+
       case "rekap": { // admin & kepala sekolah (baca-saja): semua log pada satu tanggal + tautan foto
         butuhAdminAtauKepsek(me);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.tanggal))) throw new Tolak("Tanggal tidak valid");
@@ -408,6 +492,23 @@ Deno.serve(async (req) => {
           tugas = tgs.map((t) => tgOut(t, efektif(ctx, t.pegawai_id, t.role ?? "guru", jd.filter((r) => r.pegawai_id === t.pegawai_id), body.tanggal, hari)));
         }
         return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null, tugas });
+      }
+
+      case "reset_data": { // admin: hapus SEMUA data presensi (log + Tugas Luar) dan/atau SEMUA foto di storage
+        butuhAdmin(me);
+        if (body.konfirmasi !== "RESET") throw new Tolak("Ketik RESET untuk mengonfirmasi");
+        const data = body.data === true, foto = body.foto === true;
+        if (!data && !foto) throw new Tolak("Pilih yang akan direset: data presensi dan/atau foto");
+        const out: { ok: boolean; log: number | null; tugas: number | null; foto: number | null; selesai: boolean } = { ok: true, log: null, tugas: null, foto: null, selesai: true };
+        if (data) { // data dulu, supaya tidak ada catatan yang menunjuk ke foto yang sudah hilang
+          const a = await db.from("presensi_log").delete({ count: "exact" }).gte("tanggal", "2000-01-01");
+          if (a.error) throw new Tolak("Gagal menghapus data presensi: " + a.error.message, 500);
+          const b = await db.from("presensi_tugas").delete({ count: "exact" }).gte("tanggal", "2000-01-01");
+          if (b.error) throw new Tolak("Gagal menghapus data Tugas Luar: " + b.error.message, 500);
+          out.log = a.count ?? 0; out.tugas = b.count ?? 0;
+        }
+        if (foto) { const f = await kosongkanFoto(90000); out.foto = f!.hapus; out.selesai = f!.selesai; }
+        return json(out);
       }
 
       case "url": { // admin & kepala sekolah: semua foto; lainnya: hanya foto sendiri
