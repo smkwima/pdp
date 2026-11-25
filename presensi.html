@@ -155,6 +155,15 @@
   .ps-foto svg, .ps-foto i { width: 13px; height: 13px; }
   .ps-tbl td.ps-empty { text-align: center; color: var(--ink-soft); padding: 28px 16px; }
   #view .stat-grid { margin-bottom: 16px; }
+  .ps-tbl--bln td, .ps-tbl--bln th { padding: 9px 12px; }
+  .ps-tbl--bln tr.ps-r-mut td { color: var(--ink-faint); background: var(--surface-2, transparent); }
+  .ps-tbl--bln td.ps-ket { font-weight: 700; }
+  .ps-kode { display: inline-block; min-width: 34px; text-align: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+  .ps-kode--warn { background: #fffbeb; color: #b45309; }
+  .ps-kode--bad { background: var(--danger-tint); color: var(--danger); }
+  .ps-kode--info { background: var(--primary-tint); color: var(--primary-dim); }
+  .ps-legend { margin: 12px 0 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; }
+  @media (max-width: 860px) { .ps-tbl--bln td, .ps-tbl--bln th { padding: 8px 8px; font-size: 13px; } }
 
   /* ---------- Admin: jadwal & pengaturan ---------- */
   .ps-state { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; font-size: 13px; font-weight: 600; }
@@ -384,13 +393,13 @@ async function masuk(user) {
 
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
 const TAB_INFO = {
-  presensi: ["Presensi", "Presensi", "map-pin"], tugas: ["Tugas Luar", "Tugas Luar", "briefcase"], riwayat: ["Riwayat Presensi", "Riwayat", "history"],
+  presensi: ["Presensi", "Presensi", "map-pin"], tugas: ["Tugas Luar", "Tugas Luar", "briefcase"], riwayat: ["Riwayat Presensi", "Riwayat", "history"], bulanan: ["Data Presensi Bulanan", "Data Bulanan", "calendar-days"],
   rekap: ["Rekap Presensi Online", "Rekap Online", "clipboard-list"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
   jadwal: ["Input Jadwal", "Input jadwal", "calendar-plus"], cek: ["Cek Jadwal", "Cek jadwal", "calendar-check"],
   atur: ["Pengaturan", "Pengaturan", "settings"], daftar: ["Pegawai", "Pegawai", "users"]
 };
 function shell() {
-  const saya = ["presensi", "tugas", "riwayat"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : me.role === "kepsek" ? ["rekap"] : [], semua = [...saya, ...kelola];
+  const saya = ["presensi", "tugas", "riwayat", "bulanan"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : me.role === "kepsek" ? ["rekap"] : [], semua = [...saya, ...kelola];
   const item = t => `<a href="#" class="menu-item${t === tab ? " menu-item--active" : ""}" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}><i data-lucide="${TAB_INFO[t][2]}" class="menu-icon"></i><span class="menu-item__title">${TAB_INFO[t][1]}</span></a>`;
   $("#menu").innerHTML = `<div class="sidebar__section-label">Presensi saya</div>${saya.map(item).join("")}`
     + (kelola.length ? `<div class="sidebar__section-label">${me.role === "admin" ? "Pengelolaan" : "Pemantauan"}</div>${kelola.map(item).join("")}` : "")
@@ -405,7 +414,7 @@ function shell() {
   ikon(); window.scrollTo(0, 0);
   const nav = $(".ps-subtabs"), aktif = nav && nav.querySelector(".active");
   if (aktif) nav.scrollLeft = aktif.offsetLeft - (nav.clientWidth - aktif.offsetWidth) / 2;
-  ({ presensi, tugas, riwayat, rekap, lokasi, jadwal, cek, atur, daftar })[tab]();
+  ({ presensi, tugas, riwayat, bulanan, rekap, lokasi, jadwal, cek, atur, daftar })[tab]();
 }
 function stop() { clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
 
@@ -672,6 +681,35 @@ async function riwayat() {
   const tg = t => /^\d{4}-\d{2}-\d{2}$/.test(t) ? hariNama(t).slice(0, 3) + ", " + tglIdn(t) : esc(t);
   $("#view").innerHTML = `<div class="panel-head"><div><div class="panel-head__title">Riwayat presensi</div><div class="panel-head__desc">${data.length} catatan presensi Anda</div></div></div>
   <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak / Lokasi</th></tr></thead><tbody>${data.map(r => `<tr><td>${tg(r.tanggal)}</td><td><span class="ps-st ps-st--info">${r.jenis === "tugas_luar" ? "tugas luar" : esc(r.jenis)}</span></td><td><span class="ps-time">${jamLog(r)}</span>${tundaChip(r)}</td><td>${stChip(r.status)}</td><td>${r.jenis === "tugas_luar" && r.lat != null ? petaLink(r.lat, r.lng) : r.jarak_m + " m"}</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
+}
+async function bulanan() {
+  const skr = ymd(new Date()).slice(0, 7);
+  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="bln">Bulan</label><input type="month" id="bln" value="${skr}" max="${skr}"></div><button class="btn-small btn-small--primary" id="cariBln"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilBln"><div class="panel-note">Memuat…</div></div>`;
+  ikon();
+  let tok = 0;
+  const load = async () => {
+    const b = $("#bln").value; if (!b) return toast("Pilih bulan dulu.", true);
+    const my = ++tok, out = $("#hasilBln"); out.innerHTML = `<div class="panel-note">Memuat…</div>`;
+    let j; try { j = await api("bulanan", { bulan: b }); } catch (e) { if (my === tok && tab === "bulanan") out.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(e.message)); return toast("Gagal memuat data bulanan: " + e.message, true); }
+    if (my !== tok || tab !== "bulanan" || !$("#hasilBln")) return;
+    const KLS = { T: "warn", TAP: "bad", TTAP: "bad", TL: "info", Sakit: "info", Ijin: "info", DL: "info" };
+    const n = k => j.rows.filter(r => r.kode === k).length;
+    const hadir = j.rows.filter(r => r.datang || r.pulang).length;
+    const kartu = (lb, ik, v, sub) => `<div class="stat-card"><div class="stat-card__label"><i data-lucide="${ik}"></i> ${lb}</div><div class="stat-card__value">${v}</div><div class="stat-card__sub">${sub}</div></div>`;
+    const baris = j.rows.map(r => {
+      const mut = r.jenis === "libur" || r.jenis === "fm" || r.jenis === "tanpa" || r.jenis === "depan";
+      const ket = r.kode ? `<span class="ps-kode ps-kode--${KLS[r.kode] || "info"}">${esc(r.kode)}</span>${r.info ? ` <span class="mut">${esc(r.info)}</span>` : ""}`
+        : r.jenis === "kosong" ? `<span class="ps-belum">Tidak ada absen</span>` : r.info ? `<span class="mut">${esc(r.info)}</span>` : "";
+      const sel = v => v ? `<span class="ps-time">${v}</span>` : `<span class="ps-belum">–</span>`;
+      return `<tr class="${mut && !r.datang && !r.pulang ? "ps-r-mut" : ""}"><td>${hariNama(r.tanggal).slice(0, 3)}, ${tglIdn(r.tanggal)}</td><td>${sel(r.datang)}</td><td>${sel(r.pulang)}</td><td class="ps-ket">${ket}</td></tr>`;
+    }).join("");
+    $("#hasilBln").innerHTML = (j.ijin_ok ? "" : notice("warn", "triangle-alert", "Data ijin belum terbaca", "Sakit/Ijin/DL tidak ikut tampil untuk saat ini."))
+      + `<div class="stat-grid">${kartu("Hari hadir", "log-in", hadir, BULAN[+b.slice(5)] + " " + b.slice(0, 4))}${kartu("Telat", "clock-alert", n("T") + n("TTAP"), "T + TTAP")}${kartu("Tanpa absen pulang", "log-out", n("TAP") + n("TTAP"), "TAP + TTAP")}${kartu("Sakit / Ijin / DL / TL", "calendar-off", n("Sakit") + n("Ijin") + n("DL") + n("TL"), "hari tercatat")}</div>`
+      + `<div class="table-wrap"><table class="data-table ps-tbl ps-tbl--bln" data-tabel><thead><tr><th>Tanggal</th><th>Absen Datang</th><th>Absen Pulang</th><th>Keterangan</th></tr></thead><tbody>${baris}</tbody></table></div>`
+      + `<p class="ps-legend"><b>T</b> = Telat · <b>TAP</b> = Tanpa Absen Pulang · <b>TTAP</b> = Telat dan Tanpa Absen Pulang · <b>Sakit</b> / <b>Ijin</b> / <b>DL</b> (Dinas Luar) / <b>TL</b> (Tugas Luar). Keterangan kosong berarti tepat waktu.</p>`;
+    ikon();
+  };
+  $("#cariBln").onclick = load; $("#bln").onchange = load; load();
 }
 async function rekap() {
   $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="d">Tanggal</label><input type="date" id="d" value="${ymd(new Date())}"></div><button class="btn-small btn-small--primary" id="cari"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasil"><div class="panel-note">Memuat…</div></div>`;
@@ -998,11 +1036,36 @@ async function atur() {
     <div class="form-section-title">Acuan 4 · Piket</div>${tgl2("a4f", "Berlaku mulai", P.piket.dari, "a4t", "Sampai", P.piket.sampai)}${jam2("a4i", "Jam mulai piket", P.piket.masuk, "a4o", "Jam akhir piket", P.piket.pulang)}
     <p class="ps-hint">Untuk rentang libur semester: hanya peserta di jadwal piket yang terjadwal (sesuai hari piketnya); selain itu tanpa jadwal.</p></div></section>
   </div>
+  <section class="task-section" style="border-color:var(--danger-border)">${kepala("trash-2", "Reset data presensi", "Menghapus permanen data presensi yang tersimpan dan/atau foto di storage. Tidak bisa dibatalkan.")}<div class="task-section__body">
+    <label class="ps-check"><input type="checkbox" id="rsData" checked><span><b>Data presensi</b> — semua catatan datang/pulang dan semua Tugas Luar semua pegawai</span></label>
+    <label class="ps-check"><input type="checkbox" id="rsFoto" checked><span><b>Foto di storage</b> — semua foto presensi dan Tugas Luar</span></label>
+    <p class="ps-hint">Yang <b>tidak</b> terhapus: titik lokasi &amp; radius, jadwal, hari libur, Force Majeure, dan pengaturan lainnya. Data ijin/sakit/dinas luar di Rekap Absen juga tidak tersentuh. Bila hanya foto yang direset, catatan presensi tetap ada tetapi tautan fotonya tidak lagi bisa dibuka.</p>
+    <div class="ps-inline"><input id="rsKonf" type="text" autocomplete="off" placeholder="Ketik RESET untuk mengonfirmasi" aria-label="Ketik RESET untuk mengonfirmasi"><button class="btn-small" id="rsGo" style="background:var(--danger);border-color:var(--danger);color:#fff"><i data-lucide="trash-2"></i> Reset sekarang</button></div></div></section>
   <div class="ps-savebar"><span class="mut">Jam kerja staf dan acuan jadwal tambahan baru berlaku setelah disimpan.</span><button class="btn-small btn-small--primary" id="sv"><i data-lucide="save"></i> Simpan jam staf &amp; acuan</button></div>`;
   ikon();
 
   const gambarBt = () => { const m = bentrokPeng(bacaPeng()); const b = $("#bt"); b.hidden = !m.length; b.textContent = m.length ? m.join("; ") + ". Perbaiki dulu sebelum menyimpan." : ""; };
   ["a2f", "a2t", "a3f", "a3t", "a4f", "a4t"].forEach(i => $("#" + i).addEventListener("input", gambarBt)); gambarBt();
+  $("#rsGo").onclick = async () => {
+    const data = $("#rsData").checked, foto = $("#rsFoto").checked;
+    if (!data && !foto) return toast("Centang yang akan direset.", true);
+    if ($("#rsKonf").value.trim() !== "RESET") return toast("Ketik RESET (huruf besar) pada kolom konfirmasi.", true);
+    if (!confirm("Yakin menghapus PERMANEN " + [data && "semua data presensi", foto && "semua foto presensi"].filter(Boolean).join(" dan ") + "? Tindakan ini tidak bisa dibatalkan.")) return;
+    const b = $("#rsGo"), h0 = b.innerHTML; b.disabled = true; b.textContent = "Menghapus…";
+    let nLog = 0, nTugas = 0, nFoto = 0, dataSudah = false;
+    try {
+      for (let i = 0; i < 40; i++) {
+        const r = await api("reset_data", { konfirmasi: "RESET", data: data && !dataSudah, foto }, 150000);
+        if (r.log != null) { nLog += r.log; nTugas += r.tugas; dataSudah = true; }
+        if (r.foto != null) nFoto += r.foto;
+        if (r.selesai) break;
+        b.textContent = "Menghapus foto… (" + nFoto + ")";
+      }
+      toast("Reset selesai." + (data ? ` ${nLog} catatan presensi dan ${nTugas} Tugas Luar dihapus.` : "") + (foto ? ` ${nFoto} foto dihapus.` : ""));
+      $("#rsKonf").value = "";
+    } catch (e) { toast("Reset tidak tuntas: " + e.message + " Anda bisa mengulang.", true); }
+    b.disabled = false; b.innerHTML = h0; ikon();
+  };
   $("#sv").onclick = async () => {
     const v = bacaPeng(), m = bentrokPeng(v);
     if (m.length) return toast("Tidak disimpan: " + m.join("; "), true);

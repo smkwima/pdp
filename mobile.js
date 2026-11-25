@@ -77,6 +77,7 @@
     }
     if (tabel.tHead.rows.length > 1) return;
 
+    if (tabel.hasAttribute('data-tabel')) return; // data-tabel = tetap tabel biasa di HP (mis. daftar per tanggal)
     var kartu = punyaKontrol(tabel) || head.length <= MAKS_KOLOM_TABEL_BACA || tabel.hasAttribute('data-kartu'); // data-kartu = paksa tampil kartu di HP
     if (!kartu) return; // tabel baca-saja yang lebar (rekap/leger): tetap geser + kolom Nama beku
 
