@@ -235,9 +235,15 @@ Deno.serve(async (req) => {
 
   const me = await siapa(req.headers.get("x-rapor-token") ?? "");
   if (!me) return json({ error: "Sesi login e-Rapor tidak valid. Login ulang." }, 401);
-  if (!PEGAWAI.includes(me.role ?? "")) return json({ error: "Peran tidak diizinkan" }, 403);
-
   const body = await req.json().catch(() => ({}));
+  // Developer: HANYA boleh membaca angka kesehatan (ukuran DB, storage, tabel termasuk CP) untuk panel Kesehatan Sistem.
+  if (me.role === "developer") {
+    if (body.action !== "kesehatan") return json({ error: "Peran tidak diizinkan" }, 403);
+    const r = await db.rpc("presensi_kesehatan");
+    if (r.error) return json({ error: "Gagal membaca kesehatan database (sudah menjalankan kesehatan_presensi.sql di project ini?): " + r.error.message }, 500);
+    return json(r.data);
+  }
+  if (!PEGAWAI.includes(me.role ?? "")) return json({ error: "Peran tidak diizinkan" }, 403);
   try {
     switch (body.action) {
       case "lokasi":
