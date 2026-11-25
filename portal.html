@@ -116,6 +116,15 @@
   .pt-sec { display: flex; align-items: center; gap: 10px; margin: 28px 2px 14px; font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
   .pt-sec::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
+  /* Rekap presensi hari ini (khusus Kepala Sekolah) */
+  .rp-sec { flex-wrap: wrap; row-gap: 4px; }
+  .rp-sec .gth-sub { order: 0; }
+  .rp-sec::after { order: 1; min-width: 20px; }
+  .rp-sec .rp-lihat { order: 2; font-family: var(--font-body, inherit); font-size: 12.5px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+  .rp-sec .rp-lihat i, .rp-sec .rp-lihat svg { width: 14px; height: 14px; }
+  .rp-grid.stat-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  @media (max-width: 700px) { .rp-grid.stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
   /* Guru tidak hadir hari ini (guru & staf) */
   .gth-n { font-family: var(--font-body, inherit); font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: var(--danger-tint); color: var(--danger); }
   .gth-n--nol { background: var(--success-tint); color: var(--success); }
@@ -263,6 +272,9 @@
       </section>
 
       <div class="pt-stats" id="stats"></div>
+
+      <div class="pt-sec rp-sec" id="secRp" style="display:none;"><span>Rekap Presensi Hari Ini</span><span class="gth-sub"><span class="gth-tgl" id="rpTgl"></span></span><a href="presensi.html#rekap" class="btn-small rp-lihat">Lihat detail <i data-lucide="arrow-right"></i></a></div>
+      <div id="rpWadah"></div>
 
       <div class="pt-sec gth-sec" id="secGth" style="display:none;"><span class="gth-jd">Guru Tidak Hadir Hari Ini</span><span class="gth-sub"><span class="gth-n" id="gthN"></span><span class="gth-sep" aria-hidden="true">·</span><span class="gth-tgl" id="gthTgl"></span></span></div>
       <div id="gthWadah"></div>
@@ -579,6 +591,61 @@
     if (window.lucide) lucide.createIcons();
   }
 
+  // ---------- Rekap presensi hari ini (khusus Kepala Sekolah) ----------
+  // Sumber data sama dengan tab Rekap Online di presensi.html (presensi-api, aksi "rekap"); "Lihat detail" membukanya.
+  var RP_API = 'https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api';
+  var rpTerakhir = 0, rpSedangMuat = false;
+  function rpKode(v) { var k = parseInt(v, 10); return isNaN(k) ? '' : String(k); }
+  async function muatRekapPresensi() {
+    var sec = document.getElementById('secRp'), wadah = document.getElementById('rpWadah');
+    if (!sec || !wadah || rpSedangMuat) return;
+    rpSedangMuat = true;
+    try {
+      var sesi = await supabaseClient.auth.getSession();
+      var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
+      if (!token) return;
+      var tgl = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+      var hs = await Promise.all([
+        supabaseClient.from('profiles').select('id,kode_mesin,nama').in('role', ['guru', 'staf', 'kepsek']),
+        fetch(RP_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rapor-token': token }, body: JSON.stringify({ action: 'rekap', tanggal: tgl }) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+      ]);
+      if (hs[0].error) throw hs[0].error;
+      var pg = hs[0].data || [], rk = hs[1], log = rk.log || [], ijinList = rk.ijin || [], tugasList = rk.tugas || [], hari = rk.hari || {};
+      var f = function (p, j) { return log.filter(function (x) { return x.pegawai_id === p.id && x.jenis === j; })[0]; };
+      var ijinDari = function (p) { var k = rpKode(p.kode_mesin); return k ? ijinList.filter(function (x) { return rpKode(x.kode_mesin) === k; })[0] : null; };
+      var tugasDari = function (p) { return tugasList.filter(function (x) { return x.pegawai_id === p.id; })[0]; };
+      var nTL = pg.filter(function (p) { return f(p, 'tugas_luar'); }).length;
+      var nTugas = pg.filter(function (p) { return tugasDari(p); }).length;
+      var nIjin = pg.filter(function (p) { return !f(p, 'datang') && !f(p, 'pulang') && !f(p, 'tugas_luar') && !tugasDari(p) && ijinDari(p); }).length;
+      var nDatang = pg.filter(function (p) { return f(p, 'datang') || f(p, 'tugas_luar'); }).length;
+      var nTelat = pg.filter(function (p) { var d = f(p, 'datang'); return d && d.status === 'terlambat'; }).length;
+      var nPulang = pg.filter(function (p) { return f(p, 'pulang'); }).length;
+      function kartu(lb, ik, v, sub) {
+        return '<div class="stat-card"><div class="stat-card__label"><i data-lucide="' + ik + '"></i> ' + lb + '</div><div class="stat-card__value">' + v + '</div><div class="stat-card__sub">' + sub + '</div></div>';
+      }
+      var ket = '';
+      try { ket = new Date(tgl + 'T00:00:00Z').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch (e) { ket = tgl; }
+      if (hari.tipe === 'libur') ket += ' · Libur';
+      else if (hari.tipe === 'fm') ket += ' · Force Majeure';
+      document.getElementById('rpTgl').textContent = ket;
+      wadah.innerHTML = '<div class="stat-grid rp-grid">' +
+        kartu('Sudah datang', 'log-in', nDatang, 'dari ' + pg.length + ' pegawai' + (nTL ? ' (' + nTL + ' via Tugas Luar)' : '')) +
+        kartu('Terlambat', 'clock-alert', nTelat, 'saat datang') +
+        kartu('Sakit / Ijin / DL', 'calendar-off', nIjin, 'tercatat disetujui') +
+        kartu('Tugas Luar', 'briefcase', nTugas, nTugas ? (nTugas - nTL) + ' belum absen lokasi' : 'hari ini') +
+        kartu('Belum datang', 'user-x', pg.length - nDatang - nIjin, 'belum presensi') +
+        kartu('Sudah pulang', 'log-out', nPulang, 'presensi pulang') + '</div>';
+      sec.style.display = '';
+      if (window.lucide) lucide.createIcons();
+      rpTerakhir = Date.now();
+    } catch (e) {
+      // Fitur tambahan: bila gagal dimuat, bagian ini disembunyikan tanpa mengganggu halaman.
+      if (!wadah.innerHTML) sec.style.display = 'none';
+      if (window.console) console.warn('Rekap presensi hari ini:', e && e.message ? e.message : e);
+    } finally { rpSedangMuat = false; }
+  }
+
   // ---------- Guru tidak hadir hari ini (khusus guru & staf) ----------
   // Data: pengajuan Ijin / Sakit / Dinas Luar yang sudah DISETUJUI admin (Edge Function ijin-absen, aksi "hari_ini").
   var GTH_JENIS = { sakit: { l: 'Sakit', c: 'gth-b--sakit' }, ijin: { l: 'Ijin', c: 'gth-b--ijin' }, dinas_luar: { l: 'Dinas Luar', c: 'gth-b--dl' } };
@@ -635,6 +702,7 @@
   }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && gthTerakhir && Date.now() - gthTerakhir > 300000) muatGuruTidakHadir();
+    if (!document.hidden && rpTerakhir && Date.now() - rpTerakhir > 300000) muatRekapPresensi();
   });
 
   (async function () {
@@ -732,6 +800,7 @@
       document.getElementById('secDk').style.display = '';
       DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });
     }
+    if (kepsek) muatRekapPresensi(); // kartu rekap presensi hari ini, di atas "Guru Tidak Hadir"
     if (!admin && !pengawas) muatGuruTidakHadir(); // guru, staf & kepala sekolah; dimuat paralel, gagal tidak mengganggu
     if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else if (pengawas) await muatAdmin(ta, 'Pengawas Sekolah'); else await muatGuru(ta, user.id);
   })();
