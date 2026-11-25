@@ -188,7 +188,7 @@ async function sinkronPelanggaran(tanggal: string, tahunNama: string, namaKelas:
     // deno-lint-ignore no-explicit-any
     const ada: any[] = [];
     for (const c of chunk(cpIds, 80)) {
-      ada.push(...await cpGet(`pv_catatan?select=id,siswa_id&tanggal=eq.${tanggal}&pelapor=eq.${encodeURIComponent(kutip(PELAPOR_OTO))}&pelanggaran=eq.${encodeURIComponent(kutip(ALPA_PELANGGARAN))}&siswa_id=in.(${c.join(",")})`));
+      ada.push(...await cpGet(`pv_catatan?select=id,siswa_id&tanggal=eq.${tanggal}&pelapor=eq.${encodeURIComponent(PELAPOR_OTO)}&pelanggaran=eq.${encodeURIComponent(ALPA_PELANGGARAN)}&siswa_id=in.(${c.map(kutip).join(",")})&order=id`));
     }
     const cpAlpa = new Set<string>(), dilewati: string[] = [];
     for (const x of daftar) {
@@ -198,8 +198,15 @@ async function sinkronPelanggaran(tanggal: string, tahunNama: string, namaKelas:
     }
     const sudah = new Set(ada.map((r) => S(r.siswa_id)));
     // hapus: catatan otomatis milik siswa yang sekarang tidak lagi alpa
-    const hapusId = ada.filter((r) => !cpAlpa.has(S(r.siswa_id))).map((r) => r.id);
-    for (const c of chunk(hapusId, 80)) await cpReq("DELETE", `pv_catatan?id=in.(${c.join(",")})`, undefined, { Prefer: "return=minimal" });
+    // (termasuk kelebihan catatan ganda untuk siswa yang sama: disisakan satu)
+    const lihatSiswa = new Set<string>();
+    const hapusId = ada.filter((r) => {
+      const sid = S(r.siswa_id);
+      if (!cpAlpa.has(sid)) return true;
+      if (lihatSiswa.has(sid)) return true;
+      lihatSiswa.add(sid); return false;
+    }).map((r) => r.id);
+    for (const c of chunk(hapusId, 80)) await cpReq("DELETE", `pv_catatan?id=in.(${c.map(kutip).join(",")})`, undefined, { Prefer: "return=minimal" });
     // tambah: siswa alpa yang belum punya catatan otomatis
     const baru = daftar.filter((x) => alpa.has(x.id) && peta.has(x.id) && !sudah.has(S(peta.get(x.id)!.id))).map((x) => ({
       tanggal, tahun_ajaran: tahunNama, siswa_id: peta.get(x.id)!.id, siswa_nama: peta.get(x.id)!.nama, kelas: namaKelas,
