@@ -148,6 +148,7 @@
   .gth-b--sakit { background: var(--danger-tint); color: var(--danger); }
   .gth-b--ijin { background: #fff7ed; color: #ea580c; }
   .gth-b--dl { background: var(--primary-tint-strong); color: var(--primary-dim); }
+  .gth-b--tl { background: #eef2ff; color: #4338ca; }
   .gth-kosong { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
 
   .pt-mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
@@ -645,7 +646,8 @@
   }
 
   // ---------- Guru tidak hadir hari ini (khusus guru & staf; tidak untuk kepala sekolah) ----------
-  // Data: pengajuan Ijin / Sakit / Dinas Luar yang sudah DISETUJUI admin (Edge Function ijin-absen, aksi "hari_ini").
+  // Data: (1) pengajuan Ijin / Sakit / Dinas Luar yang sudah DISETUJUI admin (Edge Function ijin-absen, aksi "hari_ini")
+  //       (2) Tugas Luar yang diisi guru sendiri (Edge Function presensi-api, aksi "tugas_hari_ini"). Keduanya digabung di satu daftar.
   var GTH_JENIS = { sakit: { l: 'Sakit', c: 'gth-b--sakit' }, ijin: { l: 'Ijin', c: 'gth-b--ijin' }, dinas_luar: { l: 'Dinas Luar', c: 'gth-b--dl' } };
   var gthTerakhir = 0, gthSedangMuat = false;
   function gthTglPendek(s) {
@@ -660,14 +662,54 @@
       var sesi = await supabaseClient.auth.getSession();
       var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
       if (!token) return;
-      var resp = await fetch(SUPABASE_URL + '/functions/v1/ijin-absen', {
+      // Dua sumber berbeda dimuat paralel & dibuat saling bebas: ijin/sakit/dinas luar (ijin-absen) dan Tugas Luar (presensi-api).
+      // Bila salah satu gagal (mis. fungsi belum di-deploy), yang lain tetap tampil.
+      var ambilIjin = fetch(SUPABASE_URL + '/functions/v1/ijin-absen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
         body: JSON.stringify({ aksi: 'hari_ini' })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (o) {
+          if (!r.ok || !o.success) throw new Error(o.error || ('HTTP ' + r.status));
+          return o;
+        });
       });
-      var out = await resp.json().catch(function () { return {}; });
-      if (!resp.ok || !out.success) throw new Error(out.error || ('HTTP ' + resp.status));
-      var daftar = out.data || [], hariIni = out.tanggal || '';
+      var ambilTugas = fetch(RP_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-rapor-token': token },
+        body: JSON.stringify({ action: 'tugas_hari_ini' })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (o) {
+          if (!r.ok || !Array.isArray(o.data)) throw new Error(o.error || ('HTTP ' + r.status));
+          return o;
+        });
+      });
+      var hs = await Promise.all([
+        ambilIjin.then(function (o) { return { o: o }; }, function (e) { return { e: e }; }),
+        ambilTugas.then(function (o) { return { o: o }; }, function (e) { return { e: e }; })
+      ]);
+      if (hs[0].e && hs[1].e) throw hs[0].e;
+      if (hs[1].e && window.console) console.warn('Tugas luar hari ini:', hs[1].e && hs[1].e.message ? hs[1].e.message : hs[1].e);
+      var outIjin = hs[0].o || {}, outTugas = hs[1].o || {};
+      var hariIni = outIjin.tanggal || outTugas.tanggal || '';
+      // Satu orang satu kartu; bila punya lebih dari satu keterangan (mis. dinas luar + tugas luar), lencananya digabung.
+      var peta = {}, urut = [];
+      function orang(nm, foto) {
+        var k = String(nm || '—').trim().toLowerCase();
+        if (!peta[k]) { peta[k] = { nama: String(nm || '—'), foto: foto || '', info: [] }; urut.push(k); }
+        else if (foto && !peta[k].foto) peta[k].foto = foto;
+        return peta[k];
+      }
+      (outIjin.data || []).forEach(function (x) {
+        var j = GTH_JENIS[x.jenis] || { l: x.jenis, c: 'gth-b--ijin' };
+        var lanjut = (x.tanggal_selesai && x.tanggal_selesai > hariIni) ? 's.d. ' + gthTglPendek(x.tanggal_selesai) : '';
+        orang(x.nama, (typeof x.foto_url === 'string' && /^https:\/\//.test(x.foto_url)) ? x.foto_url : '').info.push({ l: j.l, c: j.c, ket: lanjut });
+      });
+      (outTugas.data || []).forEach(function (x) {
+        orang(x.nama, '').info.push({ l: 'Tugas Luar', c: 'gth-b--tl', ket: (x.jam_mulai && x.jam_selesai) ? (x.jam_mulai + '–' + x.jam_selesai) : '' });
+      });
+      urut.sort(function (a, b) { return peta[a].nama.localeCompare(peta[b].nama, 'id'); });
+      var daftar = urut.map(function (k) { return peta[k]; });
       var tglTxt = '';
       try { tglTxt = new Date(hariIni + 'T00:00:00Z').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); } catch (e) { /* abaikan */ }
       document.getElementById('gthTgl').textContent = tglTxt;
@@ -675,19 +717,19 @@
       n.textContent = daftar.length ? (daftar.length + ' orang') : 'Nihil';
       n.className = 'gth-n' + (daftar.length ? '' : ' gth-n--nol');
       if (!daftar.length) {
-        wadah.innerHTML = '<div class="gth-kosong">Tidak ada guru yang tercatat ijin, sakit, atau dinas luar hari ini.</div>';
+        wadah.innerHTML = '<div class="gth-kosong">Tidak ada guru yang tercatat ijin, sakit, dinas luar, atau tugas luar hari ini.</div>';
       } else {
         wadah.innerHTML = '<div class="gth-grid">' + daftar.map(function (x) {
-          var j = GTH_JENIS[x.jenis] || { l: x.jenis, c: 'gth-b--ijin' };
-          var nm = String(x.nama || '—');
-          var lanjut = (x.tanggal_selesai && x.tanggal_selesai > hariIni) ? '<span>s.d. ' + esc(gthTglPendek(x.tanggal_selesai)) + '</span>' : '';
-          var foto = (typeof x.foto_url === 'string' && /^https:\/\//.test(x.foto_url)) ? x.foto_url : '';
+          var nm = x.nama, foto = x.foto;
           var av = foto
             ? '<div class="gth-av gth-av--foto" aria-hidden="true" style="background-image:url(\'' + foto.replace(/['"\\()\s]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }) + '\')">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>'
             : '<div class="gth-av" aria-hidden="true">' + esc(nm.trim().charAt(0).toUpperCase()) + '</div>';
+          var meta = x.info.map(function (i) {
+            return '<span class="gth-b ' + i.c + '">' + esc(i.l) + '</span>' + (i.ket ? '<span>' + esc(i.ket) + '</span>' : '');
+          }).join('');
           return '<div class="gth-item">' + av +
             '<div style="min-width:0;"><div class="gth-nm">' + esc(nm) + '</div>' +
-            '<div class="gth-meta"><span class="gth-b ' + j.c + '">' + esc(j.l) + '</span>' + lanjut + '</div></div></div>';
+            '<div class="gth-meta">' + meta + '</div></div></div>';
         }).join('') + '</div>';
       }
       sec.style.display = '';
