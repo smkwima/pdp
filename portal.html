@@ -644,7 +644,7 @@
     } finally { rpSedangMuat = false; }
   }
 
-  // ---------- Guru tidak hadir hari ini (khusus guru & staf) ----------
+  // ---------- Guru tidak hadir hari ini (khusus guru & staf; tidak untuk kepala sekolah) ----------
   // Data: pengajuan Ijin / Sakit / Dinas Luar yang sudah DISETUJUI admin (Edge Function ijin-absen, aksi "hari_ini").
   var GTH_JENIS = { sakit: { l: 'Sakit', c: 'gth-b--sakit' }, ijin: { l: 'Ijin', c: 'gth-b--ijin' }, dinas_luar: { l: 'Dinas Luar', c: 'gth-b--dl' } };
   var gthTerakhir = 0, gthSedangMuat = false;
@@ -798,8 +798,9 @@
       document.getElementById('secDk').style.display = '';
       DashboardKepsek.muat(ta, document.getElementById('dkWadah'), { ringkas: pengawas });
     }
-    if (kepsek) muatRekapPresensi(); // kartu rekap presensi hari ini, di atas "Guru Tidak Hadir"
-    if (!admin && !pengawas) muatGuruTidakHadir(); // guru, staf & kepala sekolah; dimuat paralel, gagal tidak mengganggu
+    if (kepsek) muatRekapPresensi(); // kartu rekap presensi hari ini (kepala sekolah)
+    // Guru Tidak Hadir Hari Ini: hanya guru & staf. Kepala sekolah sudah punya rekap & detail presensi online, jadi bagian ini tidak ditampilkan/dimuat untuknya.
+    if (!admin && !pengawas && !kepsek) muatGuruTidakHadir(); // dimuat paralel, gagal tidak mengganggu
     if (admin) await muatAdmin(ta); else if (kepsek) await muatAdmin(ta, 'Kepala Sekolah'); else if (pengawas) await muatAdmin(ta, 'Pengawas Sekolah'); else await muatGuru(ta, user.id);
   })();
 
