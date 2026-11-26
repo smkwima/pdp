@@ -50,9 +50,9 @@ async function siapa(token: string) {
   const u = await fetch(`${RAPOR_URL}/auth/v1/user`, { headers: h });
   if (!u.ok) return null;
   const { id } = await u.json();
-  const p = await fetch(`${RAPOR_URL}/rest/v1/profiles?id=eq.${id}&select=role,kode_mesin`, { headers: h });
+  const p = await fetch(`${RAPOR_URL}/rest/v1/profiles?id=eq.${id}&select=role,kode_mesin,nama`, { headers: h });
   const rows = await p.json();
-  return { id: id as string, role: Array.isArray(rows) ? (rows[0]?.role as string) : undefined, kode_mesin: Array.isArray(rows) ? (rows[0]?.kode_mesin as string | null) : null };
+  return { id: id as string, role: Array.isArray(rows) ? (rows[0]?.role as string) : undefined, kode_mesin: Array.isArray(rows) ? (rows[0]?.kode_mesin as string | null) : null, nama: Array.isArray(rows) ? ((rows[0]?.nama as string | null) ?? null) : null };
 }
 
 // Waktu server (WIB) — tidak percaya jam HP.
@@ -411,7 +411,7 @@ Deno.serve(async (req) => {
         if (th.tipe === "fm") throw new Tolak("Tanggal itu Force Majeure, Tugas Luar tidak diperlukan");
         const ada = ok(await db.from("presensi_tugas").select("id").eq("pegawai_id", me.id).eq("tanggal", tgl).limit(1)) as unknown[];
         if (ada.length) throw new Tolak("Anda sudah punya Tugas Luar pada tanggal itu. Hapus dulu bila ingin menggantinya.", 409);
-        const ins = await db.from("presensi_tugas").insert({ pegawai_id: me.id, role: me.role, tanggal: tgl, jam_mulai: jm, jam_selesai: js, keperluan: kep }).select().single();
+        const ins = await db.from("presensi_tugas").insert({ pegawai_id: me.id, role: me.role, nama: me.nama, tanggal: tgl, jam_mulai: jm, jam_selesai: js, keperluan: kep }).select().single();
         if (ins.error) throw new Tolak(ins.error.code === "23505" ? "Anda sudah punya Tugas Luar pada tanggal itu." : ins.error.message, ins.error.code === "23505" ? 409 : 500);
         const ef = efektif(ctx, me.id, me.role!, await jadwalSaya(me.id), tgl, hariDari(tgl));
         return json({ ok: true, tugas: tgOut(ins.data as Tg, ef) });
@@ -432,6 +432,14 @@ Deno.serve(async (req) => {
           return { ...tgOut(t, efektif(ctx, me.id, me.role!, rows, t.tanggal, hariDari(t.tanggal))), absen: a ? { waktu: a.diambil_at ?? a.waktu, diterima: a.diambil_at ? a.waktu : null, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m, foto: a.foto_path ? urls[a.foto_path] ?? null : null } : null, pulang: !!p, lewat: t.tanggal < w.tanggal };
         });
         return json({ tugas, hari_ini: w.tanggal });
+      }
+
+      case "tugas_hari_ini": { // semua peran: guru yang bertugas luar HARI INI (WIB), untuk dashboard "Guru Tidak Hadir Hari Ini"
+        const w = wib();
+        const tgs = ok(await db.from("presensi_tugas").select("nama,role,jam_mulai,jam_selesai").eq("tanggal", w.tanggal).order("jam_mulai").limit(300)) as { nama: string | null; role: string | null; jam_mulai: string; jam_selesai: string }[];
+        // Hanya nama & rentang jam; keperluan tidak ikut dikirim. Hanya peran guru (sama seperti daftar ijin/sakit/dinas luar).
+        const data = tgs.filter((t) => t.role === "guru" && t.nama).map((t) => ({ nama: t.nama, jam_mulai: jamHM(t.jam_mulai), jam_selesai: jamHM(t.jam_selesai) }));
+        return json({ tanggal: w.tanggal, data });
       }
 
       case "tugas_hapus": { // hanya milik sendiri, yang belum diabsen dan belum lewat
