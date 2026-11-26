@@ -516,28 +516,33 @@ Deno.serve(async (req) => {
         return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null, tugas });
       }
 
-      case "rekap_bulanan": { // admin & kepala sekolah (baca-saja): ringkasan presensi online satu bulan untuk banyak pegawai
-        butuhAdminAtauKepsek(me);
+      case "rekap_bulanan": { // admin & kepala sekolah (baca-saja): ringkasan presensi online satu bulan untuk banyak pegawai.
+        // Guru/staf: hanya data DIRINYA SENDIRI (dipakai kartu "Predikat Kedisiplinan (Online)" di Menu Utama).
+        const pimpinan = me.role === "admin" || me.role === "kepsek";
         const bln = String(body.bulan ?? "");
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bln) || bln < "2000-01") throw new Tolak("Bulan tidak valid");
         const jml = new Date(Date.UTC(+bln.slice(0, 4), +bln.slice(5, 7), 0)).getUTCDate();
         const dari = `${bln}-01`, sampai = `${bln}-${String(jml).padStart(2, "0")}`, w = wib();
         // deno-lint-ignore no-explicit-any
-        const peg = (Array.isArray(body.pegawai) ? body.pegawai : []).slice(0, 800).filter((x: any) => UUID.test(String(x?.id)) && PEGAWAI.includes(x?.role));
-        const [ctx, jd, ij] = await Promise.all([muatCtx(), semuaJadwal(), ijinBulan(dari, sampai)]);
+        const peg = pimpinan
+          ? (Array.isArray(body.pegawai) ? body.pegawai : []).slice(0, 800).filter((x: any) => UUID.test(String(x?.id)) && PEGAWAI.includes(x?.role))
+          : [{ id: me.id, role: me.role!, kode_mesin: me.kode_mesin }];
+        const [ctx, jd, ij] = await Promise.all([muatCtx(), pimpinan ? semuaJadwal() : jadwalSaya(me.id), ijinBulan(dari, sampai)]);
         const per = new Map<string, Jd[]>();
         for (const r of jd) (per.get(r.pegawai_id) ?? per.set(r.pegawai_id, []).get(r.pegawai_id)!).push(r);
         type Lg = { pegawai_id: string; tanggal: string; jenis: string; status: string; waktu: string; diambil_at: string | null };
         const logs: Lg[] = [], tugasRows: { pegawai_id: string; tanggal: string }[] = [];
         for (let off = 0; off < 60000; off += 1000) {
-          const r = ok(await db.from("presensi_log").select("pegawai_id,tanggal,jenis,status,waktu,diambil_at").gte("tanggal", dari).lte("tanggal", sampai)
-            .order("pegawai_id").order("tanggal").order("jenis").range(off, off + 999)) as Lg[];
+          let q = db.from("presensi_log").select("pegawai_id,tanggal,jenis,status,waktu,diambil_at").gte("tanggal", dari).lte("tanggal", sampai);
+          if (!pimpinan) q = q.eq("pegawai_id", me.id);
+          const r = ok(await q.order("pegawai_id").order("tanggal").order("jenis").range(off, off + 999)) as Lg[];
           logs.push(...r);
           if (r.length < 1000) break;
         }
         for (let off = 0; off < 20000; off += 1000) {
-          const r = ok(await db.from("presensi_tugas").select("pegawai_id,tanggal").gte("tanggal", dari).lte("tanggal", sampai)
-            .order("pegawai_id").order("tanggal").range(off, off + 999)) as { pegawai_id: string; tanggal: string }[];
+          let q = db.from("presensi_tugas").select("pegawai_id,tanggal").gte("tanggal", dari).lte("tanggal", sampai);
+          if (!pimpinan) q = q.eq("pegawai_id", me.id);
+          const r = ok(await q.order("pegawai_id").order("tanggal").range(off, off + 999)) as { pegawai_id: string; tanggal: string }[];
           tugasRows.push(...r);
           if (r.length < 1000) break;
         }

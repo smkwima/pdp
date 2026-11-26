@@ -37,7 +37,7 @@
     'log-admin.html': 'log'
   };
   // Halaman tanpa kode aplikasi, tetapi tetap ikut mode pemeliharaan & pengumuman.
-  var HALAMAN_UMUM = { 'riwayat-pengingat.html': 1, 'portal.html': 1, 'siswa.html': 1, 'developer.html': 1 };
+  var HALAMAN_UMUM = { 'riwayat-pengingat.html': 1, 'predikat-guru.html': 1, 'portal.html': 1, 'siswa.html': 1, 'developer.html': 1 };
   // Dipakai portal: tautan kartu -> kode aplikasi (RPP Maker tidak punya halaman, href '#').
   var KODE_DARI_JUDUL = { 'RPP Maker': 'rpp' };
 

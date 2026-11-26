@@ -70,6 +70,7 @@
   else if (berkas === 'presensi.html') { kunciAktif = 'presensi'; }
   else if (berkas === 'presensi-siswa.html') { kunciAktif = 'presiswa'; }
   else if (berkas === 'disiplin.html') { kunciAktif = 'disiplin'; }
+  else if (berkas === 'predikat-guru.html') { kunciAktif = 'predikat'; }
   else { return; } // halaman lain (login, siswa, dll): tidak dipasang
 
   // Daftar lengkap aplikasi per peran. "bar" = boleh jadi 1 dari 2 tombol aplikasi di bar bawah;
@@ -94,6 +95,7 @@
       { k: 'presiswa', label: 'Pres. Siswa', judul: 'Presensi Siswa', href: 'presensi-siswa.html', warna: 'hijau' },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
+      { k: 'predikat', label: 'Predikat', judul: 'Predikat Guru & Staf', href: 'predikat-guru.html', warna: 'ungu', sheetSaja: true, hanyaAdmin: true },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
       { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true }
     ];

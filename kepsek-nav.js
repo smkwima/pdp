@@ -50,7 +50,7 @@
     { grup: 'Pembinaan & Mutu',   href: 'catatan-pengawas.html', ikon: 'notebook-pen',        judul: 'Catatan Pengawas' }
   ];
   // Halaman yang tidak boleh dibuka pengawas -> kembali ke Beranda.
-  var BLOK_PENGAWAS = ['bukuinduk-admin.html', 'bukuinduk-guru.html', 'penilaian-rekan.html', 'pelanggaran.html', 'pengaduan.html', 'disiplin.html', 'ijin.html', 'penugasan-admin.html', 'log-admin.html', 'pengaturan-admin.html', 'riwayat-pengingat.html'];
+  var BLOK_PENGAWAS = ['bukuinduk-admin.html', 'bukuinduk-guru.html', 'penilaian-rekan.html', 'pelanggaran.html', 'pengaduan.html', 'disiplin.html', 'ijin.html', 'penugasan-admin.html', 'log-admin.html', 'pengaturan-admin.html', 'riwayat-pengingat.html', 'predikat-guru.html'];
   var PERAN = 'kepsek';
   var LABEL = { kepsek: 'Kepala Sekolah', pengawas: 'Pengawas Sekolah' };
 

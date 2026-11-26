@@ -77,7 +77,7 @@
   function kartu() {
     pasangGaya();
     return '<button type="button" class="ps-pil" id="psKartu" style="display:none;" aria-haspopup="dialog" title="Klik untuk melihat hasil penilaian rekan">' +
-      '<i data-lucide="users"></i><span class="ps-pil__l">Penilaian Rekan :</span> <b id="psKartuNilai">…</b>' +
+      '<i data-lucide="users"></i><span class="ps-pil__l">Nilai Penilaian Rekan :</span> <b id="psKartuNilai">…</b>' +
       '<i data-lucide="chevron-right" class="ps-pil__a"></i></button>';
   }
   function isiKartu() {

@@ -2,6 +2,12 @@
  * -----------------------------------------------------------------
  * KARTU "PREDIKAT KEDISIPLINAN" di Menu Utama (portal.html) untuk guru & staf.
  *
+ *   Ada DUA kartu predikat kedisiplinan:
+ *     - (Finger) : dari rekap fingerprint yang disimpan admin   -> DisiplinSaya.kartu()
+ *     - (Online) : dari presensi online (selfie + lokasi) bulan  -> DisiplinSaya.kartuOnline()
+ *   Admin bisa menyembunyikan/menampilkan tiap kartu dari menu "Predikat Guru & Staf"
+ *   (tabel kartu_predikat_pengaturan) -> DisiplinSaya.pengaturan().
+ *
  *   - Kartu menampilkan predikat (Sangat Baik / Baik / Cukup / Kurang) dari
  *     rekap absen terbaru yang disimpan admin.
  *   - Kartu bisa diklik -> jendela rekapan: Tidak hadir (alpa), Terlambat,
@@ -128,7 +134,7 @@
   function kartu() {
     pasangGaya();
     return '<button type="button" class="ds-pil" id="dsKartu" aria-haspopup="dialog" title="Klik untuk melihat rekap kehadiran">' +
-      '<i data-lucide="shield-check"></i><span class="ds-pil__l">Predikat Kedisiplinan :</span> <b id="dsKartuNilai">…</b>' +
+      '<i data-lucide="shield-check"></i><span class="ds-pil__l">Predikat Kedisiplinan (Finger) :</span> <b id="dsKartuNilai">…</b>' +
       '<i data-lucide="chevron-right" class="ds-pil__a"></i></button>';
   }
   function isiKartu() {
@@ -171,7 +177,7 @@
       (S.daftar.length > 1 ? '<select class="ds-sel" id="dsPilih" aria-label="Pilih rekap">' + opsi + '</select>' : '') +
       pesan +
       (S.data
-        ? '<div class="ds-pred ds-pred--' + kls + '"><div><div class="ds-pred__l">Predikat Kedisiplinan</div>' +
+        ? '<div class="ds-pred ds-pred--' + kls + '"><div><div class="ds-pred__l">Predikat Kedisiplinan (Finger)</div>' +
           '<div class="ds-pred__v ds-p--' + (PRED[p] || '') + '">' + esc(p && p !== '–' ? p : 'Belum ada jadwal') + '</div>' +
           (KET[p] ? '<div class="ds-pred__k">' + KET[p] + '</div>' : '') + '</div></div>' +
           '<div class="ds-sub">Kehadiran</div><div class="ds-grid">' + ITEM.slice(0, 3).map(tile).join('') + '</div>' +
@@ -219,5 +225,160 @@
     await muatData();
   }
 
-  window.DisiplinSaya = { kartu: kartu, muat: muat };
+  // =====================================================================
+  // PENGATURAN: kartu mana yang tampil (diatur admin di menu "Predikat Guru & Staf")
+  // Bawaan semuanya tampil; bila tabel belum ada / gagal dibaca, tetap tampil.
+  // =====================================================================
+  var PENG = null;
+  function pengaturan() {
+    if (PENG) return PENG;
+    PENG = (async function () {
+      var bawaan = { finger: true, online: true, rekan: true };
+      try {
+        var r = await supabaseClient.from('kartu_predikat_pengaturan').select('tampil_finger, tampil_online, tampil_rekan').eq('id', 1).maybeSingle();
+        if (r.error || !r.data) return bawaan;
+        return { finger: r.data.tampil_finger !== false, online: r.data.tampil_online !== false, rekan: r.data.tampil_rekan !== false };
+      } catch (e) { return bawaan; }
+    })();
+    return PENG;
+  }
+
+  // =====================================================================
+  // KARTU "PREDIKAT KEDISIPLINAN (ONLINE)" - dari presensi online bulan berjalan
+  // Sumber: Edge Function presensi-api, aksi "rekap_bulanan" (guru/staf hanya mendapat data dirinya sendiri).
+  // Aturan predikat sama dengan rekap fingerprint & tab Rekap Bulanan di Presensi.
+  // =====================================================================
+  var API_ONLINE = 'https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api';
+  var KET_ON = {
+    'Sangat Baik': 'Tidak ada tanpa keterangan, terlambat, pulang lebih awal, atau kurang absen pulang.',
+    'Baik': 'Tidak pernah tanpa keterangan, terlambat paling banyak 25% hari kerja.',
+    'Cukup': 'Tanpa keterangan paling banyak 25% hari kerja.',
+    'Kurang': 'Tanpa keterangan di atas 25% hari kerja.'
+  };
+  var ITEM_ON_A = [
+    { k: 'kerja', t: 'Hari Kerja', c: 'biru', i: 'calendar-days' },
+    { k: 'telat', t: 'Terlambat', c: 'oranye', i: 'alarm-clock' },
+    { k: 'pulang_awal', t: 'Pulang Lebih Awal', c: 'oranye', i: 'log-out' },
+    { k: 'tap', t: 'Kurang Absen Pulang', c: 'oranye', i: 'clock-alert' },
+    { k: 'tanpa_ket', t: 'Tanpa Keterangan', c: 'merah', i: 'user-x' },
+    { k: 'tugas_luar', t: 'Tugas Luar', c: 'biru', i: 'briefcase' }
+  ];
+  var ITEM_ON_B = [
+    { k: 'ijin', t: 'Ijin', c: 'biru', i: 'file-text' },
+    { k: 'sakit', t: 'Sakit', c: 'biru', i: 'thermometer' },
+    { k: 'dinas_luar', t: 'Dinas Luar', c: 'biru', i: 'briefcase' }
+  ];
+  var BLN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  var O = { bulan: '', data: null, ijinOk: true, galat: '', siap: false };
+
+  function bulanIni() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }).slice(0, 7); }
+  function namaBulan(b) { return b ? (BLN[parseInt(b.slice(5), 10)] || '') + ' ' + b.slice(0, 4) : ''; }
+
+  async function panggilOnline(bulan) {
+    var ses = await supabaseClient.auth.getSession();
+    var token = ses.data && ses.data.session ? ses.data.session.access_token : null;
+    var uid = ses.data && ses.data.session && ses.data.session.user ? ses.data.session.user.id : null;
+    if (!token || !uid) throw new Error('Sesi habis. Silakan login ulang.');
+    var resp;
+    try {
+      resp = await fetch(API_ONLINE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-rapor-token': token },
+        body: JSON.stringify({ action: 'rekap_bulanan', bulan: bulan })
+      });
+    } catch (e) { throw new Error('Tidak bisa terhubung ke server presensi. Periksa koneksi internet.'); }
+    var out = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) {
+      if (resp.status === 403 || /action tidak dikenal/i.test(out.error || '')) throw new Error('Fungsi presensi-api di server masih versi lama. Minta admin men-deploy ulang presensi-api.ts (folder presensi-backend).');
+      throw new Error(out.error || ('HTTP ' + resp.status));
+    }
+    var h = out.hasil || {};
+    var kunci = Object.keys(h);
+    return { data: h[uid] || (kunci.length === 1 ? h[kunci[0]] : null), ijinOk: out.ijin_ok !== false };
+  }
+
+  async function muatOnline(bulan) {
+    O.bulan = bulan || bulanIni();
+    try { var r = await panggilOnline(O.bulan); O.data = r.data; O.ijinOk = r.ijinOk; O.galat = ''; }
+    catch (e) { O.data = null; O.galat = e.message || String(e); }
+    O.siap = true;
+  }
+
+  function kartuOnline() {
+    pasangGaya();
+    return '<button type="button" class="ds-pil" id="dsKartuOn" aria-haspopup="dialog" title="Klik untuk melihat rekap presensi online">' +
+      '<i data-lucide="map-pin"></i><span class="ds-pil__l">Predikat Kedisiplinan (Online) :</span> <b id="dsKartuOnNilai">…</b>' +
+      '<i data-lucide="chevron-right" class="ds-pil__a"></i></button>';
+  }
+  function isiKartuOnline() {
+    var v = document.getElementById('dsKartuOnNilai'); if (!v) return;
+    var p = O.data && O.data.predikat;
+    v.className = (!O.galat && PRED[p]) ? 'ds-p--' + PRED[p] : '';
+    v.textContent = (!O.galat && PRED[p]) ? p : (O.galat ? '—' : 'Belum ada');
+  }
+
+  function tutupOnline() { var o = document.getElementById('dsOvOn'); if (o) o.remove(); document.removeEventListener('keydown', tekanOnline); }
+  function tekanOnline(e) { if (e.key === 'Escape') tutupOnline(); }
+
+  function isiJendelaOnline() {
+    var o = document.getElementById('dsOvOn'); if (!o) return;
+    var d = O.data, p = d && d.predikat, kls = PRED[p] || 'none';
+    function tile(it) {
+      var v = d ? d[it.k] : null, hilang = v === null || v === undefined;
+      var warna = (!hilang && v > 0 && it.c !== 'biru') ? ' style="color:' + (it.c === 'merah' ? '#b91c1c' : '#b45309') + '"' : '';
+      return '<div class="ds-it"><div class="ds-it__ic c-' + it.c + '"><i data-lucide="' + it.i + '"></i></div>' +
+        '<div class="ds-it__n"' + warna + '>' + (hilang ? '–' : v) + '</div><div class="ds-it__l">' + it.t + '</div></div>';
+    }
+    var pesan = '';
+    if (O.galat) pesan = '<div class="ds-note ds-err">' + esc(O.galat) + '</div>';
+    else if (!d) pesan = '<div class="ds-note">Belum ada data presensi online untuk bulan ini.</div>';
+    else if (!O.ijinOk) pesan = '<div class="ds-note ds-warn">Data ijin/sakit/dinas luar belum terbaca, jadi bisa tampil sebagai Tanpa Keterangan. Hubungi admin.</div>';
+
+    o.querySelector('.ds-body').innerHTML =
+      '<input type="month" class="ds-sel" id="dsBulanOn" value="' + esc(O.bulan) + '" max="' + bulanIni() + '" aria-label="Pilih bulan">' +
+      pesan +
+      (d
+        ? '<div class="ds-pred ds-pred--' + kls + '"><div><div class="ds-pred__l">Predikat Kedisiplinan (Online)</div>' +
+          '<div class="ds-pred__v ds-p--' + (PRED[p] || '') + '">' + esc(p && p !== '–' ? p : 'Belum ada jadwal') + '</div>' +
+          (KET_ON[p] ? '<div class="ds-pred__k">' + KET_ON[p] + '</div>' : '') + '</div></div>' +
+          '<div class="ds-sub">Kehadiran</div><div class="ds-grid">' + ITEM_ON_A.map(tile).join('') + '</div>' +
+          '<div class="ds-sub">Ijin / Sakit / Dinas Luar</div><div class="ds-grid">' + ITEM_ON_B.map(tile).join('') + '</div>' +
+          '<div class="ds-note">Total waktu terlambat ' + (d.menit_telat || 0) + ' menit, pulang lebih awal ' + (d.menit_pulang_awal || 0) + ' menit. ' +
+          'Dihitung dari presensi online (selfie + lokasi) pada hari kerja menurut jadwal sampai hari ini. Ijin, sakit, dan dinas luar hanya yang sudah disetujui admin.</div>'
+        : '');
+    var sel = document.getElementById('dsBulanOn');
+    if (sel) sel.addEventListener('change', async function () {
+      if (!sel.value) return;
+      o.querySelector('.ds-body').innerHTML = '<div class="ds-note">Memuat…</div>';
+      await muatOnline(sel.value); isiJendelaOnline(); isiKartuOnline();
+    });
+    var sub = o.querySelector('.ds-head p'); if (sub) sub.textContent = 'Presensi online · ' + namaBulan(O.bulan);
+    ikon();
+  }
+
+  function bukaOnline() {
+    pasangGaya();
+    if (document.getElementById('dsOvOn')) return;
+    var o = document.createElement('div');
+    o.className = 'ds-ov'; o.id = 'dsOvOn'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'Rekap kedisiplinan online');
+    o.innerHTML = '<div class="ds-box"><div class="ds-head"><div><h3>Kedisiplinan Online Saya</h3><p></p></div>' +
+      '<button type="button" class="ds-x" id="dsTutupOn" aria-label="Tutup"><i data-lucide="x" style="width:16px;height:16px;"></i></button></div>' +
+      '<div class="ds-body"><div class="ds-note">Memuat…</div></div></div>';
+    document.body.appendChild(o);
+    o.addEventListener('click', function (e) { if (e.target === o) tutupOnline(); });
+    document.getElementById('dsTutupOn').addEventListener('click', tutupOnline);
+    document.addEventListener('keydown', tekanOnline);
+    ikon();
+    if (O.siap) isiJendelaOnline();
+    else muatOnline(O.bulan).then(function () { isiJendelaOnline(); isiKartuOnline(); });
+  }
+
+  async function muatKartuOnline() {
+    var k = document.getElementById('dsKartuOn');
+    if (k && !k.dataset.ds) { k.dataset.ds = '1'; k.addEventListener('click', bukaOnline); }
+    await muatOnline(bulanIni());
+    isiKartuOnline();
+  }
+
+  window.DisiplinSaya = { kartu: kartu, muat: muat, kartuOnline: kartuOnline, muatOnline: muatKartuOnline, pengaturan: pengaturan };
 })();

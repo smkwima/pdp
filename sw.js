@@ -4,7 +4,7 @@
  *  - Library CDN & font            : "cache dulu, perbarui di latar" (disalin saat pemasangan pertama).
  *  - Data Supabase                 : TIDAK ditangani di sini; disalin oleh pwa-offline.js (IndexedDB).
  * Naikkan VERSI untuk membersihkan cache lama. */
-var VERSI = 'pdp-v2';
+var VERSI = 'pdp-v3';
 var LOKAL = [
  "admin.html",
  "akses-guard.js",
@@ -54,6 +54,7 @@ var LOKAL = [
  "penugasan-admin.html",
  "pkl.html",
  "portal.html",
+ "predikat-guru.html",
  "presensi-siswa.html",
  "presensi.html",
  "pwa-offline.js",

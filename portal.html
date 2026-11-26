@@ -29,13 +29,13 @@
 <script src="pengingat-kepsek.js?v=4"></script>
 <script src="pengumuman-kepsek.js?v=2"></script>
 <script src="dashboard-kepsek.js?v=8"></script>
-<script src="bottomnav.js?v=18" defer></script>
+<script src="bottomnav.js?v=19" defer></script>
 <script src="ijin-notif.js?v=2" defer></script>
 <script src="foto-profil.js?v=4" defer></script>
 <script src="pengingat-guru.js?v=3" defer></script>
 <script src="sambutan-guru.js?v=2"></script>
-<script src="disiplin-saya.js?v=1"></script>
-<script src="penilaian-saya.js?v=1"></script>
+<script src="disiplin-saya.js?v=2"></script>
+<script src="penilaian-saya.js?v=2"></script>
 <style>
   body { background: var(--bg); min-height: 100vh; }
 
@@ -382,7 +382,9 @@
       { grup: 'Kepegawaian', href: 'presensi.html', warna: 'c-hijau', ikon: 'map-pin', judul: 'Presensi',
         desc: admin ? 'Atur jadwal, lokasi, dan pantau rekap presensi online guru & staf.' : 'Presensi datang & pulang dengan foto selfie dan lokasi.' },
       { grup: 'Kepegawaian', href: 'ijin.html', warna: 'c-biru', ikon: 'calendar-off', judul: 'Ijin & Dinas Luar',
-        desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' }
+        desc: admin ? 'Pantau pengajuan sakit, ijin dan dinas luar guru & staf yang masuk ke Rekap Absen.' : 'Ajukan sakit, ijin atau dinas luar. Otomatis tercatat di Rekap Absen.' },
+      admin ? { grup: 'Kepegawaian', href: 'predikat-guru.html', warna: 'c-ungu', ikon: 'award', judul: 'Predikat Guru & Staf',
+        desc: 'Lihat predikat kedisiplinan (finger & online) dan nilai penilaian rekan semua guru & staf, serta atur mana yang tampil di kartu guru.' } : null
     ].filter(Boolean).concat(!admin ? [
       { grup: 'Bantuan', href: 'panduan-pdp.html', warna: 'c-abu', ikon: 'book-open', judul: 'Panduan PDP',
         desc: 'Petunjuk penggunaan PDP untuk guru dan staf (PDF).' }
@@ -497,17 +499,25 @@
       kartuStat('user-check', 'c-oranye', 'stWali', 'Wali Kelas', true);
     document.getElementById('heroSub').textContent = 'Lanjutkan pekerjaanmu — pilih modul di bawah ini.';
     if (window.lucide) lucide.createIcons();
-    if (window.DisiplinSaya) {
+    // Kartu predikat di hero: Kedisiplinan (Finger), Kedisiplinan (Online), Nilai Penilaian Rekan.
+    // Admin mengatur kartu mana yang tampil di menu "Predikat Guru & Staf" (tabel kartu_predikat_pengaturan).
+    (async function () {
+      var kp = { finger: true, online: true, rekan: true };
+      try { if (window.DisiplinSaya) kp = await DisiplinSaya.pengaturan(); } catch (e) { /* bawaan: tampil semua */ }
       var dsW = document.getElementById('dsWadah');
-      dsW.innerHTML = DisiplinSaya.kartu(); dsW.style.display = '';
-      if (window.lucide) lucide.createIcons();
-    }
-    if (window.DisiplinSaya) DisiplinSaya.muat(); // dimuat paralel; gagal tidak mengganggu kartu lain
-    if (window.PenilaianSaya) { // muncul hanya bila admin mencentang "Tampilkan hasil ke yang dinilai"
-      var psW = document.getElementById('dsWadah');
-      psW.insertAdjacentHTML('beforeend', PenilaianSaya.kartu());
-      PenilaianSaya.muat(function () { psW.style.display = ''; });
-    }
+      if (!dsW) return;
+      if (window.DisiplinSaya && (kp.finger || kp.online)) {
+        dsW.innerHTML = (kp.finger ? DisiplinSaya.kartu() : '') + (kp.online ? DisiplinSaya.kartuOnline() : '');
+        dsW.style.display = '';
+        if (window.lucide) lucide.createIcons();
+        if (kp.finger) DisiplinSaya.muat();        // dimuat paralel; gagal tidak mengganggu kartu lain
+        if (kp.online) DisiplinSaya.muatOnline();
+      }
+      if (window.PenilaianSaya && kp.rekan) {      // muncul hanya bila admin mencentang "Tampilkan hasil ke yang dinilai"
+        dsW.insertAdjacentHTML('beforeend', PenilaianSaya.kartu());
+        PenilaianSaya.muat(function () { dsW.style.display = ''; });
+      }
+    })();
     if (!ta) { ['stKelas', 'stMapel', 'stSiswa', 'stWali'].forEach(function (i) { isiStat(i, null); }); return; }
 
     var peng = [], wali = null, waliKelasObj = null;

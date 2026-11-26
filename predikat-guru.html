@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b2b4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PDP Wima">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<script src="pwa.js" defer></script>
+<title>Predikat Guru & Staf — PORTAL DATA DAN PENILAIAN SMK WIDYA MANDALA TAMBAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=23">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="pwa-offline.js?v=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js?v=3"></script>
+<script src="akses-guard.js?v=5"></script>
+<script src="mobile.js?v=2" defer></script>
+<script src="bottomnav.js?v=19" defer></script>
+<style>
+  .pg-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px; }
+  .pg-panel h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .pg-panel h3 svg, .pg-panel h3 i { width: 17px; height: 17px; }
+  .pg-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+  .pg-sw { display: grid; gap: 8px; }
+  .pg-sw label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; background: var(--surface); }
+  .pg-sw label:hover { border-color: var(--primary-soft); }
+  .pg-sw input { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; accent-color: var(--primary); }
+  .pg-sw b { display: block; font-size: 13.5px; }
+  .pg-sw small { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+  .pg-act { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .pg-st { font-size: 12.5px; color: var(--ink-soft); }
+  .pg-st--ok { color: #047857; font-weight: 700; } .pg-st--bad { color: #b91c1c; font-weight: 700; }
+  .dp-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: flex-end; }
+  .dp-toolbar .fld { display: flex; flex-direction: column; gap: 3px; }
+  .dp-toolbar .fld > span { font-size: 11px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; text-transform: uppercase; }
+  .dp-toolbar select, .dp-toolbar input { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font: 600 12.5px var(--font-body); background: var(--surface); color: var(--ink); }
+  .dp-toolbar select#pgRekap { min-width: 220px; max-width: 100%; }
+  .dp-toolbar input[type="search"] { min-width: 180px; }
+  .dp-toolbar .sp { flex: 1; }
+  .dp-count { font-size: 12px; color: var(--ink-soft); }
+  .dp-b { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+  .dp-b--sangat-baik { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+  .dp-b--baik { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  .dp-b--cukup { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+  .dp-b--kurang { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+  .dp-b--none { background: var(--surface-tint-strong); color: var(--ink-soft); border-color: var(--border); }
+  .dp-msg { padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; margin-bottom: 12px; }
+  .dp-warn { padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; margin-bottom: 12px; }
+  .dp-tbl th.dp-urut { cursor: pointer; user-select: none; }
+  .dp-tbl th.dp-urut:hover { color: var(--primary); }
+  .dp-tbl th .dp-pnl { font-size: 10px; opacity: .6; margin-left: 3px; }
+  .pg-skor { margin-left: 6px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .dp-kosong { padding: 34px 16px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <img class="sidebar__brand-logo" src="assets/logo.png" alt="Logo">
+      <div class="sidebar__brand-text"><span class="sidebar__brand-mark">Predikat Guru &amp; Staf</span><span class="sidebar__brand-school">SMK Widya Mandala Tambak</span></div>
+    </div>
+    <div class="sidebar__role"><i data-lucide="award" style="width:13px;height:13px;"></i> <span id="roleLabel">Admin</span></div>
+    <nav class="menu-list" id="menu">
+      <div class="sidebar__section-label">Kepegawaian</div>
+      <a href="#" class="menu-item menu-item--active"><i data-lucide="award" class="menu-icon"></i><span class="menu-item__title">Predikat Guru &amp; Staf</span></a>
+      <div class="sidebar__section-label">Lainnya</div>
+      <a href="portal.html" class="menu-item"><i data-lucide="layout-grid" class="menu-icon"></i><span class="menu-item__title">Menu Utama</span></a>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="topbar__title">Predikat Guru &amp; Staf</div><div class="topbar__meta" id="metaHal">Memuat…</div></div>
+      <div class="user-chip"><div class="user-chip__text"><div class="user-chip__name" id="userName">Memuat...</div><div class="user-chip__role" id="userRole">Admin</div>
+        <a href="#" id="logoutBtn" class="user-chip__logout"><i data-lucide="log-out" style="width:13px;height:13px;"></i> Keluar</a></div></div>
+    </div>
+    <div class="content" id="content"><div class="panel-note">Memuat…</div></div>
+  </div>
+</div>
+
+<script>
+  var content = document.getElementById('content');
+  var API_ONLINE = 'https://nrwexyezcbmsokelgkmp.supabase.co/functions/v1/presensi-api';
+  var PRED = { 'Sangat Baik': 'sangat-baik', 'Baik': 'baik', 'Cukup': 'cukup', 'Kurang': 'kurang' };
+  var URUT_PRED = { 'Sangat Baik': 0, 'Baik': 1, 'Cukup': 2, 'Kurang': 3 };
+  var BLN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+  var peg = [];                       // guru & staf (profiles)
+  var rekapList = [], rekapId = '';   // rekap fingerprint tersimpan
+  var finger = { baris: {}, galat: '', judul: '' };
+  var online = { hasil: {}, galat: '', bulan: '', ijinOk: true };
+  var rekan = { hasil: {}, galat: '', periode: '', tampilKeGuru: null };
+  var pengaturan = { tampil_finger: true, tampil_online: true, tampil_rekan: true };
+  var pengaturanGalat = '';
+  var filter = { cari: '', peran: '', urut: 'nama', arah: 1 };
+
+  function esc(s) { return (s === null || s === undefined) ? '' : String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ikon() { if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch (e) { /* abaikan */ } } }
+  function tglId(s) {
+    if (!s) return '';
+    var d = new Date(String(s).length <= 10 ? s + 'T00:00:00' : s);
+    return isNaN(d) ? s : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function bulanIni() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }).slice(0, 7); }
+  function namaBulan(b) { return b ? (BLN[parseInt(b.slice(5), 10)] || '') + ' ' + b.slice(0, 4) : ''; }
+  function angka(x) { return (x === null || x === undefined) ? '—' : Number(x).toFixed(2).replace('.', ','); }
+  function badge(p, kosong) { var k = PRED[p]; return '<span class="dp-b dp-b--' + (k || 'none') + '">' + esc(k ? p : (kosong || 'Belum ada')) + '</span>'; }
+
+  // ---------- Sumber 1: Finger (Edge Function rekap-disiplin) ----------
+  async function panggilFinger(aksi, isi) {
+    var sesi = await supabaseClient.auth.getSession();
+    var token = sesi.data && sesi.data.session ? sesi.data.session.access_token : null;
+    if (!token) { location.href = 'index.html'; throw new Error('Sesi habis.'); }
+    var resp;
+    try {
+      resp = await fetch(SUPABASE_URL + '/functions/v1/rekap-disiplin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify(Object.assign({ aksi: aksi }, isi || {}))
+      });
+    } catch (e) { throw new Error('Tidak bisa terhubung ke server. Periksa koneksi internet.'); }
+    var out = await resp.json().catch(function () { return {}; });
+    if (resp.status === 404 && !out.error) throw new Error('Edge Function rekap-disiplin belum di-deploy (lihat CARA_DEPLOY_REKAP_DISIPLIN.md).');
+    if (!resp.ok || !out.success) throw new Error(out.error || ('HTTP ' + resp.status));
+    return out;
+  }
+  async function muatFinger(id) {
+    finger = { baris: {}, galat: '', judul: '' };
+    try {
+      if (!rekapList.length) { var d = await panggilFinger('daftar'); rekapList = d.data || []; }
+      if (!rekapList.length) { finger.galat = 'Belum ada rekap fingerprint yang disimpan. Simpan dulu lewat Rekap Absen.'; return; }
+      rekapId = id || rekapId || rekapList[0].id;
+      var out = await panggilFinger('lihat', { id: rekapId });
+      (out.data || []).forEach(function (b) { finger.baris[norm(b.nama)] = b.predikat; });
+      finger.judul = out.judul || '';
+    } catch (e) { finger.galat = e.message || String(e); }
+  }
+
+  // ---------- Sumber 2: Online (Edge Function presensi-api, rekap_bulanan) ----------
+  async function muatOnline(bulan) {
+    online = { hasil: {}, galat: '', bulan: bulan, ijinOk: true };
+    try {
+      var ses = await supabaseClient.auth.getSession();
+      var token = ses.data && ses.data.session ? ses.data.session.access_token : null;
+      if (!token) throw new Error('Sesi habis.');
+      var resp;
+      try {
+        resp = await fetch(API_ONLINE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rapor-token': token },
+          body: JSON.stringify({ action: 'rekap_bulanan', bulan: bulan, pegawai: peg.map(function (p) { return { id: p.id, role: p.role, kode_mesin: p.kode_mesin }; }) }) });
+      } catch (e) { throw new Error('Tidak bisa terhubung ke server presensi.'); }
+      var j = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) throw new Error(/action tidak dikenal/i.test(j.error || '') ? 'Fungsi presensi-api di server belum diperbarui. Deploy ulang presensi-api.ts (folder presensi-backend).' : (j.error || ('HTTP ' + resp.status)));
+      online.hasil = j.hasil || {}; online.ijinOk = j.ijin_ok !== false;
+    } catch (e) { online.galat = e.message || String(e); }
+  }
+
+  // ---------- Sumber 3: Penilaian Rekan (RPC penilaian_rekan_hasil; hanya rata-rata, anonim) ----------
+  async function muatRekan() {
+    rekan = { hasil: {}, galat: '', periode: rekan.periode, tampilKeGuru: null };
+    try {
+      var ta = await supabaseClient.from('tahun_ajaran').select('nama, semester').eq('is_aktif', true).maybeSingle();
+      rekan.periode = ta && ta.data ? ta.data.nama + ' · ' + ta.data.semester : 'Tahun berjalan';
+      try {
+        var pg = await supabaseClient.from('penilaian_rekan_pengaturan').select('tampil_ke_guru').eq('periode', rekan.periode).maybeSingle();
+        if (pg && pg.data) rekan.tampilKeGuru = !!pg.data.tampil_ke_guru;
+      } catch (e) { /* abaikan */ }
+      var r = await supabaseClient.rpc('penilaian_rekan_hasil', { p_periode: rekan.periode });
+      if (r.error) throw new Error(r.error.message || 'Hasil penilaian rekan tidak bisa dibaca.');
+      (r.data || []).forEach(function (x) { rekan.hasil[x.dinilai_id] = x; });
+    } catch (e) { rekan.galat = e.message || String(e); }
+  }
+
+  // ---------- Pengaturan tampil di kartu guru ----------
+  async function muatPengaturan() {
+    pengaturanGalat = '';
+    try {
+      var r = await supabaseClient.from('kartu_predikat_pengaturan').select('*').eq('id', 1).maybeSingle();
+      if (r.error) throw r.error;
+      if (r.data) pengaturan = { tampil_finger: r.data.tampil_finger !== false, tampil_online: r.data.tampil_online !== false, tampil_rekan: r.data.tampil_rekan !== false };
+    } catch (e) { pengaturanGalat = 'Pengaturan belum bisa dibaca (sudah menjalankan migrasi_kartu_predikat.sql di Supabase SQL Editor?). ' + (e && e.message ? e.message : ''); }
+  }
+  async function simpanPengaturan() {
+    var st = document.getElementById('pgSt'), btn = document.getElementById('pgSimpan');
+    var nilai = {
+      tampil_finger: document.getElementById('pgF').checked,
+      tampil_online: document.getElementById('pgO').checked,
+      tampil_rekan: document.getElementById('pgR').checked
+    };
+    btn.disabled = true; st.className = 'pg-st'; st.textContent = 'Menyimpan…';
+    try {
+      var r = await supabaseClient.from('kartu_predikat_pengaturan').upsert(Object.assign({ id: 1, diubah_pada: new Date().toISOString() }, nilai));
+      if (r.error) throw r.error;
+      pengaturan = nilai; pengaturanGalat = '';
+      st.className = 'pg-st pg-st--ok'; st.textContent = 'Tersimpan. Berlaku di Menu Utama guru & staf setelah halaman dimuat ulang.';
+      try { if (typeof catatAktivitas === 'function') catatAktivitas('ubah', 'Kartu Predikat', 'Mengatur tampilan predikat di kartu guru'); } catch (e) { /* abaikan */ }
+    } catch (e) {
+      st.className = 'pg-st pg-st--bad'; st.textContent = 'Gagal menyimpan: ' + (e && e.message ? e.message : e);
+    }
+    btn.disabled = false;
+  }
+
+  // ---------- Tampilan ----------
+  function barisData() {
+    return peg.map(function (p) {
+      var on = online.hasil[p.id], rk = rekan.hasil[p.id];
+      return {
+        id: p.id, nama: p.nama || '—', role: p.role,
+        finger: finger.baris[norm(p.nama)] || '',
+        online: on ? on.predikat : '',
+        rekanPred: rk && rk.cukup ? rk.predikat : '', rekanSkor: rk && rk.cukup ? Number(rk.skor_akhir) : null, rekanN: rk ? rk.jumlah_penilai : null
+      };
+    });
+  }
+  function nilaiUrut(b, k) {
+    if (k === 'nama') return b.nama.toLowerCase();
+    if (k === 'peran') return b.role;
+    if (k === 'rekan') return b.rekanSkor === null ? -1 : b.rekanSkor;
+    var v = b[k];
+    return URUT_PRED[v] !== undefined ? URUT_PRED[v] : 9;
+  }
+
+  function tampil() {
+    var opsiRekap = rekapList.map(function (x) {
+      return '<option value="' + esc(x.id) + '"' + (String(x.id) === String(rekapId) ? ' selected' : '') + '>' + esc(x.judul) + ' (' + esc(tglId(x.periode_awal)) + ' – ' + esc(tglId(x.periode_akhir)) + ')</option>';
+    }).join('');
+    function sw(id, cek, judul, ket) {
+      return '<label><input type="checkbox" id="' + id + '"' + (cek ? ' checked' : '') + '><span><b>' + judul + '</b><small>' + ket + '</small></span></label>';
+    }
+    content.innerHTML =
+      (pengaturanGalat ? '<div class="dp-warn">' + esc(pengaturanGalat) + '</div>' : '') +
+      '<div class="pg-panel"><h3><i data-lucide="eye"></i>Tampil di kartu Menu Utama guru &amp; staf</h3>' +
+      '<p class="pg-sub">Centang untuk menampilkan, hapus centang untuk menyembunyikan dari kartu guru. Data tetap ada dan tetap bisa dilihat admin di halaman ini.</p>' +
+      '<div class="pg-sw">' +
+        sw('pgF', pengaturan.tampil_finger, 'Predikat Kedisiplinan (Finger)', 'Dari rekap fingerprint terbaru yang disimpan admin.') +
+        sw('pgO', pengaturan.tampil_online, 'Predikat Kedisiplinan (Online)', 'Dari presensi online (selfie + lokasi) bulan berjalan.') +
+        sw('pgR', pengaturan.tampil_rekan, 'Nilai Penilaian Rekan', 'Rata-rata penilaian rekan. Tetap hanya muncul bila “Tampilkan hasil ke yang dinilai” di Penilaian Rekan juga dicentang' +
+          (rekan.tampilKeGuru === null ? '' : ' (saat ini: ' + (rekan.tampilKeGuru ? 'dicentang' : 'belum dicentang') + ')') + '.') +
+      '</div><div class="pg-act"><button type="button" class="btn-small btn-small--primary" id="pgSimpan"><i data-lucide="save"></i> Simpan pengaturan</button><span class="pg-st" id="pgSt"></span></div></div>' +
+
+      '<div class="dp-toolbar">' +
+        '<div class="fld"><span>Rekap Finger</span><select id="pgRekap" aria-label="Pilih rekap fingerprint">' + (opsiRekap || '<option value="">Belum ada rekap</option>') + '</select></div>' +
+        '<div class="fld"><span>Bulan Online</span><input type="month" id="pgBulan" value="' + esc(online.bulan) + '" max="' + bulanIni() + '"></div>' +
+        '<div class="fld"><span>Peran</span><select id="pgPeran"><option value="">Guru &amp; Staf</option><option value="guru"' + (filter.peran === 'guru' ? ' selected' : '') + '>Guru</option><option value="staf"' + (filter.peran === 'staf' ? ' selected' : '') + '>Staf</option></select></div>' +
+        '<div class="fld"><span>Cari</span><input type="search" id="pgCari" placeholder="Cari nama…" value="' + esc(filter.cari) + '"></div>' +
+        '<span class="sp"></span><span class="dp-count" id="pgCount"></span></div>' +
+      (finger.galat ? '<div class="dp-warn"><b>Predikat Finger:</b> ' + esc(finger.galat) + '</div>' : '') +
+      (online.galat ? '<div class="dp-warn"><b>Predikat Online:</b> ' + esc(online.galat) + '</div>' : (online.ijinOk ? '' : '<div class="dp-warn"><b>Predikat Online:</b> data ijin/sakit/dinas luar belum terbaca, sehingga bisa tampil sebagai Tanpa Keterangan.</div>')) +
+      (rekan.galat ? '<div class="dp-warn"><b>Nilai Penilaian Rekan:</b> ' + esc(rekan.galat) + ' Bila pesannya soal hak akses, fungsi penilaian_rekan_hasil di database perlu mengizinkan peran admin.</div>' : '') +
+      '<div id="pgTabel"></div>';
+    isiTabel();
+    document.getElementById('pgSimpan').addEventListener('click', simpanPengaturan);
+    var r = document.getElementById('pgRekap');
+    if (r) r.addEventListener('change', async function () { content.innerHTML = '<div class="panel-note">Memuat…</div>'; await muatFinger(r.value); judulMeta(); tampil(); });
+    var b = document.getElementById('pgBulan');
+    if (b) b.addEventListener('change', async function () { if (!b.value) return; content.innerHTML = '<div class="panel-note">Memuat…</div>'; await muatOnline(b.value); judulMeta(); tampil(); });
+    document.getElementById('pgPeran').addEventListener('change', function (e) { filter.peran = e.target.value; isiTabel(); });
+    document.getElementById('pgCari').addEventListener('input', function (e) { filter.cari = e.target.value; isiTabel(); });
+    ikon();
+  }
+
+  function isiTabel() {
+    var w = document.getElementById('pgTabel'); if (!w) return;
+    var q = filter.cari.trim().toLowerCase();
+    var semua = barisData();
+    var rows = semua.filter(function (b) { return (!filter.peran || b.role === filter.peran) && (!q || b.nama.toLowerCase().indexOf(q) >= 0); });
+    var k = filter.urut, arah = filter.arah;
+    rows.sort(function (a, b) {
+      var x = nilaiUrut(a, k), y = nilaiUrut(b, k);
+      if (x < y) return -1 * arah; if (x > y) return 1 * arah;
+      return a.nama.localeCompare(b.nama, 'id');
+    });
+    document.getElementById('pgCount').textContent = rows.length + ' dari ' + semua.length + ' guru & staf';
+    function th(kunci, teks) {
+      var pnl = filter.urut === kunci ? (filter.arah === 1 ? '▲' : '▼') : '';
+      return '<th class="dp-urut" data-urut="' + kunci + '" title="Urutkan">' + teks + '<span class="dp-pnl">' + pnl + '</span></th>';
+    }
+    w.innerHTML = rows.length
+      ? '<div class="table-wrap"><table class="data-table dp-tbl"><thead><tr><th>No</th>' + th('nama', 'Nama') + th('peran', 'Peran') +
+        th('finger', 'Predikat Kedisiplinan (Finger)') + th('online', 'Predikat Kedisiplinan (Online)') + th('rekan', 'Nilai Penilaian Rekan') + '</tr></thead><tbody>' +
+        rows.map(function (b, i) {
+          var rk = b.rekanPred
+            ? badge(b.rekanPred) + '<span class="pg-skor">' + angka(b.rekanSkor) + '</span>'
+            : '<span class="dp-b dp-b--none">' + (b.rekanN !== null ? 'Penilai belum cukup (' + b.rekanN + ')' : 'Belum ada') + '</span>';
+          return '<tr><td data-label="No">' + (i + 1) + '</td><td data-label="Nama"><b>' + esc(b.nama) + '</b></td><td data-label="Peran">' + (b.role === 'staf' ? 'Staf' : 'Guru') + '</td>' +
+            '<td data-label="Finger">' + badge(b.finger) + '</td><td data-label="Online">' + badge(b.online, 'Belum ada jadwal') + '</td><td data-label="Penilaian Rekan">' + rk + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="panel-note">Finger: ' + esc(finger.judul || 'rekap yang dipilih') + ' (dicocokkan lewat nama; “Belum ada” bila nama tidak ada di rekap). Online: presensi online ' + esc(namaBulan(online.bulan)) +
+        '. Penilaian Rekan: periode ' + esc(rekan.periode) + ', skala 1–4, hanya rata-rata (anonim) dan baru tampil bila jumlah penilai cukup. Klik judul kolom untuk mengurutkan.</div>'
+      : '<div class="dp-kosong">Tidak ada data yang cocok.</div>';
+    w.querySelectorAll('[data-urut]').forEach(function (h) {
+      h.addEventListener('click', function () {
+        var kk = h.getAttribute('data-urut');
+        if (filter.urut === kk) filter.arah = -filter.arah;
+        else { filter.urut = kk; filter.arah = (kk === 'rekan') ? -1 : 1; }
+        isiTabel();
+      });
+    });
+  }
+  function judulMeta() {
+    document.getElementById('metaHal').textContent = 'Finger · Online ' + namaBulan(online.bulan) + ' · Penilaian Rekan ' + (rekan.periode || '');
+  }
+
+  (async function () {
+    var s = (await supabaseClient.auth.getSession()).data.session;
+    if (!s) { location.href = 'index.html'; return; }
+    var p = await supabaseClient.from('profiles').select('nama, role').eq('id', s.user.id).single();
+    if (p.error || !p.data || p.data.role !== 'admin') { location.href = 'portal.html'; return; }
+    document.getElementById('userName').textContent = p.data.nama || s.user.email;
+    var pr = await supabaseClient.from('profiles').select('id, nama, role, kode_mesin').in('role', ['guru', 'staf']).order('nama');
+    peg = pr.data || [];
+    if (pr.error) { content.innerHTML = '<div class="dp-msg">Gagal membaca data guru & staf: ' + esc(pr.error.message) + '</div>'; return; }
+    var bln = bulanIni();
+    await Promise.all([muatPengaturan(), muatFinger(), muatOnline(bln), muatRekan()]);
+    judulMeta();
+    tampil();
+  })();
+
+  document.getElementById('logoutBtn').addEventListener('click', async function (e) {
+    e.preventDefault();
+    await supabaseClient.auth.signOut();
+    location.href = 'index.html';
+  });
+  ikon();
+</script>
+</body>
+</html>
