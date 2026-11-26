@@ -457,24 +457,31 @@ Deno.serve(async (req) => {
       case "riwayat":
         return json({ log: ok(await db.from("presensi_log").select("*").eq("pegawai_id", me.id).order("waktu", { ascending: false }).limit(60)) });
 
-      case "bulanan": { // data presensi satu bulan milik sendiri: tanggal, datang, pulang, keterangan
+      case "bulanan": { // data presensi satu bulan: tanggal, datang, pulang, keterangan + detail Tugas Luar.
+        // Milik sendiri; admin & kepala sekolah boleh melihat pegawai lain lewat body.pegawai_id (baca-saja).
+        let tgt: { id: string; role: string; kode_mesin: unknown } = { id: me.id, role: me.role!, kode_mesin: me.kode_mesin };
+        if (body.pegawai_id && String(body.pegawai_id).toLowerCase() !== String(me.id).toLowerCase()) {
+          butuhAdminAtauKepsek(me);
+          if (!UUID.test(String(body.pegawai_id)) || !PEGAWAI.includes(String(body.role))) throw new Tolak("Pegawai tidak valid");
+          tgt = { id: String(body.pegawai_id), role: String(body.role), kode_mesin: body.kode_mesin };
+        }
         const bln = String(body.bulan ?? "");
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bln) || bln < "2000-01") throw new Tolak("Bulan tidak valid");
         const jml = new Date(Date.UTC(+bln.slice(0, 4), +bln.slice(5, 7), 0)).getUTCDate();
         const dari = `${bln}-01`, sampai = `${bln}-${String(jml).padStart(2, "0")}`, w = wib();
         const [ctx, jd, logs, tgs, ij] = await Promise.all([
-          muatCtx(), jadwalSaya(me.id),
-          db.from("presensi_log").select("tanggal,jenis,status,waktu,diambil_at").eq("pegawai_id", me.id).gte("tanggal", dari).lte("tanggal", sampai).limit(500),
-          db.from("presensi_tugas").select("tanggal").eq("pegawai_id", me.id).gte("tanggal", dari).lte("tanggal", sampai).limit(100),
-          ijinRentang(dari, sampai, me.kode_mesin),
+          muatCtx(), jadwalSaya(tgt.id),
+          db.from("presensi_log").select("tanggal,jenis,status,waktu,diambil_at,foto_path,lat,lng,akurasi_m").eq("pegawai_id", tgt.id).gte("tanggal", dari).lte("tanggal", sampai).limit(500),
+          db.from("presensi_tugas").select("tanggal,jam_mulai,jam_selesai,keperluan").eq("pegawai_id", tgt.id).gte("tanggal", dari).lte("tanggal", sampai).limit(100),
+          ijinRentang(dari, sampai, tgt.kode_mesin),
         ]);
-        type Lg = { tanggal: string; jenis: string; status: string; waktu: string; diambil_at: string | null };
-        const L = ok(logs) as Lg[], T = new Set((ok(tgs) as { tanggal: string }[]).map((x) => x.tanggal));
+        type Lg = { tanggal: string; jenis: string; status: string; waktu: string; diambil_at: string | null; foto_path: string | null; lat: number | null; lng: number | null; akurasi_m: number | null };
+        const L = ok(logs) as Lg[], TG = ok(tgs) as { tanggal: string; jam_mulai: string; jam_selesai: string; keperluan: string }[], T = new Set(TG.map((x) => x.tanggal));
         const jam = (x?: Lg) => (x ? wib(new Date(x.diambil_at ?? x.waktu)).jam.slice(0, 5) : null);
         const rows = [];
         for (let i = 1; i <= jml; i++) {
           const t = `${bln}-${String(i).padStart(2, "0")}`, hari = hariDari(t);
-          const th = tipeHari(ctx, t), ef = efektif(ctx, me.id, me.role!, jd, t, hari);
+          const th = tipeHari(ctx, t), ef = efektif(ctx, tgt.id, tgt.role, jd, t, hari);
           const d = L.find((x) => x.tanggal === t && x.jenis === "datang"), p = L.find((x) => x.tanggal === t && x.jenis === "pulang"), tl = L.find((x) => x.tanggal === t && x.jenis === "tugas_luar");
           const r: { tanggal: string; hari: number; datang: string | null; pulang: string | null; kode: string; info: string; jenis: string } =
             { tanggal: t, hari, datang: jam(d) ?? jam(tl), pulang: jam(p), kode: "", info: "", jenis: "kerja" };
@@ -496,7 +503,18 @@ Deno.serve(async (req) => {
           }
           rows.push(r);
         }
-        return json({ bulan: bln, hari_ini: w.tanggal, ijin_ok: ij !== null, rows });
+        // Detail Tugas Luar: rencana tugas (keperluan, jam) + absen lokasi (jam, foto, titik peta) per tanggal.
+        const tlLog = L.filter((x) => x.jenis === "tugas_luar");
+        const urls = await signedUrls(tlLog.map((x) => x.foto_path).filter(Boolean).slice(0, 60) as string[]);
+        const tglTL = [...new Set([...TG.map((x) => x.tanggal), ...tlLog.map((x) => x.tanggal)])].sort();
+        const tugas = tglTL.map((t) => {
+          const g = TG.find((x) => x.tanggal === t), a = tlLog.find((x) => x.tanggal === t);
+          return {
+            tanggal: t, keperluan: g?.keperluan ?? "", jam_mulai: g ? jamHM(g.jam_mulai) : "", jam_selesai: g ? jamHM(g.jam_selesai) : "",
+            absen: a ? { jam: jam(a), foto: a.foto_path ? urls[a.foto_path] ?? null : null, lat: a.lat, lng: a.lng, akurasi_m: a.akurasi_m, tertunda: !!a.diambil_at } : null,
+          };
+        });
+        return json({ bulan: bln, hari_ini: w.tanggal, ijin_ok: ij !== null, rows, tugas });
       }
 
       case "rekap": { // admin & kepala sekolah (baca-saja): semua log pada satu tanggal + tautan foto
@@ -554,7 +572,7 @@ Deno.serve(async (req) => {
         for (const p of peg) {
           const id = String(p.id).toLowerCase(), rows = per.get(id) ?? [], L = logPer.get(id) ?? [], T = tugasPer.get(id) ?? new Set<string>();
           const kode = kodeNorm(p.kode_mesin), iP = kode && ij ? ij.filter((x) => kodeNorm(x.kode_mesin) === kode) : [];
-          const o = { kerja: 0, telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, dinas_luar: 0, tugas_luar: 0, tanpa_ket: 0, tap: 0 };
+          const o = { kerja: 0, telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, dinas_luar: 0, tugas_luar: 0, tl: 0, tanpa_ket: 0, tap: 0 }; // tl = total hari bertugas luar (sudah absen lokasi maupun belum)
           for (let i = 1; i <= jml; i++) {
             const t = `${bln}-${String(i).padStart(2, "0")}`;
             if (t > w.tanggal) break;
@@ -572,6 +590,7 @@ Deno.serve(async (req) => {
               if (ef.tipe === "kerja") o.menit_pulang_awal += Math.max(0, Math.floor((detik(ef.pulang!) - detik(jamLog(pl))) / 60));
             }
             if (d && !pl && lewat) o.tap++;
+            if (tl || T.has(t)) o.tl++;
             if (d || pl || tl) continue; // ada presensi / absen Tugas Luar
             const e = iP.find((x) => x.tanggal_mulai <= t && x.tanggal_selesai >= t);
             if (e) { if (e.jenis === "sakit") o.sakit++; else if (e.jenis === "dinas_luar") o.dinas_luar++; else o.ijin++; continue; }

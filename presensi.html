@@ -690,16 +690,18 @@ async function riwayat() {
   $("#view").innerHTML = `<div class="panel-head"><div><div class="panel-head__title">Riwayat presensi</div><div class="panel-head__desc">${data.length} catatan presensi Anda</div></div></div>
   <div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Jam</th><th>Status</th><th>Jarak / Lokasi</th></tr></thead><tbody>${data.map(r => `<tr><td>${tg(r.tanggal)}</td><td><span class="ps-st ps-st--info">${r.jenis === "tugas_luar" ? "tugas luar" : esc(r.jenis)}</span></td><td><span class="ps-time">${jamLog(r)}</span>${tundaChip(r)}</td><td>${stChip(r.status)}</td><td>${r.jenis === "tugas_luar" && r.lat != null ? petaLink(r.lat, r.lng) : r.jarak_m + " m"}</td></tr>`).join("") || `<tr><td colspan="5" class="ps-empty">Belum ada data.</td></tr>`}</tbody></table></div>`;
 }
-async function bulanan() {
-  const skr = ymd(new Date()).slice(0, 7);
-  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="bln">Bulan</label><input type="month" id="bln" value="${skr}" max="${skr}"></div><button class="btn-small btn-small--primary" id="cariBln"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilBln"><div class="panel-note">Memuat…</div></div>`;
+async function bulanan(tgt, bAwal, kembali) { // tgt = {id, role, kode_mesin, nama}: admin/kepala sekolah membuka detail satu pegawai dari Rekap Bulanan
+  const skr = ymd(new Date()).slice(0, 7), tabIni = tgt ? "rekapbln" : "bulanan";
+  $("#view").innerHTML = (tgt ? `<div class="panel-head"><div><div class="panel-head__title">${esc(tgt.nama)}</div><div class="panel-head__desc">Detail presensi bulanan dan Tugas Luar (TL)</div></div><button class="btn-small" id="kembaliRb"><i data-lucide="arrow-left"></i> Kembali ke rekap</button></div>` : "")
+    + `<div class="ps-filter"><div class="field"><label for="bln">Bulan</label><input type="month" id="bln" value="${bAwal || skr}" max="${skr}"></div><button class="btn-small btn-small--primary" id="cariBln"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilBln"><div class="panel-note">Memuat…</div></div>`;
   ikon();
+  if (tgt) $("#kembaliRb").onclick = () => kembali($("#bln").value || bAwal);
   let tok = 0;
   const load = async () => {
     const b = $("#bln").value; if (!b) return toast("Pilih bulan dulu.", true);
     const my = ++tok, out = $("#hasilBln"); out.innerHTML = `<div class="panel-note">Memuat…</div>`;
-    let j; try { j = await api("bulanan", { bulan: b }); } catch (e) { if (my === tok && tab === "bulanan") out.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(e.message)); return toast("Gagal memuat data bulanan: " + e.message, true); }
-    if (my !== tok || tab !== "bulanan" || !$("#hasilBln")) return;
+    let j; try { j = await api("bulanan", tgt ? { bulan: b, pegawai_id: tgt.id, role: tgt.role, kode_mesin: tgt.kode_mesin } : { bulan: b }); } catch (e) { if (my === tok && tab === tabIni) out.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(e.message)); return toast("Gagal memuat data bulanan: " + e.message, true); }
+    if (my !== tok || tab !== tabIni || !$("#hasilBln")) return;
     const KLS = { T: "warn", TAP: "bad", TTAP: "bad", TL: "info", Sakit: "info", Ijin: "info", DL: "info" };
     const n = k => j.rows.filter(r => r.kode === k).length;
     const hadir = j.rows.filter(r => r.datang || r.pulang).length;
@@ -714,25 +716,26 @@ async function bulanan() {
     $("#hasilBln").innerHTML = (j.ijin_ok ? "" : notice("warn", "triangle-alert", "Data ijin belum terbaca", "Sakit/Ijin/DL tidak ikut tampil untuk saat ini."))
       + `<div class="stat-grid">${kartu("Hari hadir", "log-in", hadir, BULAN[+b.slice(5)] + " " + b.slice(0, 4))}${kartu("Telat", "clock-alert", n("T") + n("TTAP"), "T + TTAP")}${kartu("Tanpa absen pulang", "log-out", n("TAP") + n("TTAP"), "TAP + TTAP")}${kartu("Sakit / Ijin / DL / TL", "calendar-off", n("Sakit") + n("Ijin") + n("DL") + n("TL"), "hari tercatat")}</div>`
       + `<div class="table-wrap"><table class="data-table ps-tbl ps-tbl--bln" data-tabel><thead><tr><th>Tanggal</th><th>Absen Datang</th><th>Absen Pulang</th><th>Keterangan</th></tr></thead><tbody>${baris}</tbody></table></div>`
+      + ((j.tugas || []).length ? `<section class="task-section" style="margin-top:16px"><div class="task-section__head"><div><div class="task-section__title"><i data-lucide="briefcase"></i> Rincian Tugas Luar (TL) · ${j.tugas.length} hari</div><div class="task-section__desc">Keperluan, jam tugas, dan absen lokasi pada hari Tugas Luar.</div></div></div><div class="table-wrap"><table class="data-table ps-tbl"><thead><tr><th>Tanggal</th><th>Keperluan</th><th>Jam tugas</th><th>Absen lokasi</th></tr></thead><tbody>${j.tugas.map(t => `<tr><td>${hariNama(t.tanggal).slice(0, 3)}, ${tglIdn(t.tanggal)}</td><td>${esc(t.keperluan) || "<span class=\"mut\">—</span>"}</td><td>${t.jam_mulai ? esc(t.jam_mulai) + "–" + esc(t.jam_selesai) : "<span class=\"mut\">—</span>"}</td><td>${t.absen ? `<span class="ps-time">${esc(t.absen.jam)}</span>${t.absen.tertunda ? ` <span class="ps-st ps-st--warn" title="Foto diambil di lokasi tanpa sinyal dan baru diterima server">dikirim terlambat</span>` : ""}${t.absen.foto ? `<a class="ps-foto" href="${esc(t.absen.foto)}" target="_blank" rel="noopener"><i data-lucide="image"></i> Foto</a>` : ""}${t.absen.lat != null ? `<br>${petaLink(t.absen.lat, t.absen.lng)}${t.absen.akurasi_m != null ? ` <span class="mut">±${t.absen.akurasi_m} m</span>` : ""}` : ""}` : (t.tanggal > j.hari_ini ? `<span class="mut">Belum waktunya</span>` : `<span class="ps-st ps-st--warn">Belum absen lokasi</span>`)}</td></tr>`).join("")}</tbody></table></div></section>` : "")
       + `<p class="ps-legend"><b>T</b> = Telat · <b>TAP</b> = Tanpa Absen Pulang · <b>TTAP</b> = Telat dan Tanpa Absen Pulang · <b>Sakit</b> / <b>Ijin</b> / <b>DL</b> (Dinas Luar) / <b>TL</b> (Tugas Luar). Keterangan kosong berarti tepat waktu.</p>`;
     ikon();
   };
   $("#cariBln").onclick = load; $("#bln").onchange = load; load();
 }
 /* ---------- Rekap bulanan semua pegawai (admin & kepala sekolah, baca-saja) ---------- */
-async function rekapbln() {
+async function rekapbln(bAwal, cAwal) {
   const skr = ymd(new Date()).slice(0, 7);
-  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="rbBln">Bulan</label><input type="month" id="rbBln" value="${skr}" max="${skr}"></div><div class="field"><label for="rbCari">Cari nama</label><input type="search" id="rbCari" placeholder="Nama guru / staf…"></div><button class="btn-small btn-small--primary" id="rbTampil"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilRb"><div class="panel-note">Memuat…</div></div>`;
+  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="rbBln">Bulan</label><input type="month" id="rbBln" value="${bAwal || skr}" max="${skr}"></div><div class="field"><label for="rbCari">Cari nama</label><input type="search" id="rbCari" placeholder="Nama guru / staf…" value="${esc(cAwal || "")}"></div><label class="ps-chk" style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="rbTL"> Hanya yang ada Tugas Luar</label><button class="btn-small btn-small--primary" id="rbTampil"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilRb"><div class="panel-note">Memuat…</div></div>`;
   ikon();
-  let tok = 0, data = [], ijinOk = true, bulan = "", urut = "nama", arah = 1, cari = "";
+  let tok = 0, data = [], ijinOk = true, bulan = "", urut = "nama", arah = 1, cari = cAwal || "", hanyaTL = false;
   const PRED = { "Sangat Baik": "ok", "Baik": "info", "Cukup": "warn", "Kurang": "bad" }, URUT_P = { "Sangat Baik": 0, "Baik": 1, "Cukup": 2, "Kurang": 3 };
-  const KOL = [["telat", "Jumlah Hari Telat"], ["menit_telat", "Waktu Telat (menit)"], ["pulang_awal", "Jumlah Pulang Lebih Awal"], ["menit_pulang_awal", "Waktu Pulang Lebih Awal (menit)"], ["ijin", "Ijin"], ["sakit", "Sakit"], ["tanpa_ket", "Tanpa Keterangan"]];
+  const KOL = [["telat", "Jumlah Hari Telat"], ["menit_telat", "Waktu Telat (menit)"], ["pulang_awal", "Jumlah Pulang Lebih Awal"], ["menit_pulang_awal", "Waktu Pulang Lebih Awal (menit)"], ["ijin", "Ijin"], ["sakit", "Sakit"], ["tl", "Tugas Luar (TL)"], ["tanpa_ket", "Tanpa Keterangan"]];
   const chipPred = p => p === "–" ? `<span class="ps-st ps-st--mut">Belum ada jadwal</span>` : `<span class="ps-kode ps-kode--${PRED[p] || "info"}">${esc(p)}</span>`;
   const sel = (v, bad) => v > 0 ? `<b${bad ? ' style="color:var(--danger)"' : ""}>${v}</b>` : `<span class="mut">0</span>`;
   const gambar = () => {
     const out = $("#hasilRb"); if (!out || tab !== "rekapbln") return;
     const q = cari.trim().toLowerCase();
-    const rows = data.filter(r => !q || r.nama.toLowerCase().includes(q)).sort((a, b) => {
+    const rows = data.filter(r => (!q || r.nama.toLowerCase().includes(q)) && (!hanyaTL || r.tl > 0)).sort((a, b) => {
       const x = urut === "nama" ? a.nama.toLowerCase() : urut === "predikat" ? (URUT_P[a.predikat] ?? 9) : a[urut];
       const y = urut === "nama" ? b.nama.toLowerCase() : urut === "predikat" ? (URUT_P[b.predikat] ?? 9) : b[urut];
       return (x < y ? -1 : x > y ? 1 : a.nama.localeCompare(b.nama, "id")) * arah;
@@ -740,8 +743,10 @@ async function rekapbln() {
     const jml = k => rows.reduce((n, r) => n + (r[k] || 0), 0);
     const th = (k, t, num) => `<th class="${num ? "ps-rb-num " : ""}ps-rb-urut" data-u="${k}" title="Urutkan">${t}${urut === k ? (arah === 1 ? " ▲" : " ▼") : ""}</th>`;
     out.innerHTML = (ijinOk ? "" : notice("warn", "triangle-alert", "Data ijin belum terbaca", "Ijin dan sakit belum ikut terhitung, sehingga bisa tampil sebagai Tanpa Keterangan. Periksa secret REKAP_URL / REKAP_ANON_KEY di presensi-api."))
-      + `<div class="table-wrap"><table class="data-table ps-tbl ps-tbl--bln"><thead><tr><th>No</th>${th("nama", "Nama")}${KOL.map(([k, t]) => th(k, t, true)).join("")}${th("predikat", "Predikat")}</tr></thead><tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b></td>${KOL.map(([k]) => `<td class="ps-rb-num">${sel(r[k], k === "tanpa_ket")}</td>`).join("")}<td>${chipPred(r.predikat)}</td></tr>`).join("") || `<tr><td colspan="${KOL.length + 3}" class="ps-empty">Tidak ada data.</td></tr>`}</tbody>${rows.length ? `<tfoot><tr><td></td><td>Jumlah</td>${KOL.map(([k]) => `<td class="ps-rb-num"><b>${jml(k)}</b></td>`).join("")}<td></td></tr></tfoot>` : ""}</table></div>`
-      + `<p class="ps-legend">${esc(BULAN[+bulan.slice(5)])} ${bulan.slice(0, 4)} · ${rows.length} dari ${data.length} guru &amp; staf. Dihitung dari presensi online (selfie + lokasi) pada hari kerja menurut jadwal, sampai hari ini. Waktu telat dihitung dari jam masuk jadwal; waktu pulang lebih awal dari jam pulang jadwal. <b>Tanpa Keterangan</b> = hari kerja tanpa presensi, tanpa ijin/sakit/dinas luar yang disetujui, dan tanpa Tugas Luar. Ijin, sakit, dan dinas luar hanya yang sudah disetujui admin. Predikat: <b>Sangat Baik</b> = tanpa keterangan, telat, pulang lebih awal, dan kurang absen pulang semuanya nol; <b>Baik</b> = tanpa keterangan nol dan telat paling banyak 25% hari kerja; <b>Cukup</b> = tanpa keterangan paling banyak 25% hari kerja; <b>Kurang</b> = di atas itu. Klik judul kolom untuk mengurutkan.</p>`;
+      + `<div class="table-wrap"><table class="data-table ps-tbl ps-tbl--bln"><thead><tr><th>No</th>${th("nama", "Nama")}${KOL.map(([k, t]) => th(k, t, true)).join("")}${th("predikat", "Predikat")}</tr></thead><tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td><a href="#" class="ps-det" data-det="${esc(r.id)}" title="Lihat detail bulanan"><b>${esc(r.nama)}</b></a></td>${KOL.map(([k]) => `<td class="ps-rb-num">${k === "tl" && r.tl > 0 ? `<button type="button" class="btn-small ps-det" data-det="${esc(r.id)}" title="Buka detail Tugas Luar ${esc(r.nama)}"><b>${r.tl}</b> <i data-lucide="chevron-right"></i></button>` : sel(r[k], k === "tanpa_ket")}</td>`).join("")}<td>${chipPred(r.predikat)}</td></tr>`).join("") || `<tr><td colspan="${KOL.length + 3}" class="ps-empty">Tidak ada data.</td></tr>`}</tbody>${rows.length ? `<tfoot><tr><td></td><td>Jumlah</td>${KOL.map(([k]) => `<td class="ps-rb-num"><b>${jml(k)}</b></td>`).join("")}<td></td></tr></tfoot>` : ""}</table></div>`
+      + `<p class="ps-legend">${esc(BULAN[+bulan.slice(5)])} ${bulan.slice(0, 4)} · ${rows.length} dari ${data.length} guru &amp; staf. Dihitung dari presensi online (selfie + lokasi) pada hari kerja menurut jadwal, sampai hari ini. Waktu telat dihitung dari jam masuk jadwal; waktu pulang lebih awal dari jam pulang jadwal. <b>Tugas Luar (TL)</b> = jumlah hari bertugas luar (klik angkanya atau nama guru untuk membuka detail: tanggal, keperluan, jam, foto, dan lokasi). <b>Tanpa Keterangan</b> = hari kerja tanpa presensi, tanpa ijin/sakit/dinas luar yang disetujui, dan tanpa Tugas Luar. Ijin, sakit, dan dinas luar hanya yang sudah disetujui admin. Predikat: <b>Sangat Baik</b> = tanpa keterangan, telat, pulang lebih awal, dan kurang absen pulang semuanya nol; <b>Baik</b> = tanpa keterangan nol dan telat paling banyak 25% hari kerja; <b>Cukup</b> = tanpa keterangan paling banyak 25% hari kerja; <b>Kurang</b> = di atas itu. Klik judul kolom untuk mengurutkan.</p>`;
+    ikon();
+    out.querySelectorAll("[data-det]").forEach(a => a.onclick = e => { e.preventDefault(); const r = data.find(x => x.id === a.dataset.det); if (r) bulanan(r, bulan, (b) => rekapbln(b, cari)); });
     out.querySelectorAll("[data-u]").forEach(h => h.onclick = () => { const k = h.dataset.u; if (urut === k) arah = -arah; else { urut = k; arah = k === "nama" || k === "predikat" ? 1 : -1; } gambar(); });
   };
   const load = async () => {
@@ -753,11 +758,11 @@ async function rekapbln() {
       const j = await api("rekap_bulanan", { bulan: b, pegawai: prof.data.map(p => ({ id: p.id, role: p.role, kode_mesin: p.kode_mesin })) });
       if (my !== tok || tab !== "rekapbln") return;
       bulan = b; ijinOk = j.ijin_ok;
-      data = prof.data.map(p => ({ nama: p.nama || "—", ...(j.hasil[p.id] || { telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, tanpa_ket: 0, predikat: "–" }) }));
+      data = prof.data.map(p => ({ id: p.id, role: p.role, kode_mesin: p.kode_mesin, nama: p.nama || "—", tl: 0, ...(j.hasil[p.id] || { telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, tanpa_ket: 0, predikat: "–" }) }));
     } catch (e) { if (my === tok && tab === "rekapbln") out.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(/action tidak dikenal/i.test(e.message) ? "Fungsi presensi-api di server belum diperbarui. Deploy ulang presensi-api.ts (folder presensi-backend)." : e.message)); return toast("Gagal memuat rekap bulanan: " + e.message, true); }
     gambar();
   };
-  $("#rbTampil").onclick = load; $("#rbBln").onchange = load;
+  $("#rbTampil").onclick = load; $("#rbBln").onchange = load; $("#rbTL").onchange = e => { hanyaTL = e.target.checked; gambar(); };
   $("#rbCari").oninput = e => { cari = e.target.value; gambar(); };
   load();
 }
