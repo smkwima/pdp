@@ -17,6 +17,7 @@
 //                     Tanpa dua secret ini presensi tetap jalan, hanya tidak membaca ijin.
 //
 // POST { action, ... }  ->  JSON. Daftar action ada di switch di bawah.
+// (rekap_bulanan: ringkasan presensi online satu bulan, admin & kepala sekolah baca-saja.)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const RAPOR_URL = (Deno.env.get("RAPOR_URL") ?? "").replace(/\/+$/, "");
@@ -106,6 +107,19 @@ async function ijinRentang(dari: string, sampai: string, kode: unknown): Promise
     if (!r.ok) return null;
     const rows = await r.json();
     return Array.isArray(rows) ? (rows as IjinR[]).filter((x) => kodeNorm(x.kode_mesin) === k) : null;
+  } catch { return null; }
+}
+
+// Ijin/sakit/dinas luar SEMUA pegawai pada rentang tanggal (untuk rekap bulanan admin/kepala sekolah).
+type IjinB = { kode_mesin: string; jenis: string; tanggal_mulai: string; tanggal_selesai: string };
+async function ijinBulan(dari: string, sampai: string): Promise<IjinB[] | null> {
+  if (!REKAP_URL || !REKAP_ANON) return null;
+  try {
+    const q = `select=kode_mesin,jenis,tanggal_mulai,tanggal_selesai&tanggal_mulai=lte.${sampai}&tanggal_selesai=gte.${dari}&limit=1000`;
+    const r = await fetch(`${REKAP_URL}/rest/v1/absen_ijin?${q}`, { headers: { apikey: REKAP_ANON, Authorization: `Bearer ${REKAP_ANON}` } });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows as IjinB[] : null;
   } catch { return null; }
 }
 
@@ -492,6 +506,76 @@ Deno.serve(async (req) => {
           tugas = tgs.map((t) => tgOut(t, efektif(ctx, t.pegawai_id, t.role ?? "guru", jd.filter((r) => r.pegawai_id === t.pegawai_id), body.tanggal, hari)));
         }
         return json({ log, hari: hariInfo, urls: await signedUrls(paths), ijin: ij ?? [], ijin_ok: ij !== null, tugas });
+      }
+
+      case "rekap_bulanan": { // admin & kepala sekolah (baca-saja): ringkasan presensi online satu bulan untuk banyak pegawai
+        butuhAdminAtauKepsek(me);
+        const bln = String(body.bulan ?? "");
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(bln) || bln < "2000-01") throw new Tolak("Bulan tidak valid");
+        const jml = new Date(Date.UTC(+bln.slice(0, 4), +bln.slice(5, 7), 0)).getUTCDate();
+        const dari = `${bln}-01`, sampai = `${bln}-${String(jml).padStart(2, "0")}`, w = wib();
+        // deno-lint-ignore no-explicit-any
+        const peg = (Array.isArray(body.pegawai) ? body.pegawai : []).slice(0, 800).filter((x: any) => UUID.test(String(x?.id)) && PEGAWAI.includes(x?.role));
+        const [ctx, jd, ij] = await Promise.all([muatCtx(), semuaJadwal(), ijinBulan(dari, sampai)]);
+        const per = new Map<string, Jd[]>();
+        for (const r of jd) (per.get(r.pegawai_id) ?? per.set(r.pegawai_id, []).get(r.pegawai_id)!).push(r);
+        type Lg = { pegawai_id: string; tanggal: string; jenis: string; status: string; waktu: string; diambil_at: string | null };
+        const logs: Lg[] = [], tugasRows: { pegawai_id: string; tanggal: string }[] = [];
+        for (let off = 0; off < 60000; off += 1000) {
+          const r = ok(await db.from("presensi_log").select("pegawai_id,tanggal,jenis,status,waktu,diambil_at").gte("tanggal", dari).lte("tanggal", sampai)
+            .order("pegawai_id").order("tanggal").order("jenis").range(off, off + 999)) as Lg[];
+          logs.push(...r);
+          if (r.length < 1000) break;
+        }
+        for (let off = 0; off < 20000; off += 1000) {
+          const r = ok(await db.from("presensi_tugas").select("pegawai_id,tanggal").gte("tanggal", dari).lte("tanggal", sampai)
+            .order("pegawai_id").order("tanggal").range(off, off + 999)) as { pegawai_id: string; tanggal: string }[];
+          tugasRows.push(...r);
+          if (r.length < 1000) break;
+        }
+        const logPer = new Map<string, Lg[]>(), tugasPer = new Map<string, Set<string>>();
+        for (const l of logs) (logPer.get(l.pegawai_id) ?? logPer.set(l.pegawai_id, []).get(l.pegawai_id)!).push(l);
+        for (const t of tugasRows) (tugasPer.get(t.pegawai_id) ?? tugasPer.set(t.pegawai_id, new Set()).get(t.pegawai_id)!).add(t.tanggal);
+        const jamLog = (x: Lg) => wib(new Date(x.diambil_at ?? x.waktu)).jam; // HH:MM:SS WIB
+        const hasil: Record<string, Record<string, number | string>> = {};
+        for (const p of peg) {
+          const id = String(p.id).toLowerCase(), rows = per.get(id) ?? [], L = logPer.get(id) ?? [], T = tugasPer.get(id) ?? new Set<string>();
+          const kode = kodeNorm(p.kode_mesin), iP = kode && ij ? ij.filter((x) => kodeNorm(x.kode_mesin) === kode) : [];
+          const o = { kerja: 0, telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, dinas_luar: 0, tugas_luar: 0, tanpa_ket: 0, tap: 0 };
+          for (let i = 1; i <= jml; i++) {
+            const t = `${bln}-${String(i).padStart(2, "0")}`;
+            if (t > w.tanggal) break;
+            const ef = efektif(ctx, id, p.role, rows, t, hariDari(t));
+            const d = L.find((x) => x.tanggal === t && x.jenis === "datang"), pl = L.find((x) => x.tanggal === t && x.jenis === "pulang"), tl = L.find((x) => x.tanggal === t && x.jenis === "tugas_luar");
+            // belum waktunya pulang (hari ini) tidak dihitung kurang absen pulang / tanpa keterangan
+            const lewat = t < w.tanggal || (ef.tipe === "kerja" && w.jam.slice(0, 5) > ef.pulang!);
+            if (ef.tipe === "kerja") o.kerja++;
+            if (d?.status === "terlambat") { // menit dihitung dari jam masuk jadwal (bukan dari akhir toleransi)
+              o.telat++;
+              if (ef.tipe === "kerja") o.menit_telat += Math.max(0, Math.floor((detik(jamLog(d)) - detik(ef.masuk!)) / 60));
+            }
+            if (pl?.status === "pulang cepat") {
+              o.pulang_awal++;
+              if (ef.tipe === "kerja") o.menit_pulang_awal += Math.max(0, Math.floor((detik(ef.pulang!) - detik(jamLog(pl))) / 60));
+            }
+            if (d && !pl && lewat) o.tap++;
+            if (d || pl || tl) continue; // ada presensi / absen Tugas Luar
+            const e = iP.find((x) => x.tanggal_mulai <= t && x.tanggal_selesai >= t);
+            if (e) { if (e.jenis === "sakit") o.sakit++; else if (e.jenis === "dinas_luar") o.dinas_luar++; else o.ijin++; continue; }
+            if (T.has(t)) { o.tugas_luar++; continue; }
+            if (ef.tipe === "kerja" && lewat) o.tanpa_ket++;
+          }
+          // Predikat: aturan yang sama dengan predikat rekap fingerprint (hari terjadwal = hari kerja efektif s.d. hari ini).
+          let predikat = "–";
+          if (o.kerja > 0) {
+            if (o.tanpa_ket === 0 && o.telat === 0 && o.pulang_awal === 0 && o.tap === 0) predikat = "Sangat Baik";
+            else if (o.tanpa_ket === 0 && o.telat <= o.kerja * 0.25) predikat = "Baik";
+            else if (o.tanpa_ket <= o.kerja * 0.25) predikat = "Cukup";
+            else predikat = "Kurang";
+          }
+          hasil[p.id] = { ...o, predikat };
+        }
+        return json({ bulan: bln, hari_ini: w.tanggal, ijin_ok: ij !== null, hasil });
       }
 
       case "reset_data": { // admin: hapus SEMUA data presensi (log + Tugas Luar) dan/atau SEMUA foto di storage

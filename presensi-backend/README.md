@@ -18,3 +18,8 @@ dengan service role. Browser tidak memegang kunci project presensi.
 - Menu admin: **Input jadwal** (xlsx reguler / tes / piket + template), **Cek jadwal**, **Pengaturan** (jam staf, libur, force majeure, guru tugas tambahan staf, tanggal acuan tes / pasca tes / piket).
 - Urutan jadwal yang berlaku per tanggal: libur / force majeure (tidak ada jadwal, presensi ditolak) → mode acuan (tes, pasca tes, piket, atau reguler) → jam staf bila berlaku. Jam staf berlaku Senin–Sabtu.
 - Unggah dan unduh template Excel paling nyaman dari browser komputer.
+
+## Rekap bulanan (admin & kepala sekolah)
+- Tab **Rekap Bulanan** di menu Pemantauan/Pengelolaan `presensi.html` memakai action baru `rekap_bulanan` di `presensi-api.ts`
+  (baca-saja). Setelah memperbarui berkas ini, **deploy ulang Edge Function `presensi-api`** (Verify JWT tetap OFF).
+- Isi: jumlah hari telat + total menit telat, jumlah pulang lebih awal + total menitnya, ijin, sakit, tanpa keterangan, predikat.

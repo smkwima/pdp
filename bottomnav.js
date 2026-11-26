@@ -94,7 +94,6 @@
       { k: 'presiswa', label: 'Pres. Siswa', judul: 'Presensi Siswa', href: 'presensi-siswa.html', warna: 'hijau' },
       { k: 'ijin',  label: 'Ijin',        judul: 'Ijin & Dinas Luar',   href: 'ijin.html', warna: 'biru' },
       { k: 'disiplin', label: 'Disiplin', judul: 'Rekap Kedisiplinan', href: 'disiplin.html', warna: 'hijau', sheetSaja: true, hanyaKepsek: true },
-      { k: 'rekapol', label: 'Rekap Online', judul: 'Rekap Presensi Online', href: 'presensi.html#rekap', warna: 'biru', sheetSaja: true, hanyaKepsek: true },
       { k: 'set',   label: 'Pengaturan',  judul: 'Pengaturan Sekolah',  href: 'pengaturan-admin.html', warna: 'abu', sheetSaja: true, hanyaAdmin: true },
       { k: 'rekap', label: 'Rekap Absen', judul: 'Rekap Absen Fingerprint', href: 'https://wima15.github.io/rekap-presensi/', luar: true, warna: 'hijau', sheetSaja: true, hanyaAdmin: true }
     ];

@@ -158,6 +158,10 @@
   .ps-tbl--bln td, .ps-tbl--bln th { padding: 9px 12px; }
   .ps-tbl--bln tr.ps-r-mut td { color: var(--ink-faint); background: var(--surface-2, transparent); }
   .ps-tbl--bln td.ps-ket { font-weight: 700; }
+  .ps-rb-num { text-align: center; white-space: nowrap; }
+  .ps-rb-urut { cursor: pointer; user-select: none; }
+  .ps-tbl--bln tfoot td { font-weight: 800; border-top: 2px solid var(--border); background: var(--surface-tint, transparent); }
+
   .ps-kode { display: inline-block; min-width: 34px; text-align: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
   .ps-kode--warn { background: #fffbeb; color: #b45309; }
   .ps-kode--bad { background: var(--danger-tint); color: var(--danger); }
@@ -386,7 +390,7 @@ async function masuk(user) {
   }
   const awal = (location.hash || "").replace("#", "");
   if (tanpaSinyal) { tab = "tugas"; history.replaceState({ d: 0, t: "tugas" }, ""); }
-  else if (awal === "rekap" && (me.role === "admin" || me.role === "kepsek")) { tab = "rekap"; history.replaceState({ d: 0, t: "rekap" }, ""); }
+  else if ((awal === "rekap" || awal === "rekapbln") && (me.role === "admin" || me.role === "kepsek")) { tab = awal; history.replaceState({ d: 0, t: awal }, ""); }
   shell();
   kirimAntrian().then(segarkanSetelahKirim);
 }
@@ -394,12 +398,12 @@ async function masuk(user) {
 /* ---------- Kerangka: menu samping (desktop) / laci + tab geser (HP) ---------- */
 const TAB_INFO = {
   presensi: ["Presensi", "Presensi", "map-pin"], tugas: ["Tugas Luar", "Tugas Luar", "briefcase"], riwayat: ["Riwayat Presensi", "Riwayat", "history"], bulanan: ["Data Presensi Bulanan", "Data Bulanan", "calendar-days"],
-  rekap: ["Rekap Presensi Online", "Rekap Online", "clipboard-list"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
+  rekap: ["Rekap Presensi Online", "Rekap Online", "clipboard-list"], rekapbln: ["Rekap Bulanan Presensi Online", "Rekap Bulanan", "calendar-range"], lokasi: ["Lokasi & Radius", "Lokasi", "map"],
   jadwal: ["Input Jadwal", "Input jadwal", "calendar-plus"], cek: ["Cek Jadwal", "Cek jadwal", "calendar-check"],
   atur: ["Pengaturan", "Pengaturan", "settings"], daftar: ["Pegawai", "Pegawai", "users"]
 };
 function shell() {
-  const saya = ["presensi", "tugas", "riwayat", "bulanan"], kelola = me.role === "admin" ? ["rekap", "lokasi", "jadwal", "cek", "atur", "daftar"] : me.role === "kepsek" ? ["rekap"] : [], semua = [...saya, ...kelola];
+  const saya = ["presensi", "tugas", "riwayat", "bulanan"], kelola = me.role === "admin" ? ["rekap", "rekapbln", "lokasi", "jadwal", "cek", "atur", "daftar"] : me.role === "kepsek" ? ["rekap", "rekapbln"] : [], semua = [...saya, ...kelola];
   const item = t => `<a href="#" class="menu-item${t === tab ? " menu-item--active" : ""}" data-t="${t}"${t === tab ? ' aria-current="page"' : ""}><i data-lucide="${TAB_INFO[t][2]}" class="menu-icon"></i><span class="menu-item__title">${TAB_INFO[t][1]}</span></a>`;
   $("#menu").innerHTML = `<div class="sidebar__section-label">Presensi saya</div>${saya.map(item).join("")}`
     + (kelola.length ? `<div class="sidebar__section-label">${me.role === "admin" ? "Pengelolaan" : "Pemantauan"}</div>${kelola.map(item).join("")}` : "")
@@ -414,7 +418,7 @@ function shell() {
   ikon(); window.scrollTo(0, 0);
   const nav = $(".ps-subtabs"), aktif = nav && nav.querySelector(".active");
   if (aktif) nav.scrollLeft = aktif.offsetLeft - (nav.clientWidth - aktif.offsetWidth) / 2;
-  ({ presensi, tugas, riwayat, bulanan, rekap, lokasi, jadwal, cek, atur, daftar })[tab]();
+  ({ presensi, tugas, riwayat, bulanan, rekap, rekapbln, lokasi, jadwal, cek, atur, daftar })[tab]();
 }
 function stop() { clearInterval(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
 
@@ -710,6 +714,48 @@ async function bulanan() {
     ikon();
   };
   $("#cariBln").onclick = load; $("#bln").onchange = load; load();
+}
+/* ---------- Rekap bulanan semua pegawai (admin & kepala sekolah, baca-saja) ---------- */
+async function rekapbln() {
+  const skr = ymd(new Date()).slice(0, 7);
+  $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="rbBln">Bulan</label><input type="month" id="rbBln" value="${skr}" max="${skr}"></div><div class="field"><label for="rbCari">Cari nama</label><input type="search" id="rbCari" placeholder="Nama guru / staf…"></div><button class="btn-small btn-small--primary" id="rbTampil"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasilRb"><div class="panel-note">Memuat…</div></div>`;
+  ikon();
+  let tok = 0, data = [], ijinOk = true, bulan = "", urut = "nama", arah = 1, cari = "";
+  const PRED = { "Sangat Baik": "ok", "Baik": "info", "Cukup": "warn", "Kurang": "bad" }, URUT_P = { "Sangat Baik": 0, "Baik": 1, "Cukup": 2, "Kurang": 3 };
+  const KOL = [["telat", "Jumlah Hari Telat"], ["menit_telat", "Waktu Telat (menit)"], ["pulang_awal", "Jumlah Pulang Lebih Awal"], ["menit_pulang_awal", "Waktu Pulang Lebih Awal (menit)"], ["ijin", "Ijin"], ["sakit", "Sakit"], ["tanpa_ket", "Tanpa Keterangan"]];
+  const chipPred = p => p === "–" ? `<span class="ps-st ps-st--mut">Belum ada jadwal</span>` : `<span class="ps-kode ps-kode--${PRED[p] || "info"}">${esc(p)}</span>`;
+  const sel = (v, bad) => v > 0 ? `<b${bad ? ' style="color:var(--danger)"' : ""}>${v}</b>` : `<span class="mut">0</span>`;
+  const gambar = () => {
+    const out = $("#hasilRb"); if (!out || tab !== "rekapbln") return;
+    const q = cari.trim().toLowerCase();
+    const rows = data.filter(r => !q || r.nama.toLowerCase().includes(q)).sort((a, b) => {
+      const x = urut === "nama" ? a.nama.toLowerCase() : urut === "predikat" ? (URUT_P[a.predikat] ?? 9) : a[urut];
+      const y = urut === "nama" ? b.nama.toLowerCase() : urut === "predikat" ? (URUT_P[b.predikat] ?? 9) : b[urut];
+      return (x < y ? -1 : x > y ? 1 : a.nama.localeCompare(b.nama, "id")) * arah;
+    });
+    const jml = k => rows.reduce((n, r) => n + (r[k] || 0), 0);
+    const th = (k, t, num) => `<th class="${num ? "ps-rb-num " : ""}ps-rb-urut" data-u="${k}" title="Urutkan">${t}${urut === k ? (arah === 1 ? " ▲" : " ▼") : ""}</th>`;
+    out.innerHTML = (ijinOk ? "" : notice("warn", "triangle-alert", "Data ijin belum terbaca", "Ijin dan sakit belum ikut terhitung, sehingga bisa tampil sebagai Tanpa Keterangan. Periksa secret REKAP_URL / REKAP_ANON_KEY di presensi-api."))
+      + `<div class="table-wrap"><table class="data-table ps-tbl ps-tbl--bln"><thead><tr><th>No</th>${th("nama", "Nama")}${KOL.map(([k, t]) => th(k, t, true)).join("")}${th("predikat", "Predikat")}</tr></thead><tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b></td>${KOL.map(([k]) => `<td class="ps-rb-num">${sel(r[k], k === "tanpa_ket")}</td>`).join("")}<td>${chipPred(r.predikat)}</td></tr>`).join("") || `<tr><td colspan="${KOL.length + 3}" class="ps-empty">Tidak ada data.</td></tr>`}</tbody>${rows.length ? `<tfoot><tr><td></td><td>Jumlah</td>${KOL.map(([k]) => `<td class="ps-rb-num"><b>${jml(k)}</b></td>`).join("")}<td></td></tr></tfoot>` : ""}</table></div>`
+      + `<p class="ps-legend">${esc(BULAN[+bulan.slice(5)])} ${bulan.slice(0, 4)} · ${rows.length} dari ${data.length} guru &amp; staf. Dihitung dari presensi online (selfie + lokasi) pada hari kerja menurut jadwal, sampai hari ini. Waktu telat dihitung dari jam masuk jadwal; waktu pulang lebih awal dari jam pulang jadwal. <b>Tanpa Keterangan</b> = hari kerja tanpa presensi, tanpa ijin/sakit/dinas luar yang disetujui, dan tanpa Tugas Luar. Ijin, sakit, dan dinas luar hanya yang sudah disetujui admin. Predikat: <b>Sangat Baik</b> = tanpa keterangan, telat, pulang lebih awal, dan kurang absen pulang semuanya nol; <b>Baik</b> = tanpa keterangan nol dan telat paling banyak 25% hari kerja; <b>Cukup</b> = tanpa keterangan paling banyak 25% hari kerja; <b>Kurang</b> = di atas itu. Klik judul kolom untuk mengurutkan.</p>`;
+    out.querySelectorAll("[data-u]").forEach(h => h.onclick = () => { const k = h.dataset.u; if (urut === k) arah = -arah; else { urut = k; arah = k === "nama" || k === "predikat" ? 1 : -1; } gambar(); });
+  };
+  const load = async () => {
+    const b = $("#rbBln").value; if (!b) return toast("Pilih bulan dulu.", true);
+    const my = ++tok, out = $("#hasilRb"); out.innerHTML = `<div class="panel-note">Memuat…</div>`;
+    try {
+      const prof = await sb.from("profiles").select("id,kode_mesin,nama,role").in("role", ["guru", "staf", "kepsek"]).order("nama");
+      if (prof.error) throw new Error("Gagal membaca data pegawai e-Rapor: " + prof.error.message);
+      const j = await api("rekap_bulanan", { bulan: b, pegawai: prof.data.map(p => ({ id: p.id, role: p.role, kode_mesin: p.kode_mesin })) });
+      if (my !== tok || tab !== "rekapbln") return;
+      bulan = b; ijinOk = j.ijin_ok;
+      data = prof.data.map(p => ({ nama: p.nama || "—", ...(j.hasil[p.id] || { telat: 0, menit_telat: 0, pulang_awal: 0, menit_pulang_awal: 0, ijin: 0, sakit: 0, tanpa_ket: 0, predikat: "–" }) }));
+    } catch (e) { if (my === tok && tab === "rekapbln") out.innerHTML = notice("bad", "triangle-alert", "Terjadi kendala", esc(/action tidak dikenal/i.test(e.message) ? "Fungsi presensi-api di server belum diperbarui. Deploy ulang presensi-api.ts (folder presensi-backend)." : e.message)); return toast("Gagal memuat rekap bulanan: " + e.message, true); }
+    gambar();
+  };
+  $("#rbTampil").onclick = load; $("#rbBln").onchange = load;
+  $("#rbCari").oninput = e => { cari = e.target.value; gambar(); };
+  load();
 }
 async function rekap() {
   $("#view").innerHTML = `<div class="ps-filter"><div class="field"><label for="d">Tanggal</label><input type="date" id="d" value="${ymd(new Date())}"></div><button class="btn-small btn-small--primary" id="cari"><i data-lucide="search"></i> Tampilkan</button></div><div id="hasil"><div class="panel-note">Memuat…</div></div>`;
