@@ -5,7 +5,8 @@
 // tabel absen_ijin (lihat rekap_ijin.sql).
 //
 // Aksi (body JSON, field "aksi"):
-//   simpan       : { jenis, tanggal_mulai, tanggal_selesai, deskripsi }  -> semua guru/staf/admin
+//   simpan       : { jenis, tanggal_mulai, tanggal_selesai, deskripsi, untuk_user_id? }  -> semua guru/staf/admin
+//                  (untuk_user_id: ADMIN saja, membuatkan sakit/ijin/dinas luar untuk guru/staf lain; langsung disetujui)
 //                  (status awal 'menunggu'; pengajuan admin sendiri langsung 'disetujui')
 //   daftar       : { }  -> milik sendiri; admin & kepsek melihat semua
 //   hari_ini     : { }  -> semua peran; daftar guru yang TIDAK HADIR HARI INI (WIB):
@@ -51,8 +52,8 @@ const MAKS_MUNDUR_HARI = 120;  // boleh mengisi ijin yang sudah lewat sampai 120
 const MAKS_MAJU_HARI = 365;
 const MAKS_DESKRIPSI = 500;
 // Peran yang ditampilkan di daftar "Tidak hadir hari ini" (Menu Utama).
-// Tambahkan "staf" bila staf juga ingin ditampilkan: ["guru", "staf"]
-const ROLE_TAMPIL_HARI_INI = ["guru"];
+// Guru dan staf sama-sama ditampilkan (staf yang sakit/ijin juga harus muncul di dashboard).
+const ROLE_TAMPIL_HARI_INI = ["guru", "staf"];
 const MAKS_CATATAN = 200;
 const MAKS_MASSAL = 500;
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -160,10 +161,29 @@ Deno.serve(async (req: Request) => {
 
     // ================= SIMPAN =================
     if (aksi === "simpan") {
-      const kodeMentah = String(prof.kode_mesin ?? "").trim();
+      // Admin boleh membuatkan ijin / sakit / dinas luar untuk guru atau staf lain (untuk_user_id).
+      // Identitas target (nama, kode mesin) diambil dari tabel profiles, bukan dari kiriman browser.
+      let targetUid = uid;
+      let targetNama = prof.nama || callerData.user.email || "—";
+      let targetKode = prof.kode_mesin;
+      const untukLain = body.untuk_user_id !== undefined && body.untuk_user_id !== null && body.untuk_user_id !== "";
+      if (untukLain && String(body.untuk_user_id).toLowerCase() !== String(uid).toLowerCase()) {
+        if (prof.role !== "admin") return json({ error: "Hanya admin yang bisa membuatkan ijin untuk orang lain." }, 403);
+        const tid = String(body.untuk_user_id);
+        if (!UUID_RE.test(tid)) return json({ error: "ID guru / staf tidak valid." }, 400);
+        const { data: tp } = await adminClient.from("profiles").select("nama, role, kode_mesin").eq("id", tid).maybeSingle();
+        if (!tp || !["guru", "staf"].includes(tp.role)) return json({ error: "Guru / staf tidak ditemukan." }, 404);
+        targetUid = tid;
+        targetNama = tp.nama || "—";
+        targetKode = tp.kode_mesin;
+      }
+      const sendiri = targetUid === uid;
+      const kodeMentah = String(targetKode ?? "").trim();
       const kodeAngka = parseInt(kodeMentah, 10);
       if (!kodeMentah || isNaN(kodeAngka)) {
-        return json({ error: "Kode mesin (No.ID fingerprint) akunmu belum diisi. Minta admin mengisinya di menu Guru & Penugasan, lalu sinkron ke Rekap Absen." }, 400);
+        return json({ error: sendiri
+          ? "Kode mesin (No.ID fingerprint) akunmu belum diisi. Minta admin mengisinya di menu Guru & Penugasan, lalu sinkron ke Rekap Absen."
+          : `Kode mesin (No.ID fingerprint) ${targetNama} belum diisi. Isi dulu di menu Guru & Penugasan, lalu sinkron ke Rekap Absen.` }, 400);
       }
       const kode = String(kodeAngka); // sama dengan normalisasi di Rekap Absen (tanpa nol di depan)
 
@@ -184,7 +204,7 @@ Deno.serve(async (req: Request) => {
 
       // Tolak kalau bertabrakan dengan pengajuan lain milik orang yang sama
       const tabrak = await rekap(
-        `/absen_ijin?select=id,jenis,tanggal_mulai,tanggal_selesai&pdp_user_id=eq.${uid}` +
+        `/absen_ijin?select=id,jenis,tanggal_mulai,tanggal_selesai&pdp_user_id=eq.${targetUid}` +
         `&tanggal_mulai=lte.${selesai}&tanggal_selesai=gte.${mulai}&status=neq.ditolak&limit=1`);
       if (!tabrak.ok) return galatRekap(tabrak);
       if (Array.isArray(tabrak.data) && tabrak.data.length) {
@@ -198,7 +218,7 @@ Deno.serve(async (req: Request) => {
         method: "POST",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({
-          pdp_user_id: uid, kode_mesin: kode, nama: prof.nama || callerData.user.email || "—",
+          pdp_user_id: targetUid, kode_mesin: kode, nama: targetNama,
           jenis, tanggal_mulai: mulai, tanggal_selesai: selesai, deskripsi,
           status: langsung ? "disetujui" : "menunggu",
           ...(langsung ? { diproses_oleh: uid, diproses_nama: prof.nama || "Admin", diproses_at: new Date().toISOString() } : {}),
