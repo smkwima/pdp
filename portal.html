@@ -277,7 +277,7 @@
       <div class="pt-sec rp-sec" id="secRp" style="display:none;"><span>Rekap Presensi Hari Ini</span><span class="gth-sub"><span class="gth-tgl" id="rpTgl"></span></span><a href="presensi.html#rekap" class="btn-small rp-lihat">Lihat detail <i data-lucide="arrow-right"></i></a></div>
       <div id="rpWadah"></div>
 
-      <div class="pt-sec gth-sec" id="secGth" style="display:none;"><span class="gth-jd">Guru Tidak Hadir Hari Ini</span><span class="gth-sub"><span class="gth-n" id="gthN"></span><span class="gth-sep" aria-hidden="true">·</span><span class="gth-tgl" id="gthTgl"></span></span></div>
+      <div class="pt-sec gth-sec" id="secGth" style="display:none;"><span class="gth-jd">Guru &amp; Staf Tidak Hadir Hari Ini</span><span class="gth-sub"><span class="gth-n" id="gthN"></span><span class="gth-sep" aria-hidden="true">·</span><span class="gth-tgl" id="gthTgl"></span></span></div>
       <div id="gthWadah"></div>
 
       <div class="pt-sec" id="secPeng" style="display:none;">Pengumuman Sekolah</div>
@@ -727,7 +727,7 @@
       n.textContent = daftar.length ? (daftar.length + ' orang') : 'Nihil';
       n.className = 'gth-n' + (daftar.length ? '' : ' gth-n--nol');
       if (!daftar.length) {
-        wadah.innerHTML = '<div class="gth-kosong">Tidak ada guru yang tercatat ijin, sakit, dinas luar, atau tugas luar hari ini.</div>';
+        wadah.innerHTML = '<div class="gth-kosong">Tidak ada guru atau staf yang tercatat ijin, sakit, dinas luar, atau tugas luar hari ini.</div>';
       } else {
         wadah.innerHTML = '<div class="gth-grid">' + daftar.map(function (x) {
           var nm = x.nama, foto = x.foto;
