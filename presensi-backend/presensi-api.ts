@@ -437,8 +437,8 @@ Deno.serve(async (req) => {
       case "tugas_hari_ini": { // semua peran: guru yang bertugas luar HARI INI (WIB), untuk dashboard "Guru Tidak Hadir Hari Ini"
         const w = wib();
         const tgs = ok(await db.from("presensi_tugas").select("nama,role,jam_mulai,jam_selesai").eq("tanggal", w.tanggal).order("jam_mulai").limit(300)) as { nama: string | null; role: string | null; jam_mulai: string; jam_selesai: string }[];
-        // Hanya nama & rentang jam; keperluan tidak ikut dikirim. Hanya peran guru (sama seperti daftar ijin/sakit/dinas luar).
-        const data = tgs.filter((t) => t.role === "guru" && t.nama).map((t) => ({ nama: t.nama, jam_mulai: jamHM(t.jam_mulai), jam_selesai: jamHM(t.jam_selesai) }));
+        // Hanya nama & rentang jam; keperluan tidak ikut dikirim. Peran guru dan staf (sama seperti daftar ijin/sakit/dinas luar).
+        const data = tgs.filter((t) => (t.role === "guru" || t.role === "staf") && t.nama).map((t) => ({ nama: t.nama, jam_mulai: jamHM(t.jam_mulai), jam_selesai: jamHM(t.jam_selesai) }));
         return json({ tanggal: w.tanggal, data });
       }
 
